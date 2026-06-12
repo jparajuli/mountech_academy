@@ -1,0 +1,6 @@
+{
+  "name": "Mountech Academy Workspace",
+  "description": "An interactive IT and AI training platform with real JWT full-stack authentication, dynamic course listings, and course enrollment synced to a Google Sheets database.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
