@@ -47,5 +47,33 @@
     "name": "Mountech Scholar",
     "status": "SUCCESS",
     "details": "Authorized Web Session"
+  },
+  {
+    "timestamp": "2026-06-13T18:52:27.810Z",
+    "email": "oauth-student-google@mountech.academy",
+    "name": "Google Student",
+    "status": "BLOCKED_UNVERIFIED",
+    "details": "Authentication Safeguard Block"
+  },
+  {
+    "timestamp": "2026-06-13T18:53:05.338Z",
+    "email": "oauth-student-google@mountech.academy",
+    "name": "Google Student",
+    "status": "SUCCESS",
+    "details": "Authorized Google Session"
+  },
+  {
+    "timestamp": "2026-06-13T21:50:18.862Z",
+    "email": "oauth-student-google@mountech.academy",
+    "name": "Google Student",
+    "status": "SUCCESS",
+    "details": "Authorized Google Session"
+  },
+  {
+    "timestamp": "2026-06-13T21:50:37.635Z",
+    "email": "oauth-student-github@mountech.academy",
+    "name": "GitHub Student",
+    "status": "SUCCESS",
+    "details": "Authorized GitHub Session"
   }
 ]

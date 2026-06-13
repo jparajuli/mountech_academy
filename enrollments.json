@@ -5,5 +5,13 @@
     "name": "Mountech Scholar",
     "courseId": "chatgpt-prompt-engineering",
     "courseTitle": "ChatGPT Prompt Engineering for Developers"
+  },
+  {
+    "timestamp": "2026-06-13T21:51:35.468Z",
+    "email": "oauth-student-github@mountech.academy",
+    "name": "GitHub Student",
+    "courseId": "chatgpt-prompt-engineering",
+    "courseTitle": "ChatGPT Prompt Engineering for Developers",
+    "status": "Enrolled"
   }
 ]

@@ -13,15 +13,13 @@
     "email": "oauth-student-google@mountech.academy",
     "name": "Google Student",
     "passwordHash": "9426fd01334767e2dc929bb6b5acd76f4caf9e192f2892dd81773bbe775d4d9e",
-    "isVerified": false,
-    "verificationToken": "22c6d96fec223a88a2e36bb2ec5f9b61c61ce001e297089302ed276ee50b2bfa"
+    "isVerified": true
   },
   {
     "email": "oauth-student-github@mountech.academy",
     "name": "GitHub Student",
     "passwordHash": "9426fd01334767e2dc929bb6b5acd76f4caf9e192f2892dd81773bbe775d4d9e",
-    "isVerified": false,
-    "verificationToken": "8b2bb50f89815a3c982bc0dacb99f76334530f6b92d2aa6cf0d5150886cd9525"
+    "isVerified": true
   },
   {
     "email": "jhanak.parajuli@gmail.com",
