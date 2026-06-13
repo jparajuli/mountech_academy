@@ -52,6 +52,13 @@ export async function loginUser(email: string, password: string) {
   });
 }
 
+export async function oauthLogin(email: string, name: string, provider: 'Google' | 'GitHub') {
+  return apiFetch('/api/auth/oauth', {
+    method: 'POST',
+    body: JSON.stringify({ email, name, provider }),
+  });
+}
+
 export async function resendVerification(email: string): Promise<{ message: string; verificationLink?: string }> {
   return apiFetch('/api/auth/resend', {
     method: 'POST',

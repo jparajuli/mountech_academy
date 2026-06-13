@@ -5,7 +5,7 @@ import {
   GraduationCap, CheckCircle, RefreshCw, Smartphone, ChevronRight, Inbox
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { registerUser, loginUser, setToken, resendVerification } from '../api';
+import { registerUser, loginUser, oauthLogin, setToken, resendVerification } from '../api';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
 
@@ -147,26 +147,18 @@ export default function SignIn({ onSignInSuccess }: SignInProps) {
     
     // Simulate real social oauth session
     setTimeout(() => {
-      setLoading(false);
       const emailVal = `oauth-student-${provider.toLowerCase()}@mountech.academy`;
       const nameVal = `${provider} Student`;
       
-      // Seed dynamically via register
-      registerUser(emailVal, nameVal, "oauth_secure_pwd_123$")
+      oauthLogin(emailVal, nameVal, provider)
         .then((res) => {
+          setLoading(false);
           setToken(res.token);
           onSignInSuccess(res.user);
         })
-        .catch(() => {
-          // If already registered, login
-          loginUser(emailVal, "oauth_secure_pwd_123$")
-            .then((res) => {
-              setToken(res.token);
-              onSignInSuccess(res.user);
-            })
-            .catch((err) => {
-              setError(err.message || 'Social authentication handshake failed.');
-            });
+        .catch((err) => {
+          setLoading(false);
+          setError(err.message || 'Social authentication handshake failed.');
         });
     }, 1000);
   };

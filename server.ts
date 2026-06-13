@@ -200,6 +200,24 @@ function getCleanPrivateKey(): string | undefined {
   if (!rawKey) return undefined;
 
   let cleanKey = rawKey.trim();
+
+  // If the user pasted the entire service account JSON
+  if (cleanKey.startsWith("{") && cleanKey.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(cleanKey);
+      if (parsed.private_key) {
+        cleanKey = parsed.private_key;
+        if (parsed.client_email && !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
+          process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = parsed.client_email;
+        }
+        if (parsed.spreadsheet_id && !process.env.GOOGLE_SHEET_ID) {
+          process.env.GOOGLE_SHEET_ID = parsed.spreadsheet_id;
+        }
+      }
+    } catch (e) {
+      // Ignored, proceed
+    }
+  }
   
   // Clean potential surrounding double/single quotes or backticks
   if ((cleanKey.startsWith('"') && cleanKey.endsWith('"')) ||
@@ -208,22 +226,67 @@ function getCleanPrivateKey(): string | undefined {
     cleanKey = cleanKey.slice(1, -1);
   }
 
-  // Replace literal backslash-n strings with actual linebreaks
+  // Handle double-escaped newlines (e.g. \\\\n)
+  cleanKey = cleanKey.replace(/\\\\n/g, "\n");
+  // Handle single-escaped newlines (e.g. \\n)
   cleanKey = cleanKey.replace(/\\n/g, "\n");
+
+  // Normalize all types of newlines
+  cleanKey = cleanKey.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // Reconstruct PEM if it was single-lined (e.g., spaces instead of newlines or missing appropriate splits)
+  if (cleanKey.includes("BEGIN PRIVATE KEY") && !cleanKey.includes("\n")) {
+    const match = cleanKey.match(/-----BEGIN PRIVATE KEY-----(.*)-----END PRIVATE KEY-----/);
+    if (match) {
+      const base64Content = match[1].replace(/\s+/g, ""); // remove all spacing/tabs
+      const chunks = [];
+      for (let i = 0; i < base64Content.length; i += 64) {
+        chunks.push(base64Content.substring(i, i + 64));
+      }
+      cleanKey = `-----BEGIN PRIVATE KEY-----\n${chunks.join("\n")}\n-----END PRIVATE KEY-----`;
+    }
+  }
+
   return cleanKey.trim();
 }
 
+function getCleanServiceAccountEmail(): string | undefined {
+  const rawEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  if (!rawEmail) return undefined;
+  
+  let cleanEmail = rawEmail.trim();
+  if ((cleanEmail.startsWith('"') && cleanEmail.endsWith('"')) ||
+      (cleanEmail.startsWith("'") && cleanEmail.endsWith("'")) ||
+      (cleanEmail.startsWith("`") && cleanEmail.endsWith("`"))) {
+    cleanEmail = cleanEmail.slice(1, -1);
+  }
+  return cleanEmail.trim();
+}
+
+function getCleanSpreadsheetId(): string | undefined {
+  const rawId = process.env.GOOGLE_SHEET_ID;
+  if (!rawId) return undefined;
+  
+  let cleanId = rawId.trim();
+  if ((cleanId.startsWith('"') && cleanId.endsWith('"')) ||
+      (cleanId.startsWith("'") && cleanId.endsWith("'")) ||
+      (cleanId.startsWith("`") && cleanId.endsWith("`"))) {
+    cleanId = cleanId.slice(1, -1);
+  }
+  return cleanId.trim();
+}
+
 function hasSheetsConfig() {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const email = getCleanServiceAccountEmail();
   const key = getCleanPrivateKey();
-  const id = process.env.GOOGLE_SHEET_ID;
+  const id = getCleanSpreadsheetId();
   return !!(email && key && id);
 }
 
 async function appendEnrollmentToSheet(email: string, name: string, courseId: string, courseTitle: string) {
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const clientEmail = getCleanServiceAccountEmail();
   const privateKey = getCleanPrivateKey();
-  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const spreadsheetId = getCleanSpreadsheetId();
 
   if (!clientEmail || !privateKey || !spreadsheetId) {
     throw new Error("Google Sheets credentials are not fully configured in your environment.");
@@ -249,9 +312,9 @@ async function appendEnrollmentToSheet(email: string, name: string, courseId: st
 }
 
 async function appendLoginToSheet(email: string, name: string, status: string, details: string) {
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const clientEmail = getCleanServiceAccountEmail();
   const privateKey = getCleanPrivateKey();
-  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const spreadsheetId = getCleanSpreadsheetId();
 
   if (!clientEmail || !privateKey || !spreadsheetId) {
     console.log("[GOOGLE SHEETS ENGINE] Skipping login logging to worksheet because credentials are not configured.");
@@ -322,9 +385,9 @@ async function appendLoginToSheet(email: string, name: string, status: string, d
 }
 
 async function fetchEnrollmentsAndCompletionsFromSheet(email: string): Promise<{ enrollments: string[]; completions: string[] }> {
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const clientEmail = getCleanServiceAccountEmail();
   const privateKey = getCleanPrivateKey();
-  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const spreadsheetId = getCleanSpreadsheetId();
 
   if (!clientEmail || !privateKey || !spreadsheetId) {
     throw new Error("Google Sheets credentials are not configured.");
@@ -373,9 +436,9 @@ async function fetchEnrollmentsAndCompletionsFromSheet(email: string): Promise<{
 }
 
 async function markCourseCompletedInSheet(email: string, courseId: string) {
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const clientEmail = getCleanServiceAccountEmail();
   const privateKey = getCleanPrivateKey();
-  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const spreadsheetId = getCleanSpreadsheetId();
 
   if (!clientEmail || !privateKey || !spreadsheetId) {
     throw new Error("Google Sheets credentials are not fully configured.");
@@ -453,6 +516,48 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
 // ----------------------------------------------------
 // API ROUTES
 // ----------------------------------------------------
+
+// User OAuth registration & login endpoint (instantly pre-verified)
+app.post("/api/auth/oauth", (req, res) => {
+  const { email, name, provider } = req.body;
+
+  if (!email || !name) {
+    return res.status(400).json({ error: "Email and name are required." });
+  }
+
+  const users = readUsers();
+  const normalizedEmail = email.trim().toLowerCase();
+  let user = users.find((u: any) => u.email === normalizedEmail);
+
+  if (!user) {
+    // Register custom pre-verified user
+    const randomPassword = crypto.randomBytes(16).toString("hex");
+    const passwordHash = crypto.createHash("sha256").update(randomPassword).digest("hex");
+    user = {
+      email: normalizedEmail,
+      name: name.trim(),
+      passwordHash,
+      isVerified: true
+    };
+    users.push(user);
+    writeUsers(users);
+  } else if (user.isVerified === false) {
+    // If user was previously registered but not verified, verify them since OAuth confirms email ownership
+    user.isVerified = true;
+    delete user.verificationToken;
+    writeUsers(users);
+  }
+
+  const token = createToken({ email: normalizedEmail, name: user.name });
+
+  logLoginEvent(normalizedEmail, user.name, "SUCCESS", `Authorized ${provider || 'OAuth'} Session`);
+
+  res.json({
+    message: "OAuth authorization successful.",
+    token,
+    user: { email: normalizedEmail, name: user.name }
+  });
+});
 
 // User Registration endpoint
 app.post("/api/auth/register", async (req, res) => {
