@@ -1,0 +1,51 @@
+[
+  {
+    "timestamp": "2026-06-13T13:02:10.195Z",
+    "email": "student@mountech.academy",
+    "name": "Mountech Scholar",
+    "status": "SUCCESS",
+    "details": "Authorized Web Session"
+  },
+  {
+    "timestamp": "2026-06-13T13:08:18.579Z",
+    "email": "student@mountech.academy",
+    "name": "Mountech Scholar",
+    "status": "SUCCESS",
+    "details": "Authorized Web Session"
+  },
+  {
+    "timestamp": "2026-06-13T13:09:15.682Z",
+    "email": "oauth-student-google@mountech.academy",
+    "name": "Google Student",
+    "status": "BLOCKED_UNVERIFIED",
+    "details": "Authentication Safeguard Block"
+  },
+  {
+    "timestamp": "2026-06-13T13:09:26.050Z",
+    "email": "oauth-student-google@mountech.academy",
+    "name": "Google Student",
+    "status": "BLOCKED_UNVERIFIED",
+    "details": "Authentication Safeguard Block"
+  },
+  {
+    "timestamp": "2026-06-13T18:21:50.900Z",
+    "email": "oauth-student-google@mountech.academy",
+    "name": "Google Student",
+    "status": "BLOCKED_UNVERIFIED",
+    "details": "Authentication Safeguard Block"
+  },
+  {
+    "timestamp": "2026-06-13T18:22:03.961Z",
+    "email": "oauth-student-github@mountech.academy",
+    "name": "GitHub Student",
+    "status": "BLOCKED_UNVERIFIED",
+    "details": "Authentication Safeguard Block"
+  },
+  {
+    "timestamp": "2026-06-13T18:22:17.747Z",
+    "email": "student@mountech.academy",
+    "name": "Mountech Scholar",
+    "status": "SUCCESS",
+    "details": "Authorized Web Session"
+  }
+]

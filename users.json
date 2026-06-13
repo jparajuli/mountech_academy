@@ -1,0 +1,33 @@
+[
+  {
+    "email": "student@mountech.academy",
+    "name": "Mountech Scholar",
+    "passwordHash": "ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f"
+  },
+  {
+    "email": "sdsdf@gmail.com",
+    "name": "dsdasd",
+    "passwordHash": "8f986d7eff8b3f85e5c40ade3ca3a0ab07544a1b8eaac5b32e0e7b21110360fa"
+  },
+  {
+    "email": "oauth-student-google@mountech.academy",
+    "name": "Google Student",
+    "passwordHash": "9426fd01334767e2dc929bb6b5acd76f4caf9e192f2892dd81773bbe775d4d9e",
+    "isVerified": false,
+    "verificationToken": "22c6d96fec223a88a2e36bb2ec5f9b61c61ce001e297089302ed276ee50b2bfa"
+  },
+  {
+    "email": "oauth-student-github@mountech.academy",
+    "name": "GitHub Student",
+    "passwordHash": "9426fd01334767e2dc929bb6b5acd76f4caf9e192f2892dd81773bbe775d4d9e",
+    "isVerified": false,
+    "verificationToken": "8b2bb50f89815a3c982bc0dacb99f76334530f6b92d2aa6cf0d5150886cd9525"
+  },
+  {
+    "email": "jhanak.parajuli@gmail.com",
+    "name": "dsdasd",
+    "passwordHash": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4",
+    "isVerified": false,
+    "verificationToken": "599be47f0dfa5a9daab65605050c7d1330b9d3f7c84228dc12268a5e6cc9ac68"
+  }
+]
