@@ -52,6 +52,13 @@ export async function loginUser(email: string, password: string) {
   });
 }
 
+export async function resendVerification(email: string): Promise<{ message: string; verificationLink?: string }> {
+  return apiFetch('/api/auth/resend', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
 export async function getProfile(): Promise<{ user: User }> {
   return apiFetch('/api/auth/me');
 }
@@ -59,6 +66,7 @@ export async function getProfile(): Promise<{ user: User }> {
 // Google Sheets enrollment requests
 export interface GetEnrollmentsResponse {
   enrollments: string[];
+  completions: string[];
   sheetsSynced: boolean;
   warning?: string;
 }
@@ -80,4 +88,31 @@ export async function enrollInCourse(courseId: string, courseTitle: string): Pro
     method: 'POST',
     body: JSON.stringify({ courseId, courseTitle }),
   });
+}
+
+export interface CompleteResponse {
+  success: boolean;
+  sheetsSynced: boolean;
+  message: string;
+  warning?: string;
+  errorDetails?: string;
+}
+
+export async function completeCourse(courseId: string): Promise<CompleteResponse> {
+  return apiFetch('/api/complete', {
+    method: 'POST',
+    body: JSON.stringify({ courseId }),
+  });
+}
+
+export interface LoginEvent {
+  timestamp: string;
+  email: string;
+  name: string;
+  status: string;
+  details: string;
+}
+
+export async function getLoginHistory(): Promise<{ logins: LoginEvent[] }> {
+  return apiFetch('/api/auth/logins');
 }

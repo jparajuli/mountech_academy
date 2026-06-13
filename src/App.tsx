@@ -3,13 +3,14 @@ import { Course, User } from './types';
 import SignIn from './pages/SignIn';
 import Courses from './pages/Courses';
 import CourseDetail from './pages/CourseDetail';
-import { getProfile, getEnrollments, enrollInCourse, clearToken, getToken } from './api';
+import { getProfile, getEnrollments, enrollInCourse, completeCourse, clearToken, getToken } from './api';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [view, setView] = useState<'catalog' | 'detail'>('catalog');
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
+  const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<{ sheetsSynced: boolean; message?: string } | null>(null);
 
@@ -28,6 +29,7 @@ export default function App() {
 
         const enrollmentsData = await getEnrollments();
         setEnrolledCourseIds(enrollmentsData.enrollments);
+        setCompletedCourseIds(enrollmentsData.completions || []);
         setSyncStatus({ 
           sheetsSynced: enrollmentsData.sheetsSynced,
           message: enrollmentsData.warning 
@@ -54,6 +56,7 @@ export default function App() {
     try {
       const enrollmentsData = await getEnrollments();
       setEnrolledCourseIds(enrollmentsData.enrollments);
+      setCompletedCourseIds(enrollmentsData.completions || []);
       setSyncStatus({ 
         sheetsSynced: enrollmentsData.sheetsSynced,
         message: enrollmentsData.warning 
@@ -72,6 +75,7 @@ export default function App() {
     setSelectedCourse(null);
     setView('catalog');
     setEnrolledCourseIds([]);
+    setCompletedCourseIds([]);
     setSyncStatus(null);
   };
 
@@ -92,6 +96,7 @@ export default function App() {
     try {
       const enrollmentsData = await getEnrollments();
       setEnrolledCourseIds(enrollmentsData.enrollments);
+      setCompletedCourseIds(enrollmentsData.completions || []);
     } catch (e) {
       // Ignored quiet logs
     }
@@ -107,6 +112,7 @@ export default function App() {
       // Fetch latest sheets synchronization to verify matching rows
       const enrollmentsData = await getEnrollments();
       setEnrolledCourseIds(enrollmentsData.enrollments);
+      setCompletedCourseIds(enrollmentsData.completions || []);
       
       setSyncStatus({
         sheetsSynced: enrollResponse.sheetsSynced,
@@ -129,6 +135,33 @@ export default function App() {
       sheetsSynced: false,
       message: "Synced to local container memory fallback. Verify service accounts."
     });
+  };
+
+  // Submit completion securely to backend (syncs with Google Sheet status)
+  const handleCompleteCourse = async (courseId: string) => {
+    if (!user) return;
+
+    try {
+      const response = await completeCourse(courseId);
+      const enrollmentsData = await getEnrollments();
+      setEnrolledCourseIds(enrollmentsData.enrollments);
+      setCompletedCourseIds(enrollmentsData.completions || []);
+
+      setSyncStatus({
+        sheetsSynced: response.sheetsSynced,
+        message: response.warning || response.message
+      });
+    } catch (error: any) {
+      console.error('Completion submission issue:', error);
+      // Local optimistic fallback
+      if (!completedCourseIds.includes(courseId)) {
+        setCompletedCourseIds([...completedCourseIds, courseId]);
+      }
+      setSyncStatus({
+        sheetsSynced: false,
+        message: "Marked completed in local container memory fallback."
+      });
+    }
   };
 
   if (loading) {
@@ -158,6 +191,8 @@ export default function App() {
           onBack={handleBackToCatalog}
           isEnrolled={enrolledCourseIds.includes(selectedCourse.id)}
           onEnroll={handleEnrollCourse}
+          isCompleted={completedCourseIds.includes(selectedCourse.id)}
+          onComplete={handleCompleteCourse}
           syncStatus={syncStatus}
         />
       ) : (
