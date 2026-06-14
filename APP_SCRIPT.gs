@@ -19,38 +19,117 @@ function doPost(e) {
     
     var email = data.email || "Unknown Email";
     var name = data.name || "Unknown Scholar";
-    var status = data.status || "Attempt";
     var timestamp = data.timestamp || new Date().toISOString();
-    var details = data.details || "API Call";
-
+    
     var doc = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = doc.getSheetByName("Logins");
     
-    if (!sheet) {
-      sheet = doc.insertSheet("Logins");
-      sheet.appendRow(["Timestamp", "Email Address", "Scholar Name", "Login Status", "Session Identifier"]);
+    if (data.type === "get_status") {
+      var emailQuery = (data.email || "").trim().toLowerCase();
+      var sheet = doc.getSheetByName("Sheet1");
+      var enrollments = [];
+      var completions = [];
       
-      // Modern slate header styling
-      var headerRange = sheet.getRange(1, 1, 1, 5);
-      headerRange.setBackground("#0f172a");
-      headerRange.setFontColor("#f8fafc");
-      headerRange.setFontWeight("bold");
-      headerRange.setFontFamily("Inter");
-      sheet.setFrozenRows(1);
+      if (sheet) {
+        var rows = sheet.getDataRange().getValues();
+        for (var i = 1; i < rows.length; i++) {
+          var rowEmail = rows[i][1] ? rows[i][1].toString().trim().toLowerCase() : "";
+          if (rowEmail === emailQuery) {
+            var courseId = rows[i][3] ? rows[i][3].toString().trim() : "";
+            var status = rows[i][5] ? rows[i][5].toString().trim() : "";
+            if (courseId) {
+              enrollments.push(courseId);
+              if (status === "Completed") {
+                completions.push(courseId);
+              }
+            }
+          }
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        enrollments: enrollments,
+        completions: completions
+      })).setMimeType(ContentService.MimeType.JSON);
     }
     
-    sheet.appendRow([timestamp, email, name, status, details]);
-    
-    // Auto-adjust column widths
-    var columns = sheet.getLastColumn();
-    for (var col = 1; col <= columns; col++) {
-      sheet.autoResizeColumn(col);
+    // Check if it's an enrollment/completion or a login log
+    if (data.type === "enrollment" || data.courseId) {
+      var courseId = data.courseId || "unknown_course";
+      var courseTitle = data.courseTitle || "Course Title";
+      var status = data.status || "Enrolled";
+      
+      var sheet = doc.getSheetByName("Sheet1");
+      if (!sheet) {
+        sheet = doc.insertSheet("Sheet1");
+        sheet.appendRow(["Timestamp", "Email Address", "Scholar Name", "Course ID", "Course Title", "Status"]);
+        
+        // Header styling
+        var headerRange = sheet.getRange(1, 1, 1, 6);
+        headerRange.setBackground("#0070f3");
+        headerRange.setFontColor("#ffffff");
+        headerRange.setFontWeight("bold");
+        headerRange.setFontFamily("Inter");
+        sheet.setFrozenRows(1);
+      }
+      
+      var rows = sheet.getDataRange().getValues();
+      var updated = false;
+      
+      if (status === "Completed") {
+        for (var i = 1; i < rows.length; i++) {
+          var rowEmail = rows[i][1] ? rows[i][1].toString().trim().toLowerCase() : "";
+          var rowCourseId = rows[i][3] ? rows[i][3].toString().trim().toLowerCase() : "";
+          if (rowEmail === email.trim().toLowerCase() && rowCourseId === courseId.trim().toLowerCase()) {
+            sheet.getRange(i + 1, 6).setValue("Completed");
+            updated = true;
+            break;
+          }
+        }
+      }
+      
+      if (!updated) {
+        sheet.appendRow([timestamp, email, name, courseId, courseTitle, status]);
+      }
+      
+      for (var col = 1; col <= sheet.getLastColumn(); col++) {
+        sheet.autoResizeColumn(col);
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: "Successfully synchronized enrollment securely to Google Sheets."
+      })).setMimeType(ContentService.MimeType.JSON);
+      
+    } else {
+      var status = data.status || "Attempt";
+      var details = data.details || "API Call";
+      
+      var sheet = doc.getSheetByName("Logins");
+      if (!sheet) {
+        sheet = doc.insertSheet("Logins");
+        sheet.appendRow(["Timestamp", "Email Address", "Scholar Name", "Login Status", "Session Identifier"]);
+        
+        // Modern slate header styling
+        var headerRange = sheet.getRange(1, 1, 1, 5);
+        headerRange.setBackground("#0f172a");
+        headerRange.setFontColor("#f8fafc");
+        headerRange.setFontWeight("bold");
+        headerRange.setFontFamily("Inter");
+        sheet.setFrozenRows(1);
+      }
+      
+      sheet.appendRow([timestamp, email, name, status, details]);
+      
+      for (var col = 1; col <= sheet.getLastColumn(); col++) {
+        sheet.autoResizeColumn(col);
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: "Successfully recorded login session information."
+      })).setMimeType(ContentService.MimeType.JSON);
     }
-    
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      message: "Successfully recorded login session information."
-    })).setMimeType(ContentService.MimeType.JSON);
     
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({

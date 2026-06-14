@@ -1,0 +1,80 @@
+import nodemailer from "nodemailer";
+
+export async function sendVerificationEmail(email: string, name: string, token: string, reqHost: string): Promise<string> {
+  // Use APP_URL if specified in env variables, fallback dynamically to reqHost
+  const rawUrl = process.env.APP_URL || `https://${reqHost}`;
+  const appUrl = (rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`).replace(/\/$/, "");
+  const verifyLink = `${appUrl}/api/auth/verify?token=${token}`;
+
+  console.log(`\n======================================================`);
+  console.log(`🛡️  MOUNTECH SYSTEMS : REAL VERIFICATION ENGINE`);
+  console.log(`🎓  Recipient: ${name} (${email})`);
+  console.log(`⚡  Live App URL Inferred: ${appUrl}`);
+  console.log(`🔗  Verification URL: ${verifyLink}`);
+  console.log(`======================================================\n`);
+
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || `"Mountech Academy" <noreply@mountech.academy>`;
+
+  if (host && user && pass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass },
+      });
+
+      const mailOptions = {
+        from,
+        to: email,
+        subject: "Verify Your Mountech Academy Account 📡",
+        html: `
+          <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; background-color: #f9fafb; padding: 40px; color: #111827;">
+            <div style="max-width: 580px; margin: 0 auto; background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+              <div style="background-color: #111827; padding: 30px; text-align: center; color: white;">
+                <h1 style="margin: 0; font-size: 24px; font-weight: 800;">MOUNTECH ACADEMY</h1>
+                <p style="margin: 5px 0 0 0; font-size: 11px; font-weight: 500; font-family: monospace; color: #38bdf8; text-transform: uppercase; letter-spacing: 2px;">Global Tech Certification Labs</p>
+              </div>
+              <div style="padding: 40px 30px;">
+                <h2 style="font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 15px; color: #111827;">Welcome to the Labs, ${name}!</h2>
+                <p style="font-size: 14px; line-height: 1.6; color: #4b5563; margin-bottom: 25px;">
+                  We are excited to have you join Mountech Academy. To access your student sandbox, view authentic online lectures, download PDF textbooks, and enroll in certifications, please verify that this email address belongs to you.
+                </p>
+                
+                <div style="text-align: center; margin: 35px 0;">
+                  <a href="${verifyLink}" style="background-color: #0070f3; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; display: inline-block;">
+                    Verify My Email Address
+                  </a>
+                </div>
+
+                <p style="font-size: 12px; line-height: 1.5; color: #6b7280; word-break: break-all;">
+                  If the button above does not work, copy and paste this verification URL into your web browser: <br/>
+                  <a href="${verifyLink}" style="color: #0070f3; text-decoration: underline;">${verifyLink}</a>
+                </p>
+                
+                <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 30px 0;"/>
+                
+                <p style="font-size: 11px; line-height: 1.4; color: #9ca3af; margin-bottom: 0;">
+                  This is an automated security mail sent by Mountech Academy servers. If you did not sign up for an account, you can safely ignore this email.
+                </p>
+              </div>
+            </div>
+          </div>
+        `,
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`[VERIFICATION EMAIL ENGINE] Emailed verification link successfully to ${email}`);
+    } catch (err: any) {
+      console.error(`[VERIFICATION EMAIL ENGINE] Real SMTP delivery failed:`, err.message);
+    }
+  } else {
+    console.log(`[VERIFICATION EMAIL ENGINE] SMTP configuration is absent. Email printed above is available for local sandbox browser activation.`);
+  }
+
+  return verifyLink;
+}
