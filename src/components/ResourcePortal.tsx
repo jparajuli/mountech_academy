@@ -35,9 +35,10 @@ interface GitLabLink {
 interface ResourcePortalProps {
   courses: Course[];
   user: { email: string; name: string };
+  enrolledCourseIds?: string[];
 }
 
-export default function ResourcePortal({ courses, user }: ResourcePortalProps) {
+export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }: ResourcePortalProps) {
   // --- STATE FOR LECTURE RESOURCES ---
   const [resources, setResources] = useState<Resource[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -179,7 +180,7 @@ export default function ResourcePortal({ courses, user }: ResourcePortalProps) {
           id: "link-init",
           assignmentId: "chatgpt-prompt-engineering",
           assignmentName: "Assignment A: LLM Prompter CLI Evaluation Suite",
-          gitlabRepoUrl: `https://gitlab.com/${user.email.split("@")[0]}/prompt-engineering-cli`,
+          gitlabRepoUrl: `https://gitlab.com/${(user?.email || "student@mountech.academy").split("@")[0]}/prompt-engineering-cli`,
           accessToken: "glpat-xxxx_SAMPLE_TOKEN_xxxx",
           status: "Synced & Verified",
           linkedAt: "2026-06-12T15:20:00.000Z",
@@ -191,11 +192,15 @@ export default function ResourcePortal({ courses, user }: ResourcePortalProps) {
       localStorage.setItem("mountech_portal_gitlab_links", JSON.stringify(initialLinks));
     }
 
-    if (courses && courses.length > 0) {
-      setSelectedGitLabCourse(courses[0].id);
-      setUploadCourseId(courses[0].id);
+    const enrolledCourses = courses.filter(c => enrolledCourseIds.includes(c.id));
+    if (enrolledCourses.length > 0) {
+      setSelectedGitLabCourse(enrolledCourses[0].id);
+      setUploadCourseId(enrolledCourses[0].id);
+    } else {
+      setSelectedGitLabCourse("");
+      setUploadCourseId("");
     }
-  }, []);
+  }, [courses, enrolledCourseIds]);
 
   // Sync Resource List back to LocalStorage when changed
   const saveResourcesToStorage = (updatedResources: Resource[]) => {
@@ -386,6 +391,11 @@ export default function ResourcePortal({ courses, user }: ResourcePortalProps) {
 
   // Filters compute
   const filteredResources = resources.filter(res => {
+    // Only show resources of registered/enrolled courses
+    if (!enrolledCourseIds.includes(res.courseId)) {
+      return false;
+    }
+
     const matchesSearch = 
       res.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       res.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -430,7 +440,7 @@ export default function ResourcePortal({ courses, user }: ResourcePortalProps) {
           <div className="mt-6 pt-6 border-t border-gray-200 space-y-3.5">
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="text-gray-400">Student Profile:</span>
-              <span className="text-gray-900 font-bold">{user.name}</span>
+              <span className="text-gray-900 font-bold">{user?.name || "Student"}</span>
             </div>
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="text-gray-400">Linked Projects:</span>
@@ -547,52 +557,64 @@ export default function ResourcePortal({ courses, user }: ResourcePortalProps) {
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {sampleGitLabProjects.map((project, idx) => {
-            const coincidesCourse = courses.find(c => c.id === project.courseId);
-            return (
-              <div key={idx} className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md transition-all flex flex-col justify-between space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold tracking-wider text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-100">
-                      GITLAB REPO
-                    </span>
-                    <span className="text-[10px] font-mono text-gray-400">
-                      {coincidesCourse ? coincidesCourse.duration : ""}
-                    </span>
-                  </div>
-
-                  <h4 className="text-sm font-bold text-gray-900 leading-tight">
-                    {project.title}
-                  </h4>
-                  <p className="text-xs text-gray-500 leading-relaxed">
-                    {project.desc}
-                  </p>
-                </div>
-
-                <div className="space-y-3 pt-3 border-t border-gray-100">
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-mono text-gray-400 uppercase tracking-widest block">Expected Files Schema</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {project.filesExpected.map((fn, fidx) => (
-                        <span key={fidx} className="text-[10px] font-mono bg-gray-100 border border-gray-150 text-gray-700 px-1.5 py-0.5 rounded">
-                          {fn}
+        {sampleGitLabProjects.filter(p => enrolledCourseIds.includes(p.courseId)).length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {sampleGitLabProjects
+              .filter(p => enrolledCourseIds.includes(p.courseId))
+              .map((project, idx) => {
+                const coincidesCourse = courses.find(c => c.id === project.courseId);
+                return (
+                  <div key={idx} className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md transition-all flex flex-col justify-between space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold tracking-wider text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-100">
+                          GITLAB REPO
                         </span>
-                      ))}
-                    </div>
-                  </div>
+                        <span className="text-[10px] font-mono text-gray-400">
+                          {coincidesCourse ? coincidesCourse.duration : ""}
+                        </span>
+                      </div>
 
-                  <div className="space-y-1.5">
-                    <span className="text-[9px] font-mono text-gray-400 uppercase tracking-widest block">Git Clone URL</span>
-                    <div className="flex items-center justify-between gap-1 bg-gray-50 border border-gray-150 rounded px-2 py-1 text-[10.5px] font-mono text-gray-600 truncate">
-                      <span className="truncate">{project.gitlabRepo}</span>
+                      <h4 className="text-sm font-bold text-gray-900 leading-tight">
+                        {project.title}
+                      </h4>
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        {project.desc}
+                      </p>
+                    </div>
+
+                    <div className="space-y-3 pt-3 border-t border-gray-100">
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-widest block">Expected Files Schema</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {project.filesExpected.map((fn, fidx) => (
+                            <span key={fidx} className="text-[10px] font-mono bg-gray-100 border border-gray-150 text-gray-700 px-1.5 py-0.5 rounded">
+                              {fn}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className="text-[9px] font-mono text-gray-400 uppercase tracking-widest block">Git Clone URL</span>
+                        <div className="flex items-center justify-between gap-1 bg-gray-50 border border-gray-150 rounded px-2 py-1 text-[10.5px] font-mono text-gray-600 truncate">
+                          <span className="truncate">{project.gitlabRepo}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+          </div>
+        ) : (
+          <div className="text-center py-10 px-4 bg-slate-50 border border-dashed border-gray-200 rounded-2xl">
+            <Lock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+            <h4 className="text-xs font-bold text-gray-800">No GitLab Classroom Projects Unlocked</h4>
+            <p className="text-[11px] text-gray-500 mt-1 max-w-md mx-auto font-sans">
+              Please enroll in courses containing core machine learning or prompt engineering syllabus units to activate matching institutional GitLab assignment templates.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* SECTION 3: REPOS LINKING CONSOLE (Interactive Form + Active Links) */}
@@ -624,7 +646,7 @@ export default function ResourcePortal({ courses, user }: ResourcePortalProps) {
                 onChange={(e) => setSelectedGitLabCourse(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg p-2 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
               >
-                {courses.map(c => (
+                {courses.filter(c => enrolledCourseIds.includes(c.id)).map(c => (
                   <option key={c.id} value={c.id}>
                     {c.title}
                   </option>
@@ -842,7 +864,7 @@ export default function ResourcePortal({ courses, user }: ResourcePortalProps) {
                 className="bg-white border border-gray-300 rounded-lg p-1.5 text-xs font-semibold text-gray-700 focus:outline-none max-w-[200px] truncate"
               >
                 <option value="All">All Courses</option>
-                {courses.map(c => (
+                {courses.filter(c => enrolledCourseIds.includes(c.id)).map(c => (
                   <option key={c.id} value={c.id}>
                     {c.title}
                   </option>
@@ -1047,7 +1069,7 @@ export default function ResourcePortal({ courses, user }: ResourcePortalProps) {
                       onChange={(e) => setUploadCourseId(e.target.value)}
                       className="w-full border border-gray-300 rounded-lg p-2 bg-white text-gray-900 focus:outline-none"
                     >
-                      {courses.map(c => (
+                      {courses.filter(c => enrolledCourseIds.includes(c.id)).map(c => (
                         <option key={c.id} value={c.id}>
                           {c.title}
                         </option>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Course, User } from '../types';
 import { 
   ArrowLeft, Clock, BookOpen, Star, CheckCircle, HelpCircle, 
@@ -8,7 +8,7 @@ import {
   Lock, Unlock, Trophy, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getToken } from '../api';
+import { getToken, getCourseRatings, submitCourseRating, ReviewRating } from '../api';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
@@ -94,6 +94,73 @@ const genericSlides = [
 ];
 
 export default function CourseDetail({ course, user, onBack, isEnrolled, onEnroll, isCompleted = false, onComplete, syncStatus }: CourseDetailProps) {
+  // Database Ratings States
+  const [ratings, setRatings] = useState<ReviewRating[]>([]);
+  const [averageRating, setAverageRating] = useState<number>(course.rating);
+  const [ratingCount, setRatingCount] = useState<number>(0);
+  const [loadingRatings, setLoadingRatings] = useState(false);
+
+  const [userRating, setUserRating] = useState<number>(5);
+  const [userHoverRating, setUserHoverRating] = useState<number | null>(null);
+  const [userReview, setUserReview] = useState<string>('');
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState('');
+
+  const loadRatings = async () => {
+    setLoadingRatings(true);
+    try {
+      const res = await getCourseRatings(course.id);
+      setRatings(res.ratings || []);
+      if (res.count > 0) {
+        setAverageRating(res.average);
+        setRatingCount(res.count);
+      } else {
+        setAverageRating(course.rating);
+        setRatingCount(0);
+      }
+      
+      // If current logged-in user already rated, we pre-populate the rating form
+      if (user?.email) {
+        const myRating = res.ratings?.find((r: any) => r.email.toLowerCase() === user.email.toLowerCase());
+        if (myRating) {
+          setUserRating(myRating.rating);
+          setUserReview(myRating.review);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load course ratings from DB:", err);
+    } finally {
+      setLoadingRatings(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRatings();
+    // Reset submission feedback states on course switch
+    setSubmitSuccess('');
+    setSubmitError('');
+  }, [course.id, user?.email]);
+
+  const handleRatingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitError('');
+    setSubmitSuccess('');
+    setSubmittingRating(true);
+
+    try {
+      const res = await submitCourseRating(course.id, userRating, userReview);
+      if (res.success) {
+        setSubmitSuccess(res.message);
+        await loadRatings();
+      }
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to submit rating. Please try again.');
+    } finally {
+      setSubmittingRating(false);
+    }
+  };
+
   // Page states
   const [classroomMode, setClassroomMode] = useState(false);
   const [activeLessonIndex, setActiveLessonIndex] = useState<number | null>(null);
@@ -523,9 +590,14 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
             {/* Ratings & Metadata Row */}
             <div className="flex flex-wrap items-center gap-6 pt-2 text-xs font-mono text-gray-500">
               <div className="flex items-center gap-1" id="detail-rating">
-                <Star className="w-4 h-4 text-[#0070f3] fill-[#0070f3]" />
-                <span className="font-bold text-[#111827]">{course.rating}</span>
+                <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                <span className="font-bold text-[#111827]">{averageRating.toFixed(1)}</span>
                 <span>/ 5.0</span>
+                {ratingCount > 0 ? (
+                  <span className="text-blue-600 font-semibold opacity-90">({ratingCount} verified scholar {ratingCount === 1 ? 'rating' : 'ratings'})</span>
+                ) : (
+                  <span className="text-gray-400 font-normal opacity-80">(historic benchmark)</span>
+                )}
               </div>
               <div className="h-3.5 w-px bg-gray-200" />
               <div id="detail-duration">
@@ -1066,7 +1138,33 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                 </h2>
               </div>
 
-              <div id="detail-syllabus-list" className="space-y-4">
+              <div id="detail-syllabus-list" className="space-y-4 relative">
+                {!isEnrolled && (
+                  <div className="absolute inset-x-0 top-0 bottom-0 z-10 bg-white/75 backdrop-blur-[4px] rounded-2xl flex flex-col items-center justify-center p-8 text-center border border-gray-200">
+                    <div className="p-3.5 bg-slate-100 text-[#111827] border border-gray-300 rounded-2xl mb-4 shrink-0 shadow-3xs">
+                      <Lock className="w-8 h-8" />
+                    </div>
+                    
+                    <h3 className="text-base md:text-lg font-sans font-extrabold text-gray-900 tracking-tight">
+                      Curriculum Syllabus & Chapters Locked
+                    </h3>
+                    
+                    <p className="text-xs text-gray-500 max-w-sm mt-2 leading-relaxed">
+                      This course content details are restricted to enrolled scholars. Let's enroll in this course to unlock complete lecture checklists, interactive sandboxes, companion PDF handbooks, and standard coding homework.
+                    </p>
+                    
+                    <div className="mt-5">
+                      <button
+                        onClick={() => onEnroll(course.id)}
+                        className="px-5 py-2.5 bg-[#111827] hover:bg-[#1f2937] text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <CheckCircle className="w-4 h-4 text-emerald-400" />
+                        <span>Enroll & Register Course</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Visual Progress Bar Banner */}
                 {isEnrolled && (
                   <div className="bg-slate-50 border border-gray-200 rounded-xl p-5 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4" id="syllabus-progress-tracker-bar">
@@ -1086,68 +1184,70 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                   </div>
                 )}
 
-                {course.syllabus.map((slice, index) => {
-                  const isLesCompleted = completedLessons.includes(index);
-                  return (
-                    <div
-                      key={index}
-                      id={`syllabus-item-${index}`}
-                      className="bg-white rounded-xl border border-gray-200 p-5 hover:border-[#0070f3] hover:shadow-xs transition-all duration-200"
-                    >
-                      <div className="flex flex-col sm:flex-row gap-4 items-start justify-between">
-                        <div className="space-y-1.5 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-[9px] tracking-wider text-gray-450 font-bold uppercase block">
-                              {slice.chapter}
-                            </span>
-                            {isLesCompleted && (
-                              <span className="text-[9px] font-mono font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded uppercase">COMPLETED</span>
-                            )}
+                <div className={!isEnrolled ? "opacity-35 select-none pointer-events-none filter blur-[3px] space-y-4" : "space-y-4"}>
+                  {course.syllabus.map((slice, index) => {
+                    const isLesCompleted = completedLessons.includes(index);
+                    return (
+                      <div
+                        key={index}
+                        id={`syllabus-item-${index}`}
+                        className="bg-white rounded-xl border border-gray-200 p-5 hover:border-[#0070f3] hover:shadow-xs transition-all duration-200"
+                      >
+                        <div className="flex flex-col sm:flex-row gap-4 items-start justify-between">
+                          <div className="space-y-1.5 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[9px] tracking-wider text-gray-450 font-bold uppercase block">
+                                {slice.chapter}
+                              </span>
+                              {isLesCompleted && (
+                                <span className="text-[9px] font-mono font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded uppercase">COMPLETED</span>
+                              )}
+                            </div>
+                            <h4 className="text-sm md:text-base font-bold text-[#111827]">
+                              {slice.title}
+                            </h4>
+                            <p className="text-xs md:text-sm text-gray-500 leading-relaxed">
+                              {slice.description}
+                            </p>
                           </div>
-                          <h4 className="text-sm md:text-base font-bold text-[#111827]">
-                            {slice.title}
-                          </h4>
-                          <p className="text-xs md:text-sm text-gray-500 leading-relaxed">
-                            {slice.description}
-                          </p>
+
+                          {/* Interactive Buttons for Enrolled Scholars */}
+                          {isEnrolled && (
+                            <div className="flex sm:flex-col items-stretch gap-2 shrink-0 w-full sm:w-auto">
+                              <button
+                                id={`chapter-interactive-trigger-${index}`}
+                                onClick={() => {
+                                  setClassroomMode(true);
+                                  setClassroomTab('sandbox');
+                                  setActiveLessonIndex(index);
+                                  markLessonCompleted(index);
+                                  setTerminalOutput([`Successfully loaded classroom context for lesson: "${slice.title}"`]);
+                                }}
+                                className="text-xs px-3 py-1.5 bg-[#111827] text-white hover:bg-[#0070f3] transition-all rounded-lg font-semibold flex items-center justify-center gap-1 cursor-pointer shadow-3xs"
+                              >
+                                <Play className="w-3 h-3 fill-current animate-pulse" />
+                                <span>Launch Sandbox</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleToggleLesson(index)}
+                                className={`text-xs px-3 py-1.5 rounded-lg font-mono font-bold flex items-center justify-center gap-1.5 cursor-pointer border transition-all ${
+                                  isLesCompleted
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                    : 'bg-gray-50 text-gray-650 border-gray-200 hover:bg-gray-100 font-normal text-gray-500'
+                                }`}
+                              >
+                                <Check className={`w-3.5 h-3.5 ${isLesCompleted ? 'opacity-100 text-emerald-600 font-black' : 'opacity-30'}`} />
+                                <span>{isLesCompleted ? 'Completed' : 'Review Unit'}</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
-
-                        {/* Interactive Buttons for Enrolled Scholars */}
-                        {isEnrolled && (
-                          <div className="flex sm:flex-col items-stretch gap-2 shrink-0 w-full sm:w-auto">
-                            <button
-                              id={`chapter-interactive-trigger-${index}`}
-                              onClick={() => {
-                                setClassroomMode(true);
-                                setClassroomTab('sandbox');
-                                setActiveLessonIndex(index);
-                                markLessonCompleted(index);
-                                setTerminalOutput([`Successfully loaded classroom context for lesson: "${slice.title}"`]);
-                              }}
-                              className="text-xs px-3 py-1.5 bg-[#111827] text-white hover:bg-[#0070f3] transition-all rounded-lg font-semibold flex items-center justify-center gap-1 cursor-pointer shadow-3xs"
-                            >
-                              <Play className="w-3 h-3 fill-current animate-pulse" />
-                              <span>Launch Sandbox</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleToggleLesson(index)}
-                              className={`text-xs px-3 py-1.5 rounded-lg font-mono font-bold flex items-center justify-center gap-1.5 cursor-pointer border transition-all ${
-                                isLesCompleted
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                                  : 'bg-gray-50 text-gray-650 border-gray-200 hover:bg-gray-100 font-normal text-gray-500'
-                              }`}
-                            >
-                              <Check className={`w-3.5 h-3.5 ${isLesCompleted ? 'opacity-100 text-emerald-600 font-black' : 'opacity-30'}`} />
-                              <span>{isLesCompleted ? 'Completed' : 'Review Unit'}</span>
-                            </button>
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -1420,6 +1520,219 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                     Pioneering educator in advanced code architectures and machine learning systems. Our Mountech faculty works alongside industry lead developers to verify rigorous standards.
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Scholar Feedback & Star Rating Box */}
+            <div id="course-rating-reviews-hub" className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-3xs space-y-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
+                    <Star className="w-6 h-6 fill-amber-500 text-amber-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-[#111827] tracking-tight">
+                      Scholar Reviews & Ratings
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Authentic peer feedback recorded to the laboratory registry.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rating Stats Overview Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center bg-slate-50 border border-gray-150 rounded-xl p-6">
+                <div className="md:col-span-4 text-center border-b md:border-b-0 md:border-r border-gray-200 pb-4 md:pb-0 md:pr-4">
+                  <span className="text-[10px] font-mono tracking-wider text-gray-400 font-bold uppercase block">AVERAGE SCORE</span>
+                  <div className="text-5xl font-extrabold text-[#111827] mt-1">
+                    {averageRating.toFixed(1)}
+                  </div>
+                  <div className="flex justify-center gap-1 my-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`w-4 h-4 ${
+                          star <= Math.round(averageRating)
+                            ? "text-amber-500 fill-amber-500"
+                            : "text-gray-300"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs font-mono text-gray-500">
+                    {ratingCount} verified {ratingCount === 1 ? 'review' : 'reviews'}
+                  </span>
+                </div>
+
+                <div className="md:col-span-8 flex flex-col justify-center space-y-2 text-xs font-mono text-gray-600 pl-0 md:pl-4">
+                  {[5, 4, 3, 2, 1].map((score) => {
+                    const matches = ratings.filter((r) => r.rating === score).length;
+                    const percent = ratingCount > 0 ? (matches / ratingCount) * 100 : 0;
+                    return (
+                      <div key={score} className="flex items-center gap-3">
+                        <span className="w-3 text-right">{score}★</span>
+                        <div className="flex-1 h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                        <span className="w-8 text-right text-gray-400 font-bold">
+                          {matches}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Star Rating Submission Form */}
+              <div className="bg-gradient-to-r from-blue-50/20 to-indigo-50/10 border border-blue-100/50 rounded-xl p-5 md:p-6 space-y-4">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">Submit Your Course Rating</h4>
+                  <p className="text-xs text-slate-500">
+                    Share your technical and laboratory study experience with future scholars.
+                  </p>
+                </div>
+
+                <form onSubmit={handleRatingSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono font-bold tracking-wide text-slate-500 uppercase block">
+                      Select Rating Standard
+                    </label>
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setUserRating(star)}
+                          onMouseEnter={() => setUserHoverRating(star)}
+                          onMouseLeave={() => setUserHoverRating(null)}
+                          className="focus:outline-none transition-transform active:scale-95 cursor-pointer"
+                        >
+                          <Star
+                            className={`w-7 h-7 ${
+                              star <= (userHoverRating ?? userRating)
+                                ? 'text-amber-500 fill-amber-500 scale-105'
+                                : 'text-slate-200 hover:text-amber-700'
+                            } transition-all`}
+                          />
+                        </button>
+                      ))}
+                      <span className="text-xs font-mono text-slate-500 ml-3 font-semibold">
+                        {(userHoverRating ?? userRating) === 5 && 'Excellent (5/5)'}
+                        {(userHoverRating ?? userRating) === 4 && 'Very Good (4/5)'}
+                        {(userHoverRating ?? userRating) === 3 && 'Average (3/5)'}
+                        {(userHoverRating ?? userRating) === 2 && 'Below Par (2/5)'}
+                        {(userHoverRating ?? userRating) === 1 && 'Unsatisfactory (1/5)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono font-bold tracking-wide text-slate-500 uppercase block">
+                      Write Review (Optional)
+                    </label>
+                    <textarea
+                      value={userReview}
+                      onChange={(e) => setUserReview(e.target.value)}
+                      placeholder="Discuss the structures, coding whiteboards, play labs, or final exams..."
+                      rows={3}
+                      className="w-full text-xs border border-gray-200 hover:border-blue-300 focus:border-[#0070f3] rounded-lg p-3 outline-none transition-all placeholder:text-gray-400 focus:ring-1 focus:ring-blue-100 font-sans"
+                    />
+                  </div>
+
+                  {submitError && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg font-mono flex gap-1.5 items-center">
+                      <AlertCircle className="w-4 h-4 text-rose-600" />
+                      <span>{submitError}</span>
+                    </div>
+                  )}
+
+                  {submitSuccess && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-lg font-semibold flex gap-1.5 items-center animate-pulse">
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                      <span>{submitSuccess}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={submittingRating}
+                      className="px-4 py-2 bg-[#0070f3] hover:bg-[#0051b3] disabled:bg-slate-300 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-lg shadow-sm transition-all focus:outline-none cursor-pointer flex items-center gap-1.5"
+                    >
+                      {submittingRating ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Submitting...</span>
+                        </>
+                      ) : (
+                        <span>Submit Scholar Review</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Reviews List */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-mono font-bold tracking-wider text-gray-400 uppercase block">
+                  SCHOLAR REGISTRY ENTRIES ({ratings.length})
+                </span>
+
+                {ratings.length === 0 ? (
+                  <div className="text-center py-8 rounded-xl border border-dashed border-gray-200 bg-slate-50/50">
+                    <MessageSquare className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs text-slate-500 font-medium font-sans">No reviews submitted yet.</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 font-sans">Be the first to rate this course and share feedback!</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto pr-2 space-y-4">
+                    {ratings.map((ratingItem) => (
+                      <div key={ratingItem.id} className="pt-4 first:pt-0 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <span className="font-bold text-sm text-slate-900 block leading-none font-sans">
+                              {ratingItem.name || 'Anonymous Student'}
+                            </span>
+                            <span className="text-[10px] font-mono text-[#0070f3] mt-1 block">
+                              {ratingItem.email === user?.email?.toLowerCase() ? 'You' : 'Verified Scholar'}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex gap-0.5 justify-end">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-3.5 h-3.5 ${
+                                    star <= ratingItem.rating
+                                      ? 'text-amber-500 fill-amber-500'
+                                      : 'text-gray-200'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-[10px] font-mono text-gray-400 mt-1 block">
+                              {new Date(ratingItem.timestamp).toLocaleDateString(undefined, {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+
+                        {ratingItem.review && (
+                          <p className="text-xs text-gray-650 leading-relaxed font-sans mt-1 p-2 bg-slate-50/60 rounded-md border border-slate-100 italic">
+                            "{ratingItem.review}"
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

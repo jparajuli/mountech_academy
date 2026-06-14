@@ -33,4 +33,5 @@ export interface Course {
 export interface User {
   email: string;
   name: string;
+  role: 'admin' | 'instructor' | 'student' | 'developer';
 }

@@ -52,7 +52,7 @@ export async function loginUser(email: string, password: string) {
   });
 }
 
-export async function oauthLogin(email: string, name: string, provider: 'Google' | 'GitHub') {
+export async function oauthLogin(email: string, name: string, provider: 'Google' | 'LinkedIn' | 'GitHub') {
   return apiFetch('/api/auth/oauth', {
     method: 'POST',
     body: JSON.stringify({ email, name, provider }),
@@ -123,3 +123,54 @@ export interface LoginEvent {
 export async function getLoginHistory(): Promise<{ logins: LoginEvent[] }> {
   return apiFetch('/api/auth/logins');
 }
+
+export interface ReviewRating {
+  id: string;
+  courseId: string;
+  email: string;
+  name: string;
+  rating: number;
+  review: string;
+  timestamp: string;
+}
+
+export interface GetRatingsResponse {
+  ratings: ReviewRating[];
+  average: number;
+  count: number;
+}
+
+export async function getCourseRatings(courseId: string): Promise<GetRatingsResponse> {
+  return apiFetch(`/api/ratings/${courseId}`);
+}
+
+export async function submitCourseRating(courseId: string, rating: number, review?: string): Promise<{ success: boolean; message: string; rating: ReviewRating }> {
+  return apiFetch('/api/ratings', {
+    method: 'POST',
+    body: JSON.stringify({ courseId, rating, review })
+  });
+}
+
+// RBAC admin requests
+export interface ManagedUser {
+  email: string;
+  name: string;
+  role: 'admin' | 'instructor' | 'student' | 'developer';
+  isVerified: boolean;
+}
+
+export async function adminListUsers(): Promise<{ users: ManagedUser[] }> {
+  return apiFetch('/api/admin/users');
+}
+
+export async function adminUpdateUserRole(email: string, role: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch('/api/admin/users/role', {
+    method: 'PUT',
+    body: JSON.stringify({ email, role }),
+  });
+}
+
+export async function getDeveloperLogs(): Promise<{ logs: any[] }> {
+  return apiFetch('/api/developer/logs');
+}
+

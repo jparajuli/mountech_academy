@@ -200,6 +200,7 @@ export default function App() {
           user={user}
           onSignOut={handleSignOut}
           onSelectCourse={handleSelectCourse}
+          enrolledCourseIds={enrolledCourseIds}
         />
       )}
     </div>

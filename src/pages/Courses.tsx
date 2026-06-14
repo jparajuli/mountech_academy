@@ -8,7 +8,7 @@ import {
   LogOut, GraduationCap, ArrowUpRight, HelpCircle, 
   Shield, FileCode, Terminal, Copy, Check, Lock, Server, Activity
 } from 'lucide-react';
-import { getLoginHistory, LoginEvent } from '../api';
+import { getLoginHistory, LoginEvent, adminListUsers, adminUpdateUserRole, getDeveloperLogs } from '../api';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
 
@@ -16,10 +16,11 @@ interface CoursesProps {
   user: User;
   onSignOut: () => void;
   onSelectCourse: (course: Course) => void;
+  enrolledCourseIds: string[];
 }
 
-export default function Courses({ user, onSignOut, onSelectCourse }: CoursesProps) {
-  const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources'>('catalog');
+export default function Courses({ user, onSignOut, onSelectCourse, enrolledCourseIds }: CoursesProps) {
+  const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin'>('catalog');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState('All');
@@ -29,6 +30,69 @@ export default function Courses({ user, onSignOut, onSelectCourse }: CoursesProp
   const [logsLoading, setLogsLoading] = useState(false);
   const [activeConsoleTab, setActiveConsoleTab] = useState<'script' | 'logs'>('script');
   const [copiedAppScript, setCopiedAppScript] = useState(false);
+
+  // Admin & Developer tab states
+  const [managedUsers, setManagedUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [usersError, setUsersError] = useState('');
+  const [devLogs, setDevLogs] = useState<any[]>([]);
+  const [loadingDevLogs, setLoadingDevLogs] = useState(false);
+  const [rbacMessage, setRbacMessage] = useState('');
+
+  const loadAdminData = () => {
+    if (user.role === 'admin' || user.role === 'developer') {
+      setLoadingUsers(true);
+      setUsersError('');
+      adminListUsers()
+        .then((res) => {
+          setManagedUsers(res.users || []);
+        })
+        .catch((err) => {
+          setUsersError(err.message || 'Failed to sync users database panel.');
+        })
+        .finally(() => {
+          setLoadingUsers(false);
+        });
+
+      if (user.role === 'developer') {
+        setLoadingDevLogs(true);
+        getDeveloperLogs()
+          .then((res) => {
+            setDevLogs(res.logs || []);
+          })
+          .catch((err) => {
+            console.error(err);
+          })
+          .finally(() => {
+            setLoadingDevLogs(false);
+          });
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (currentMenuTab === 'admin') {
+      loadAdminData();
+    }
+  }, [currentMenuTab, user.role]);
+
+  const handleRoleToggle = async (targetEmail: string, currentRole: string) => {
+    // Standard role cycling loop for testing: student -> instructor -> admin -> developer -> student
+    const roles: ('admin' | 'instructor' | 'student' | 'developer')[] = ['student', 'instructor', 'admin', 'developer'];
+    const currentIndex = roles.indexOf(currentRole as any);
+    const nextIndex = (currentIndex + 1) % roles.length;
+    const nextRole = roles[nextIndex];
+
+    try {
+      setRbacMessage('');
+      const res = await adminUpdateUserRole(targetEmail, nextRole);
+      setRbacMessage(res.message);
+      loadAdminData();
+      setTimeout(() => setRbacMessage(''), 4000);
+    } catch (err: any) {
+      setUsersError(err.message || 'Could not update user role reservation.');
+    }
+  };
 
   useEffect(() => {
     setLogsLoading(true);
@@ -161,19 +225,63 @@ function doPost(e) {
               >
                 Catalog
               </button>
-              <button
-                onClick={() => setCurrentMenuTab('resources')}
-                className={`transition-colors cursor-pointer select-none py-1 border-b-2 ${currentMenuTab === 'resources' ? 'text-[#0070f3] border-[#0070f3]' : 'text-[#4b5563] border-transparent hover:text-[#0070f3]'}`}
-              >
-                Lecture Resources & GitLab Hub
-              </button>
+              {enrolledCourseIds.length > 0 ? (
+                <button
+                  onClick={() => setCurrentMenuTab('resources')}
+                  className={`transition-colors cursor-pointer select-none py-1 border-b-2 ${currentMenuTab === 'resources' ? 'text-[#0070f3] border-[#0070f3]' : 'text-[#4b5563] border-transparent hover:text-[#0070f3]'}`}
+                >
+                  Lecture Resources & GitLab Hub
+                </button>
+              ) : (
+                <button
+                  disabled
+                  title="Enroll in a course first to unlock the lecture resources and GitLab hub."
+                  className="transition-colors py-1 border-b-2 text-gray-300 border-transparent cursor-not-allowed flex items-center gap-1.5"
+                >
+                  <span className="opacity-50">Lecture Resources & GitLab Hub</span>
+                  <span className="text-[9px] bg-gray-100 border border-gray-200 text-gray-400 px-1 py-0.2 rounded font-mono font-bold uppercase scale-90">Locked</span>
+                </button>
+              )}
+              {(user.role === 'admin' || user.role === 'developer') && (
+                <button
+                  onClick={() => setCurrentMenuTab('admin')}
+                  className={`transition-colors cursor-pointer select-none py-1 border-b-2 ${currentMenuTab === 'admin' ? 'text-rose-600 border-rose-600' : 'text-[#4b5563] border-transparent hover:text-rose-600'}`}
+                >
+                  <span className="flex items-center gap-1">
+                    <Shield className="w-3.5 h-3.5 text-rose-500" />
+                    Board Control panel
+                  </span>
+                </button>
+              )}
             </nav>
           </div>
 
           {/* User Profile & Logout Action */}
           <div className="flex items-center gap-4">
-            <div id="user-profile-summary" className="hidden sm:flex flex-col text-right">
-              <span className="text-xs font-semibold text-[#111827]">{user.name}</span>
+            <div id="user-profile-summary" className="hidden sm:flex flex-col text-right items-end">
+              <div className="flex items-center gap-1.5 h-5">
+                <span className="text-xs font-semibold text-[#111827]">{user.name}</span>
+                {user.role === 'admin' && (
+                  <span className="text-[9px] font-bold font-mono tracking-wider uppercase px-1.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-250 rounded-full">
+                    Admin
+                  </span>
+                )}
+                {user.role === 'developer' && (
+                  <span className="text-[9px] font-bold font-mono tracking-wider uppercase px-1.5 py-0.5 bg-violet-50 text-violet-600 border border-violet-250 rounded-full">
+                    Developer
+                  </span>
+                )}
+                {user.role === 'instructor' && (
+                  <span className="text-[9px] font-bold font-mono tracking-wider uppercase px-1.5 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-250 rounded-full">
+                    Instructor
+                  </span>
+                )}
+                {user.role === 'student' && (
+                  <span className="text-[9px] font-bold font-mono tracking-wider uppercase px-1.5 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-250 rounded-full">
+                    Student
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] font-mono text-[#6b7280]">{user.email}</span>
             </div>
             
@@ -201,12 +309,31 @@ function doPost(e) {
         >
           Catalog
         </button>
-        <button 
-          onClick={() => setCurrentMenuTab('resources')} 
-          className={`pb-1 transition-all cursor-pointer ${currentMenuTab === 'resources' ? 'text-[#0070f3] border-b-2 border-[#0070f3]' : 'text-[#4b5563] border-transparent'}`}
-        >
-          Resources & GitLab
-        </button>
+        {enrolledCourseIds.length > 0 ? (
+          <button 
+            onClick={() => setCurrentMenuTab('resources')} 
+            className={`pb-1 transition-all cursor-pointer ${currentMenuTab === 'resources' ? 'text-[#0070f3] border-b-2 border-[#0070f3]' : 'text-[#4b5563] border-transparent'}`}
+          >
+            Resources
+          </button>
+        ) : (
+          <button 
+            disabled
+            title="Enroll in a course first to unlock resources."
+            className="pb-1 transition-all text-gray-350 cursor-not-allowed flex items-center gap-1"
+          >
+            <span className="opacity-50">Resources</span>
+            <span className="text-[8px] bg-gray-100 border border-gray-150 text-gray-400 px-1 rounded font-mono scale-90">🔒</span>
+          </button>
+        )}
+        {(user.role === 'admin' || user.role === 'developer') && (
+          <button 
+            onClick={() => setCurrentMenuTab('admin')} 
+            className={`pb-1 transition-all cursor-pointer ${currentMenuTab === 'admin' ? 'text-rose-600 border-b-2 border-rose-600' : 'text-[#4b5563] border-transparent'}`}
+          >
+            Control Panel
+          </button>
+        )}
       </div>
 
       {/* Hero Section (Clean Minimal Centered Board) */}
@@ -235,9 +362,264 @@ function doPost(e) {
       </div>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-10 flex-grow w-full">
+      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-10 flex-grow w-full font-sans">
         {currentMenuTab === 'resources' ? (
-          <ResourcePortal courses={courses} user={user} />
+          <ResourcePortal courses={courses} user={user} enrolledCourseIds={enrolledCourseIds} />
+        ) : currentMenuTab === 'admin' ? (
+          <div id="rbac-admin-panel" className="space-y-8 animate-fade-in">
+            {/* Header section with clean metadata */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#e5e7eb] pb-6">
+              <div>
+                <span className="text-[11px] font-mono font-bold text-rose-600 tracking-wider uppercase bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                  Access Management Hub
+                </span>
+                <h1 className="text-2xl font-extrabold text-[#111827] tracking-tight mt-2 flex items-center gap-2">
+                  <Shield className="w-6 h-6 text-rose-500" />
+                  Institutional Security & RBAC Console
+                </h1>
+                <p className="text-xs text-[#6b7280] mt-1 leading-relaxed">
+                  List registered users, configure granular security role mappings, and monitor server environments.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={loadAdminData}
+                  disabled={loadingUsers}
+                  className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-[#e5e7eb] hover:bg-gray-50 rounded-lg transition-all shadow-xs cursor-pointer select-none flex items-center gap-1.5"
+                >
+                  <Activity className={`w-3.5 h-3.5 ${loadingUsers ? 'animate-spin' : ''}`} />
+                  Sync Database
+                </button>
+              </div>
+            </div>
+
+            {/* Alert Logs messages */}
+            {rbacMessage && (
+              <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg shadow-xs flex items-center gap-2">
+                <span className="text-emerald-500 font-bold font-mono">✓</span>
+                <span>{rbacMessage}</span>
+              </div>
+            )}
+
+            {usersError && (
+              <div className="p-3 bg-red-50 border border-red-100 text-red-800 text-xs font-semibold rounded-lg shadow-xs flex items-center gap-2">
+                <span className="text-red-500 font-bold shrink-0">❌</span>
+                <span>{usersError}</span>
+              </div>
+            )}
+
+            {/* Two Column Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              
+              {/* Left hand column: Scholar account directory list (Size: 2/3) */}
+              <div className="lg:col-span-2 space-y-4">
+                <div className="bg-white border border-[#e5e7eb] rounded-2xl shadow-sm p-6 overflow-hidden">
+                  <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                    <h2 className="text-sm font-bold text-[#111827] uppercase tracking-wider">
+                      Scholar Role Directory ({managedUsers.length} Users)
+                    </h2>
+                    <span className="text-[10px] font-mono text-[#9ca3af] bg-gray-50 px-2 py-0.5 rounded border border-[#e5e7eb]">
+                      Live fallback db
+                    </span>
+                  </div>
+
+                  {loadingUsers ? (
+                    <div className="space-y-4 py-8">
+                      <div className="h-6 bg-gray-100 animate-pulse rounded w-1/3"></div>
+                      <div className="h-20 bg-gray-50 animate-pulse rounded"></div>
+                      <div className="h-20 bg-gray-50 animate-pulse rounded"></div>
+                    </div>
+                  ) : managedUsers.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-100">
+                        <thead>
+                          <tr className="text-[10px] font-bold text-gray-400 font-mono text-left uppercase tracking-wider">
+                            <th className="pb-3 text-[#6b7280]">Scholar & Email</th>
+                            <th className="pb-3 text-[#6b7280]">Role Registry</th>
+                            <th className="pb-3 text-right text-[#6b7280]">Action toggles</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-sans">
+                          {managedUsers.map((u: any) => {
+                            const isCurrentUser = u.email.trim().toLowerCase() === user.email.trim().toLowerCase();
+                            
+                            // Color scheme mapping
+                            let roleBadgeClass = "bg-gray-100 text-gray-700 border-gray-200";
+                            if (u.role === 'admin') roleBadgeClass = "bg-rose-50 text-rose-700 border-rose-200";
+                            else if (u.role === 'developer') roleBadgeClass = "bg-violet-50 text-violet-700 border-violet-200";
+                            else if (u.role === 'instructor') roleBadgeClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                            else if (u.role === 'student') roleBadgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+
+                            return (
+                              <tr key={u.email} className="hover:bg-gray-50/50 transition-all text-xs">
+                                <td className="py-4 pr-3">
+                                  <div className="font-semibold text-gray-900 flex items-center gap-1.5">
+                                    {u.name || 'Anonymous Scholar'}
+                                    {isCurrentUser && (
+                                      <span className="text-[9px] font-mono text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.2 rounded-full font-bold uppercase shrink-0">
+                                        You
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] font-mono text-gray-400">{u.email}</div>
+                                </td>
+                                
+                                <td className="py-4">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold font-mono tracking-wider uppercase border ${roleBadgeClass}`}>
+                                    {u.role || 'student'}
+                                  </span>
+                                </td>
+
+                                <td className="py-4 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRoleToggle(u.email, u.role)}
+                                    disabled={isCurrentUser}
+                                    title={isCurrentUser ? "Self-role changes are disallowed to prevent security lockout." : "Cycle role state"}
+                                    className={`px-3 py-1.5 text-[11px] font-bold rounded-md transition-all select-none border cursor-pointer inline-flex items-center gap-1 ${
+                                      isCurrentUser 
+                                        ? 'bg-gray-50 text-gray-300 border-gray-150 cursor-not-allowed opacity-60' 
+                                        : 'bg-white text-[#0070f3] border-[#0070f3]/25 hover:bg-[#0070f3]/5 hover:border-[#0070f3]'
+                                    }`}
+                                  >
+                                    Cycle Role ⟳
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 p-6 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
+                      <Shield className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-xs text-gray-500 font-mono">No scholar records found in directory.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right column: Debug System metrics & Configuration Panel (Size: 1/3) */}
+              <div className="space-y-6">
+                
+                {/* Developer Diagnostic Panel */}
+                <div className="bg-gray-900 text-slate-100 border border-gray-800 rounded-2xl p-6 shadow-xl space-y-4">
+                  <div className="flex items-center gap-2 border-b border-gray-800 pb-3">
+                    <Terminal className="w-5 h-5 text-violet-400" />
+                    <div>
+                      <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                        Systems Diagnostics Console
+                      </h3>
+                      <p className="text-[10px] text-gray-400 font-sans mt-0.5">
+                        Real-time container environments telemetry logs
+                      </p>
+                    </div>
+                  </div>
+
+                  {user.role === 'developer' ? (
+                    loadingDevLogs ? (
+                      <div className="space-y-3 py-6">
+                        <div className="h-4 bg-gray-800 animate-pulse rounded w-1/2"></div>
+                        <div className="h-4 bg-gray-800 animate-pulse rounded w-3/4"></div>
+                        <div className="h-4 bg-gray-800 animate-pulse rounded"></div>
+                      </div>
+                    ) : devLogs.length > 0 ? (
+                      <div className="space-y-4 font-mono text-[11px]">
+                        {devLogs.map((log, index) => (
+                          <div key={index} className="space-y-3">
+                            <div className="space-y-1.5 p-3.5 bg-gray-950 border border-gray-800 rounded-lg text-violet-300">
+                              <div className="flex justify-between items-center text-gray-500 border-b border-gray-800 pb-1.5 mb-1.5 text-[9px]">
+                                <span>SYSTEM CLOCK: {new Date(log.systemClock).toLocaleTimeString()}</span>
+                                <span className="text-emerald-500 font-bold">● STANDBY_OK</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Database Context:</span>
+                                <span className="font-bold text-gray-100">{log.activeDatabaseFallback}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Registered Accounts:</span>
+                                <span className="font-bold text-gray-100">{log.metrics?.registeredScholars || 0}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Total Sessions Count:</span>
+                                <span className="font-bold text-gray-100">{log.metrics?.authenticatedSessions || 0}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Course Enrollments:</span>
+                                <span className="font-bold text-gray-100">{log.metrics?.scholarlyEnrollments || 0}</span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 p-3 bg-gray-950 border border-gray-800 rounded-lg text-amber-200">
+                              <div className="text-[10px] font-bold text-gray-400 pb-1">EXTERNAL DATA SYNC KEYS:</div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Google Sheets Sync:</span>
+                                <span className={log.credentialsLoaded?.hasSheetsConfig ? "text-emerald-400 font-bold" : "text-amber-400 font-semibold"}>
+                                  {log.credentialsLoaded?.hasSheetsConfig ? "AUTHORIZED" : "LOCAL_ONLY"}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Firebase Database:</span>
+                                <span className={log.credentialsLoaded?.hasFirebaseConfig ? "text-emerald-400 font-bold" : "text-amber-400 font-semibold"}>
+                                  {log.credentialsLoaded?.hasFirebaseConfig ? "ACTIVE" : "PENDING"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="p-2 bg-violet-950/20 text-violet-400 border border-violet-800/30 rounded text-center font-bold text-[10px] font-mono tracking-wide uppercase">
+                              {log.diagnosticCode}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center py-6 text-gray-500 text-xs font-mono">No telemetry state fetched.</p>
+                    )
+                  ) : (
+                    <div className="p-4 bg-gray-950 border border-gray-800 rounded-xl space-y-2 text-center text-xs">
+                      <Lock className="w-5 h-5 text-rose-400 mx-auto" />
+                      <p className="font-bold text-slate-100">Developer Diagnostic Log Locked</p>
+                      <p className="text-[10px] text-gray-500 font-sans leading-normal">
+                        Only scholars holding the explicit <span className="font-mono text-rose-500 bg-rose-500/10 px-1 py-0.5 rounded">developer</span> system role possess certificates to view diagnostic metrics.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Role Permission Documentation Card */}
+                <div className="bg-white border border-[#e5e7eb] rounded-2xl p-5 space-y-3 shadow-xs">
+                  <h3 className="text-xs font-semibold text-[#111827] uppercase tracking-wider flex items-center gap-1">
+                    <Shield className="w-3.5 h-3.5 text-gray-400" />
+                    Granular Access Guidelines
+                  </h3>
+                  <div className="space-y-2.5 text-[11px] leading-relaxed text-[#6b7280]">
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold font-mono text-rose-600 bg-rose-50 px-1 rounded text-[10px]">Admin</span>
+                      <p className="flex-1">Directly change user role registrations, view all databases, and monitor academic boards.</p>
+                    </div>
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold font-mono text-violet-600 bg-violet-50 px-1 rounded text-[10px]">Developer</span>
+                      <p className="flex-1">Configure container servers, probe system files, read real-time diagnostic telemetry counter.</p>
+                    </div>
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold font-mono text-indigo-600 bg-indigo-50 px-1 rounded text-[10px]">Instructor</span>
+                      <p className="flex-1">Create course modules, upload lecture resources, manage curriculum boards.</p>
+                    </div>
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold font-mono text-emerald-600 bg-emerald-50 px-1 rounded text-[10px]">Student</span>
+                      <p className="flex-1">Register dynamic lectures, request training certificates, and synchronize progress.</p>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
         ) : (
           <>
             {/* Filter Bar Component */}

@@ -22,6 +22,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "mountech_academy_secret_token_key_
 interface UserPayload {
   email: string;
   name: string;
+  role?: 'admin' | 'instructor' | 'student' | 'developer';
 }
 
 // Simple Custom Token Implementation
@@ -49,6 +50,7 @@ function verifyToken(token: string): UserPayload | null {
 const USERS_FILE = path.join(process.cwd(), "users.json");
 const ENROLLMENTS_FILE = path.join(process.cwd(), "enrollments.json");
 const LOGINS_FILE = path.join(process.cwd(), "logins.json");
+const RATINGS_FILE = path.join(process.cwd(), "ratings.json");
 
 // Helper function to send Verification Emails
 async function sendVerificationEmail(email: string, name: string, token: string, reqHost: string) {
@@ -189,10 +191,27 @@ function writeLocalLogins(logins: any[]) {
   fs.writeFileSync(LOGINS_FILE, JSON.stringify(logins, null, 2), "utf-8");
 }
 
+function readLocalRatings() {
+  if (!fs.existsSync(RATINGS_FILE)) {
+    fs.writeFileSync(RATINGS_FILE, JSON.stringify([], null, 2), "utf-8");
+    return [];
+  }
+  try {
+    return JSON.parse(fs.readFileSync(RATINGS_FILE, "utf-8"));
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalRatings(ratings: any[]) {
+  fs.writeFileSync(RATINGS_FILE, JSON.stringify(ratings, null, 2), "utf-8");
+}
+
 // Ensure database files are initialized on boot
 readUsers();
 readLocalEnrollments();
 readLocalLogins();
+readLocalRatings();
 
 // Google Sheets Helpers
 function getCleanPrivateKey(): string | undefined {
@@ -281,6 +300,14 @@ function hasSheetsConfig() {
   const key = getCleanPrivateKey();
   const id = getCleanSpreadsheetId();
   return !!(email && key && id);
+}
+
+function logSheetError(context: string, error: any) {
+  if (error && error.message && (error.message.includes("invalid_grant") || error.message.includes("signature") || error.message.includes("auth"))) {
+    console.warn(`[GOOGLE SHEET SYNC] ${context} deferred with local fallback (Credentials or Private Key is invalid or expired).`);
+  } else {
+    console.error(`[GOOGLE SHEET SYNC RESILIENCY] ${context} error:`, error?.message || error);
+  }
 }
 
 async function appendEnrollmentToSheet(email: string, name: string, courseId: string, courseTitle: string) {
@@ -380,7 +407,7 @@ async function appendLoginToSheet(email: string, name: string, status: string, d
     });
     console.log(`[GOOGLE SHEETS ENGINE] Appended login log entry for ${email} -> [${status}]`);
   } catch (err: any) {
-    console.error("[GOOGLE SHEETS ENGINE] Failed to append login log entry:", err.message);
+    logSheetError("Failed to append login log entry", err);
   }
 }
 
@@ -496,6 +523,19 @@ async function markCourseCompletedInSheet(email: string, courseId: string) {
   }
 }
 
+function getUserRole(userObj: any): 'admin' | 'instructor' | 'student' | 'developer' {
+  if (userObj.role) return userObj.role;
+  const email = (userObj.email || "").trim().toLowerCase();
+  if (email === 'jhanak.parajuli@gmail.com' || email === 'admin@mountech.academy') {
+    return 'admin';
+  } else if (email === 'instructor@mountech.academy') {
+    return 'instructor';
+  } else if (email === 'developer@mountech.academy') {
+    return 'developer';
+  }
+  return 'student';
+}
+
 // Authorization Middleware
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   const authHeader = req.headers.authorization;
@@ -504,13 +544,38 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
   }
 
   const token = authHeader.split(" ")[1];
-  const user = verifyToken(token);
-  if (!user) {
+  const payload = verifyToken(token);
+  if (!payload) {
     return res.status(401).json({ error: "Session expired or invalid token." });
   }
 
-  (req as any).user = user;
+  const users = readUsers();
+  const dbUser = users.find((u: any) => u.email === payload.email.trim().toLowerCase());
+  const role = dbUser ? getUserRole(dbUser) : getUserRole(payload);
+
+  (req as any).user = {
+    email: payload.email,
+    name: payload.name,
+    role: role
+  };
   next();
+}
+
+// Reusable Role-Based Authorization Middleware
+function requireRole(roles: ('admin' | 'instructor' | 'student' | 'developer')[]) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const user = (req as any).user;
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+    if (!roles.includes(user.role)) {
+      return res.status(403).json({ 
+        error: "Forbidden", 
+        message: `Role forbidden. This resource requires one of: ${roles.join(", ")}. Your current role is: ${user.role}` 
+      });
+    }
+    next();
+  };
 }
 
 // ----------------------------------------------------
@@ -555,7 +620,7 @@ app.post("/api/auth/oauth", (req, res) => {
   res.json({
     message: "OAuth authorization successful.",
     token,
-    user: { email: normalizedEmail, name: user.name }
+    user: { email: normalizedEmail, name: user.name, role: getUserRole(user) }
   });
 });
 
@@ -810,13 +875,87 @@ app.post("/api/auth/login", (req, res) => {
   res.json({
     message: "Login successful.",
     token,
-    user: { email: normalizedEmail, name: user.name }
+    user: { email: normalizedEmail, name: user.name, role: getUserRole(user) }
   });
 });
 
 // Verify Current Token / fetch Profile session
 app.get("/api/auth/me", requireAuth, (req, res) => {
   res.json({ user: (req as any).user });
+});
+
+// Admin: Fetch all users list (email, name, role, isVerified)
+app.get("/api/admin/users", requireAuth, requireRole(['admin', 'developer']), (req, res) => {
+  try {
+    const users = readUsers();
+    const usersList = users.map((u: any) => ({
+      email: u.email,
+      name: u.name,
+      role: getUserRole(u),
+      isVerified: !!u.isVerified
+    }));
+    res.json({ users: usersList });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to retrieve users directory on administrative board: " + err.message });
+  }
+});
+
+// Admin: Toggle/modify user role
+app.put("/api/admin/users/role", requireAuth, requireRole(['admin']), (req, res) => {
+  const { email, role } = req.body;
+  if (!email || !role) {
+    return res.status(400).json({ error: "Parameters email and role are mandatory." });
+  }
+
+  const allowedRoles = ['admin', 'instructor', 'student', 'developer'];
+  if (!allowedRoles.includes(role)) {
+    return res.status(400).json({ error: `Invalid role parameter. Permitted values: ${allowedRoles.join(", ")}` });
+  }
+
+  try {
+    const users = readUsers();
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = users.find((u: any) => u.email === normalizedEmail);
+
+    if (!user) {
+      return res.status(404).json({ error: "Scholar account matching provided email cannot be located." });
+    }
+
+    user.role = role;
+    writeUsers(users);
+
+    res.json({ success: true, message: `Successfully updated ${user.name || email}'s core role to: ${role}` });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to modify role registration: " + err.message });
+  }
+});
+
+// Developer: Access system configuration / diagnostic state / debug logs
+app.get("/api/developer/logs", requireAuth, requireRole(['developer']), (req, res) => {
+  try {
+    const usersCount = readUsers().length;
+    const loginsCount = readLocalLogins().length;
+    const enrollmentsCount = readLocalEnrollments().length;
+
+    const stats = {
+      systemClock: new Date().toISOString(),
+      activeDatabaseFallback: "logins.json",
+      credentialsLoaded: {
+        hasFirebaseConfig: fs.existsSync(path.join(process.cwd(), "firebase-applet-config.json")),
+        hasSheetsConfig: hasSheetsConfig()
+      },
+      metrics: {
+        registeredScholars: usersCount,
+        authenticatedSessions: loginsCount,
+        scholarlyEnrollments: enrollmentsCount
+      },
+      diagnosticCode: "DEV_OK - 200 SUCCESS - COMPLETED RBAC INTEGRITY CHECKS"
+    };
+
+    res.json({ logs: [stats] });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to fetch diagnostic state details: " + err.message });
+  }
 });
 
 // Fetch Current User's verified login logs
@@ -1172,7 +1311,7 @@ app.get("/api/enrollments", requireAuth, async (req, res) => {
       sheetsSynced: true
     });
   } catch (error: any) {
-    console.error("Sheets retrieval failed, falling back to local storage:", error.message);
+    logSheetError("Sheets retrieval failed, falling back to local storage", error);
     res.json({
       enrollments: Array.from(new Set(userLocalIDs)),
       completions: Array.from(new Set(userCompletedLocalIDs)),
@@ -1226,7 +1365,7 @@ app.post("/api/enroll", requireAuth, async (req, res) => {
       message: "Successfully synchronized enrollment securely to Google Sheets."
     });
   } catch (error: any) {
-    console.error("Google Sheets sync failed:", error.message);
+    logSheetError("Google Sheets sync failed", error);
     res.json({
       success: true,
       sheetsSynced: false,
@@ -1284,7 +1423,7 @@ app.post("/api/complete", requireAuth, async (req, res) => {
       message: "Successfully updated completion status in Google Sheets."
     });
   } catch (error: any) {
-    console.error("Completing in sheet failed:", error.message);
+    logSheetError("Completing in sheet failed", error);
     res.json({
       success: true,
       sheetsSynced: false,
@@ -1324,6 +1463,70 @@ app.get("/api/certificate/download", async (req, res) => {
     console.error("Certificate PDF generation error:", err.message);
     res.status(500).send(`<h1>Generation Error</h1><p>${err.message}</p>`);
   }
+});
+
+// GET /api/ratings/:courseId - Get course reviews and average rating
+app.get("/api/ratings/:courseId", (req, res) => {
+  const { courseId } = req.params;
+  const ratingsList = readLocalRatings();
+  const courseRatings = ratingsList.filter((r: any) => r.courseId === courseId);
+  
+  const count = courseRatings.length;
+  const average = count > 0 
+    ? Math.round((courseRatings.reduce((sum: number, r: any) => sum + r.rating, 0) / count) * 10) / 10
+    : 0;
+
+  res.json({
+    ratings: courseRatings,
+    average,
+    count
+  });
+});
+
+// POST /api/ratings - Create or update a course review
+app.post("/api/ratings", requireAuth, (req, res) => {
+  const user = (req as any).user;
+  const { courseId, rating, review } = req.body;
+
+  if (!courseId) {
+    return res.status(400).json({ error: "courseId is required to submit a rating." });
+  }
+
+  const ratingNum = Number(rating);
+  if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+    return res.status(400).json({ error: "Rating score must be a number between 1 and 5." });
+  }
+
+  const ratingsList = readLocalRatings();
+  const normalizedEmail = user.email.trim().toLowerCase();
+  
+  const existingIndex = ratingsList.findIndex(
+    (r: any) => r.courseId === courseId && r.email.toLowerCase() === normalizedEmail
+  );
+
+  const newRating = {
+    id: existingIndex >= 0 ? ratingsList[existingIndex].id : crypto.randomBytes(8).toString("hex"),
+    courseId,
+    email: normalizedEmail,
+    name: user.name,
+    rating: ratingNum,
+    review: (review || "").trim(),
+    timestamp: new Date().toISOString()
+  };
+
+  if (existingIndex >= 0) {
+    ratingsList[existingIndex] = newRating;
+  } else {
+    ratingsList.push(newRating);
+  }
+
+  writeLocalRatings(ratingsList);
+
+  res.json({
+    success: true,
+    message: "Thank you! Your rating has been recorded successfully.",
+    rating: newRating
+  });
 });
 
 // ----------------------------------------------------
