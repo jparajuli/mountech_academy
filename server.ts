@@ -900,6 +900,16 @@ app.get("/api/admin/users", requireAuth, requireRole(['admin', 'developer']), (r
   }
 });
 
+// Admin: Fetch all registered courses/enrollments for active management
+app.get("/api/admin/enrollments", requireAuth, requireRole(['admin']), (req, res) => {
+  try {
+    const enrollments = readLocalEnrollments();
+    res.json({ enrollments });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to retrieve registered courses logs: " + err.message });
+  }
+});
+
 // Admin: Toggle/modify user role
 app.put("/api/admin/users/role", requireAuth, requireRole(['admin']), (req, res) => {
   const { email, role } = req.body;

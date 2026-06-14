@@ -163,6 +163,19 @@ export async function adminListUsers(): Promise<{ users: ManagedUser[] }> {
   return apiFetch('/api/admin/users');
 }
 
+export interface AdminEnrollment {
+  timestamp: string;
+  email: string;
+  name: string;
+  courseId: string;
+  courseTitle: string;
+  status: string;
+}
+
+export async function adminListEnrollments(): Promise<{ enrollments: AdminEnrollment[] }> {
+  return apiFetch('/api/admin/enrollments');
+}
+
 export async function adminUpdateUserRole(email: string, role: string): Promise<{ success: boolean; message: string }> {
   return apiFetch('/api/admin/users/role', {
     method: 'PUT',

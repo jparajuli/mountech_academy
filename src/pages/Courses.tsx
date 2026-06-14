@@ -8,7 +8,7 @@ import {
   LogOut, GraduationCap, ArrowUpRight, HelpCircle, 
   Shield, FileCode, Terminal, Copy, Check, Lock, Server, Activity
 } from 'lucide-react';
-import { getLoginHistory, LoginEvent, adminListUsers, adminUpdateUserRole, getDeveloperLogs } from '../api';
+import { getLoginHistory, LoginEvent, adminListUsers, adminUpdateUserRole, getDeveloperLogs, adminListEnrollments } from '../api';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
 
@@ -39,6 +39,17 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
   const [loadingDevLogs, setLoadingDevLogs] = useState(false);
   const [rbacMessage, setRbacMessage] = useState('');
 
+  // Course registrations & payment fees states
+  const [adminEnrollments, setAdminEnrollments] = useState<any[]>([]);
+  const [loadingEnrollments, setLoadingEnrollments] = useState(false);
+
+  const filteredUsers = useMemo(() => {
+    if (user.role === 'developer') {
+      return managedUsers.filter((u: any) => u.role !== 'student');
+    }
+    return managedUsers;
+  }, [managedUsers, user.role]);
+
   const loadAdminData = () => {
     if (user.role === 'admin' || user.role === 'developer') {
       setLoadingUsers(true);
@@ -53,6 +64,20 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
         .finally(() => {
           setLoadingUsers(false);
         });
+
+      if (user.role === 'admin') {
+        setLoadingEnrollments(true);
+        adminListEnrollments()
+          .then((res) => {
+            setAdminEnrollments(res.enrollments || []);
+          })
+          .catch((err) => {
+            console.error("Failed to sync registrations/payment diagnostics:", err);
+          })
+          .finally(() => {
+            setLoadingEnrollments(false);
+          });
+      }
 
       if (user.role === 'developer') {
         setLoadingDevLogs(true);
@@ -414,11 +439,11 @@ function doPost(e) {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               
               {/* Left hand column: Scholar account directory list (Size: 2/3) */}
-              <div className="lg:col-span-2 space-y-4">
+              <div className="lg:col-span-2 space-y-6">
                 <div className="bg-white border border-[#e5e7eb] rounded-2xl shadow-sm p-6 overflow-hidden">
                   <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
                     <h2 className="text-sm font-bold text-[#111827] uppercase tracking-wider">
-                      Scholar Role Directory ({managedUsers.length} Users)
+                      {user.role === 'developer' ? 'Operational Staff Directory' : 'Scholar Role Directory'} ({filteredUsers.length} Users)
                     </h2>
                     <span className="text-[10px] font-mono text-[#9ca3af] bg-gray-50 px-2 py-0.5 rounded border border-[#e5e7eb]">
                       Live fallback db
@@ -431,18 +456,20 @@ function doPost(e) {
                       <div className="h-20 bg-gray-50 animate-pulse rounded"></div>
                       <div className="h-20 bg-gray-50 animate-pulse rounded"></div>
                     </div>
-                  ) : managedUsers.length > 0 ? (
+                  ) : filteredUsers.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-100">
                         <thead>
                           <tr className="text-[10px] font-bold text-gray-400 font-mono text-left uppercase tracking-wider">
-                            <th className="pb-3 text-[#6b7280]">Scholar & Email</th>
+                            <th className="pb-3 text-[#6b7280]">
+                              {user.role === 'developer' ? 'Staff Member' : 'Scholar'} & Email
+                            </th>
                             <th className="pb-3 text-[#6b7280]">Role Registry</th>
                             <th className="pb-3 text-right text-[#6b7280]">Action toggles</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 font-sans">
-                          {managedUsers.map((u: any) => {
+                          {filteredUsers.map((u: any) => {
                             const isCurrentUser = u.email.trim().toLowerCase() === user.email.trim().toLowerCase();
                             
                             // Color scheme mapping
@@ -496,10 +523,117 @@ function doPost(e) {
                   ) : (
                     <div className="text-center py-12 p-6 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
                       <Shield className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                      <p className="text-xs text-gray-500 font-mono">No scholar records found in directory.</p>
+                      <p className="text-xs text-gray-500 font-mono">No records found in directory.</p>
                     </div>
                   )}
                 </div>
+
+                {/* INSTITUTIONAL COURSE REGISTRATIONS AND ACADEMIC FEES STATUS BOARD - FOR ADMIN ONLY */}
+                {user.role === 'admin' && (
+                  <div className="bg-white border border-[#e5e7eb] rounded-2xl shadow-sm p-6 overflow-hidden" id="admin-registrations-payment-hub">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 border-b border-gray-100 pb-3 gap-2">
+                      <div>
+                        <h2 className="text-sm font-bold text-[#111827] uppercase tracking-wider flex items-center gap-1.5">
+                          <span>Institutional Course Registrations & Fee Status</span>
+                        </h2>
+                        <p className="text-[11px] text-[#6b7280] mt-0.5">
+                          Track active courses, academic fees paid, and enrollment status of all registered scholarship accounts.
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 border border-emerald-150 px-2 py-0.5 rounded font-bold uppercase shrink-0 w-fit">
+                        ADMIN ACCESS UNLOCKED
+                      </span>
+                    </div>
+
+                    {loadingEnrollments ? (
+                      <div className="space-y-3 py-6">
+                        <div className="h-4 bg-gray-100 animate-pulse rounded w-1/3"></div>
+                        <div className="h-12 bg-gray-50 animate-pulse rounded"></div>
+                        <div className="h-12 bg-gray-50 animate-pulse rounded"></div>
+                      </div>
+                    ) : adminEnrollments.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-100">
+                          <thead>
+                            <tr className="text-[10px] font-bold text-gray-400 font-mono text-left uppercase tracking-wider">
+                              <th className="pb-3 text-[#6b7280]">Scholar & Email</th>
+                              <th className="pb-3 text-[#6b7280]">Registered Course</th>
+                              <th className="pb-3 text-[#6b7280]">Fee Status</th>
+                              <th className="pb-3 text-[#6b7280]">Status</th>
+                              <th className="pb-3 text-right text-[#6b7280]">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 font-sans text-xs">
+                            {adminEnrollments.map((reg: any, regIdx: number) => {
+                              const matchC = courses.find((c) => c.id === reg.courseId);
+                              const isPaidCourse = matchC ? matchC.isPaid : false;
+                              const tuitionFee = matchC ? (isPaidCourse ? `$${matchC.price}` : 'FREE') : 'FREE';
+                              
+                              return (
+                                <tr key={regIdx} id={`reg-row-${regIdx}`} className="hover:bg-gray-50/50 transition-all">
+                                  <td className="py-4 pr-3">
+                                    <div className="font-semibold text-gray-900">{reg.name || 'Anonymous Scholar'}</div>
+                                    <div className="text-[10px] font-mono text-gray-400">{reg.email}</div>
+                                  </td>
+                                  <td className="py-4 pr-3 max-w-[200px] truncate">
+                                    <span className="font-medium text-gray-800" title={reg.courseTitle}>
+                                      {reg.courseTitle || reg.courseId}
+                                    </span>
+                                  </td>
+                                  <td className="py-4">
+                                    {isPaidCourse ? (
+                                      <div className="flex flex-col">
+                                        <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 rounded font-bold px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider inline-block w-fit">
+                                          PAID {tuitionFee}
+                                        </span>
+                                        <span className="text-[8px] text-gray-400 font-mono mt-0.5">NPR {(matchC!.price * 133).toLocaleString()} via digital wallet</span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-blue-700 bg-blue-50 border border-blue-200 rounded font-bold px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider inline-block w-fit">
+                                        FREE ACCESS
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-4">
+                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wider border ${
+                                      reg.status === 'Completed' 
+                                        ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                                    }`}>
+                                      {reg.status || 'Enrolled'}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (matchC) {
+                                          onSelectCourse(matchC);
+                                        }
+                                      }}
+                                      className="px-2.5 py-1.5 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-all shadow-3xs cursor-pointer inline-flex items-center gap-1 select-none"
+                                    >
+                                      <span>View Course Materials</span>
+                                      <span>→</span>
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 p-6 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
+                        <Lock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                        <h4 className="text-xs font-bold text-gray-800">No School Registrations Active</h4>
+                        <p className="text-[10px] text-gray-500 max-w-sm mx-auto mt-1 leading-normal font-sans">
+                          Once active scholars register courses or authorize academic payments, they will populate here securely.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Right column: Debug System metrics & Configuration Panel (Size: 1/3) */}

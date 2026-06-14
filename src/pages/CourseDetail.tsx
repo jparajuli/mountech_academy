@@ -3,7 +3,7 @@ import { Course, User } from '../types';
 import { 
   ArrowLeft, Clock, BookOpen, Star, CheckCircle, HelpCircle, 
   Award, Play, ChevronRight, Terminal, Sparkles, AlertCircle, 
-  Video, Code, FileText, Check, Globe, ShieldCheck, CreditCard, 
+  Video, Code, FileText, Check, Globe, Shield, ShieldCheck, CreditCard, 
   Send, Users, MessageSquare, ChevronLeft, Tv2, Smartphone,
   Lock, Unlock, Trophy, RefreshCw
 } from 'lucide-react';
@@ -94,6 +94,8 @@ const genericSlides = [
 ];
 
 export default function CourseDetail({ course, user, onBack, isEnrolled, onEnroll, isCompleted = false, onComplete, syncStatus }: CourseDetailProps) {
+  const hasEnrolledAccess = isEnrolled || (user && user.role === 'admin');
+
   // Database Ratings States
   const [ratings, setRatings] = useState<ReviewRating[]>([]);
   const [averageRating, setAverageRating] = useState<number>(course.rating);
@@ -645,31 +647,41 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
       <main className="max-w-7xl mx-auto px-6 lg:px-8 py-10 flex-grow w-full">
         
         {/* ENROLLMENT WELCOME HEADER WITH PERSONALIZED ACCOUNT MESSAGE */}
-        {isEnrolled && (
+        {hasEnrolledAccess && (
           <div 
             id="personalized-welcome-banner"
             className="mb-8 p-6 bg-gradient-to-r from-slate-50 to-blue-50/40 rounded-xl border border-blue-100 shadow-3xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
           >
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2 text-[#0070f3]">
-                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-700">ENROLLMENT VERIFIED</span>
+                <Shield className="w-5 h-5 text-rose-650 shrink-0" />
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-rose-700">
+                  {isEnrolled ? "ENROLLMENT VERIFIED" : "ADMIN OVERRIDE ACTIVE"}
+                </span>
                 
-                {syncStatus?.sheetsSynced ? (
-                  <span className="text-[9px] bg-emerald-100 text-emerald-900 border border-emerald-200 font-bold px-2 py-0.5 rounded-sm font-mono uppercase tracking-tight">
-                    Synced with Sheets Database 🟢
-                  </span>
+                {isEnrolled ? (
+                  syncStatus?.sheetsSynced ? (
+                    <span className="text-[9px] bg-emerald-100 text-emerald-950 border border-emerald-200 font-bold px-2 py-0.5 rounded-sm font-mono uppercase tracking-tight">
+                      Synced with Sheets Database 🟢
+                    </span>
+                  ) : (
+                    <span className="text-[9px] bg-amber-100 text-amber-950 border border-amber-200 font-bold px-2 py-0.5 rounded-sm font-mono uppercase tracking-tight">
+                      Local Cache Only
+                    </span>
+                  )
                 ) : (
-                  <span className="text-[9px] bg-amber-100 text-amber-900 border border-amber-200 font-bold px-2 py-0.5 rounded-sm font-mono uppercase tracking-tight">
-                    Local Cache Only
+                  <span className="text-[9px] bg-rose-105 text-rose-955 border border-rose-200 font-bold px-2 py-0.5 rounded-sm font-mono uppercase tracking-tight">
+                    Administrative Bypass
                   </span>
                 )}
               </div>
               <h2 className="text-lg md:text-xl font-extrabold text-[#111827] tracking-tight">
-                Welcome to active files scholar, {user.name}! 📚
+                {isEnrolled ? `Welcome to active files scholar, ${user.name}! 📚` : `Administrative Course Viewer: ${course.title} 🔍`}
               </h2>
-              <p className="text-xs text-gray-505 leading-relaxed">
-                Your registered learning path is synced securely with email <span className="font-mono text-[#0070f3]">{user.email}</span>. Live broadcasts and container sandboxes are activated.
+              <p className="text-xs text-gray-500 leading-relaxed">
+                {isEnrolled 
+                  ? `Your registered learning path is synced securely with email ${user.email}. Live broadcasts and container sandboxes are activated.`
+                  : "As an administrator of MountTech Academy, you have complete override clearance to view sandbox files, test syllabus chapters, and inspect premium files without enrolling."}
               </p>
             </div>
             
@@ -690,7 +702,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
         )}
 
         {/* HIGH FIDELITY LECTURE THEATER CLASSROOM MODE PANEL */}
-        {classroomMode && isEnrolled ? (
+        {classroomMode && hasEnrolledAccess ? (
           <div
             id="sandbox-classroom-panel"
             className="bg-[#0b101d] border border-gray-800 rounded-xl p-5 md:p-6 mb-10 text-white shadow-xl"
@@ -1064,7 +1076,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
           <div className="lg:col-span-8 space-y-10">
             
             {/* RICH ACCESS TO LEARNING MATERIALS (ONLY IF ENROLLED) */}
-            {isEnrolled && (
+            {hasEnrolledAccess && (
               <div id="enrolled-learning-resources-hub" className="bg-[#f9fafb] border border-blue-50/80 rounded-xl p-6 space-y-5">
                 <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
                   <Video className="w-5 h-5 text-[#0070f3]" />
@@ -1139,7 +1151,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
               </div>
 
               <div id="detail-syllabus-list" className="space-y-4 relative">
-                {!isEnrolled && (
+                {!hasEnrolledAccess && (
                   <div className="absolute inset-x-0 top-0 bottom-0 z-10 bg-white/75 backdrop-blur-[4px] rounded-2xl flex flex-col items-center justify-center p-8 text-center border border-gray-200">
                     <div className="p-3.5 bg-slate-100 text-[#111827] border border-gray-300 rounded-2xl mb-4 shrink-0 shadow-3xs">
                       <Lock className="w-8 h-8" />
@@ -1184,7 +1196,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                   </div>
                 )}
 
-                <div className={!isEnrolled ? "opacity-35 select-none pointer-events-none filter blur-[3px] space-y-4" : "space-y-4"}>
+                <div className={!hasEnrolledAccess ? "opacity-35 select-none pointer-events-none filter blur-[3px] space-y-4" : "space-y-4"}>
                   {course.syllabus.map((slice, index) => {
                     const isLesCompleted = completedLessons.includes(index);
                     return (
@@ -1212,7 +1224,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                           </div>
 
                           {/* Interactive Buttons for Enrolled Scholars */}
-                          {isEnrolled && (
+                          {hasEnrolledAccess && (
                             <div className="flex sm:flex-col items-stretch gap-2 shrink-0 w-full sm:w-auto">
                               <button
                                 id={`chapter-interactive-trigger-${index}`}
@@ -1252,7 +1264,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
             </div>
 
             {/* GRADUATION EXAM SECTION */}
-            {isEnrolled && (
+            {hasEnrolledAccess && (
               <div id="graduation-exam-panel" className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
                   <div className="flex items-center gap-3">
@@ -1810,7 +1822,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                         title="You must pass the Final Exam with at least an 80% passing score before completing this course."
                       >
                         <Lock className="w-4 h-4 text-gray-400 shrink-0" />
-                        <span>80% Exam Pass Required</span>
+                        <span>85% Exam Pass Required</span>
                       </button>
                       <p className="text-[10px] text-center text-gray-500 leading-relaxed">
                         To unlock graduation, review all syllabus units and achieve 80%+ on the multiple-choice final exam below.
@@ -1831,6 +1843,32 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                     className="w-full bg-[#111827] text-white hover:bg-black font-bold rounded-lg text-xs transition-all py-3 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap select-none"
                   >
                     <Tv2 className="w-4 h-4 text-[#38bdf8]" />
+                    <span>Enter Lecture Classroom</span>
+                  </button>
+                </div>
+              ) : user && user.role === 'admin' ? (
+                <div className="space-y-3">
+                  <div className="p-3 bg-rose-50 border border-rose-150 text-rose-800 rounded-lg text-xs leading-relaxed flex gap-2 items-start" id="admin-override-toast">
+                    <Shield className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block text-rose-950">Administrative Clearance</span>
+                      You hold an administrator account. Full syllabus chapters and developer sandboxes are unlocked autonomously.
+                    </div>
+                  </div>
+
+                  <button
+                    id="launch-playground-widget-btn"
+                    onClick={() => {
+                      setClassroomMode(true);
+                      setClassroomTab('lecture');
+                      window.scrollTo({ top: 320, behavior: 'smooth' });
+                      if (activeLessonIndex === null) {
+                        setActiveLessonIndex(0);
+                      }
+                    }}
+                    className="w-full bg-rose-600 text-white hover:bg-rose-700 font-bold rounded-lg text-xs transition-all py-3 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap select-none"
+                  >
+                    <Tv2 className="w-4 h-4 text-rose-200" />
                     <span>Enter Lecture Classroom</span>
                   </button>
                 </div>
