@@ -1735,42 +1735,65 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
             {/* Meet the Instructor Box */}
             <div id="instructor-profile-box" className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-3xs">
               <h2 className="text-lg md:text-xl font-bold text-[#111827] tracking-tight mb-5">
-                Meet Your Instructor
+                Meet Your Instructors
               </h2>
               
-              {(() => {
-                const matchInst = instructorsList.find(
-                  (p) =>
-                    (course.instructor_profile_id && p.id === course.instructor_profile_id) ||
-                    p.full_name.trim().toLowerCase() === (course.instructorName || '').trim().toLowerCase() ||
-                    p.user_email.trim().toLowerCase() === (course.instructorName || '').trim().toLowerCase() ||
-                    (course.instructorName || '').toLowerCase().includes(p.full_name.trim().toLowerCase())
-                );
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {(() => {
+                  const instructorsToRender = (course.instructors && course.instructors.length > 0)
+                    ? course.instructors
+                    : [{ id: course.instructor_profile_id, name: course.instructorName, title: course.instructorTitle, avatar: undefined as string | undefined }];
 
-                if (matchInst) {
-                  return <InstructorCard profile={matchInst} />;
-                }
+                  return instructorsToRender.map((inst: any, index) => {
+                    const matchInst = instructorsList.find(
+                      (p) =>
+                        (inst.id && p.id === Number(inst.id)) ||
+                        p.full_name.trim().toLowerCase() === (inst.name || '').trim().toLowerCase() ||
+                        p.user_email.trim().toLowerCase() === (inst.name || '').trim().toLowerCase() ||
+                        (inst.name || '').toLowerCase().includes(p.full_name.trim().toLowerCase())
+                    );
 
-                return (
-                  <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center">
-                    <div className="w-14 h-14 rounded-full bg-[#111827] text-white flex items-center justify-center font-bold text-xl shrink-0 shadow-2xs">
-                      {course.instructorName.charAt(0).toUpperCase()}
-                    </div>
-                    
-                    <div className="space-y-1 text-xs md:text-sm">
-                      <h4 id="detail-instructor-name" className="text-[#111827] font-bold text-sm tracking-tight md:text-base">
-                        {course.instructorName}
-                      </h4>
-                      <p id="detail-instructor-title" className="text-gray-400 font-mono text-xs">
-                        {course.instructorTitle}
-                      </p>
-                      <p className="text-gray-500 mt-2 leading-relaxed">
-                        Pioneering educator in advanced code architectures and machine learning systems. Our Mountech faculty works alongside industry lead developers to verify rigorous standards.
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
+                    if (matchInst) {
+                      return (
+                        <div key={index} className="border border-slate-100 rounded-xl p-4 bg-slate-50/50">
+                          <InstructorCard profile={matchInst} />
+                        </div>
+                      );
+                    }
+
+                    if (!inst.name) return null;
+
+                    return (
+                      <div key={index} className="flex flex-col sm:flex-row gap-5 items-start sm:items-center border border-slate-150 rounded-xl p-4 bg-slate-50/50">
+                        {inst.avatar ? (
+                          <img
+                            src={inst.avatar}
+                            alt={inst.name}
+                            className="w-14 h-14 rounded-full object-cover shrink-0 shadow-2xs"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-full bg-[#111827] text-[#ffffff] flex items-center justify-center font-bold text-xl shrink-0 shadow-2xs">
+                            {inst.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        
+                        <div className="space-y-1 text-xs md:text-sm">
+                          <h4 className="text-[#111827] font-bold text-sm tracking-tight md:text-base">
+                            {inst.name}
+                          </h4>
+                          <p className="text-gray-405 font-mono text-xs">
+                            {inst.title || "Academic Facilitator"}
+                          </p>
+                          <p className="text-gray-500 mt-2 leading-relaxed text-xs">
+                            Pioneering educator in advanced code architectures and machine learning systems. Our Mountech faculty works alongside industry lead developers to verify rigorous standards.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             </div>
 
             {/* Scholar Feedback & Star Rating Box */}

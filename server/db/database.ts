@@ -107,6 +107,16 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_instructor_profiles_email ON instructor_profiles(user_email);
+
+  CREATE TABLE IF NOT EXISTS course_instructors (
+    course_id TEXT NOT NULL,
+    instructor_profile_id INTEGER NOT NULL,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (course_id, instructor_profile_id),
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE,
+    FOREIGN KEY(instructor_profile_id) REFERENCES instructor_profiles(id) ON DELETE CASCADE,
+    UNIQUE(course_id, instructor_profile_id)
+  );
 `);
 
 // Dynamic resilient schema upgrades for password reset flows
@@ -124,6 +134,19 @@ try {
 } catch (_) {}
 try {
   db.exec("ALTER TABLE courses ADD COLUMN instructor_profile_id INTEGER REFERENCES instructor_profiles(id) ON DELETE SET NULL;");
+} catch (_) {}
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS course_instructors (
+      course_id TEXT NOT NULL,
+      instructor_profile_id INTEGER NOT NULL,
+      display_order INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (course_id, instructor_profile_id),
+      FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE,
+      FOREIGN KEY(instructor_profile_id) REFERENCES instructor_profiles(id) ON DELETE CASCADE,
+      UNIQUE(course_id, instructor_profile_id)
+    );
+  `);
 } catch (_) {}
 
 // Dynamic baseline database seeding for integrated professional sandbox courses

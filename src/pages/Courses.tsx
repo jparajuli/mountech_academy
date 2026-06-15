@@ -70,6 +70,7 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
   const [newCourseInstTitle, setNewCourseInstTitle] = useState('');
   const [instructorsList, setInstructorsList] = useState<InstructorProfile[]>([]);
   const [newCourseInstProfileId, setNewCourseInstProfileId] = useState<string>('');
+  const [newCourseInstProfileIds, setNewCourseInstProfileIds] = useState<string[]>(['']);
   const [newCourseDuration, setNewCourseDuration] = useState('');
   const [newCourseLessonCount, setNewCourseLessonCount] = useState('');
   const [newCoursePartner, setNewCoursePartner] = useState('');
@@ -113,6 +114,7 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
     setNewCourseInstName('');
     setNewCourseInstTitle('');
     setNewCourseInstProfileId('');
+    setNewCourseInstProfileIds(['']);
     setNewCourseDuration('');
     setNewCourseLessonCount('');
     setNewCoursePartner('');
@@ -252,6 +254,23 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
     setNewCourseInstName(course.instructorName || '');
     setNewCourseInstTitle(course.instructorTitle || '');
     setNewCourseInstProfileId(course.instructor_profile_id ? String(course.instructor_profile_id) : '');
+    
+    // Prefill multi-instructors array
+    let profileIds: string[] = [];
+    if (course.instructors && course.instructors.length > 0) {
+      profileIds = course.instructors.map(ci => {
+        const match = instructorsList.find(i => i.full_name === ci.name);
+        return match ? String(match.id) : '';
+      }).filter(Boolean);
+    }
+    if (profileIds.length === 0 && course.instructor_profile_id) {
+      profileIds = [String(course.instructor_profile_id)];
+    }
+    if (profileIds.length === 0) {
+      profileIds = [''];
+    }
+    setNewCourseInstProfileIds(profileIds);
+
     setNewCourseDuration(course.duration || '');
     setNewCourseLessonCount(course.lessonCount || '');
     setNewCoursePartner(course.partnerName || '');
@@ -307,7 +326,7 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
         thumbnailIconCode: newCourseThumbnailIcon,
         isPaid: newCourseIsPaid,
         price: newCourseIsPaid ? Number(newCoursePrice) : 0,
-        instructor_profile_id: newCourseInstProfileId ? Number(newCourseInstProfileId) : null
+        instructor_ids: newCourseInstProfileIds.filter(Boolean)
       };
 
       const res = await updateCourseDetails(editingCourseId, payload);
@@ -377,7 +396,8 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
         thumbnailIconCode: newCourseThumbnailIcon,
         isPaid: newCourseIsPaid,
         price: newCourseIsPaid ? Number(newCoursePrice) : 0,
-        instructor_profile_id: newCourseInstProfileId ? Number(newCourseInstProfileId) : null
+        instructor_profile_id: null,
+        instructor_ids: newCourseInstProfileIds.filter(Boolean)
       };
 
       const res = await createNewCourse(payload);
@@ -1062,37 +1082,80 @@ function doPost(e) {
                         />
                       </div>
 
-                      {/* Assign Instructor from Profile */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
-                          Assign Instructor Profile
+                      {/* Assign Instructors from Profiles (Up to 3 Many-To-Many) */}
+                      <div className="space-y-3.5">
+                        <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase">
+                          Assign Instructors (Max 3, Primary & Co-instructors)
                         </label>
-                        <select
-                          id="assign-instructor-select"
-                          value={newCourseInstProfileId}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setNewCourseInstProfileId(val);
-                            if (val) {
-                              const selected = instructorsList.find(i => String(i.id) === val);
-                              if (selected) {
-                                setNewCourseInstName(selected.full_name);
-                                setNewCourseInstTitle(selected.academic_title);
-                              }
-                            } else {
-                              setNewCourseInstName('');
-                              setNewCourseInstTitle('');
-                            }
-                          }}
-                          className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] bg-white rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3] cursor-pointer"
-                        >
-                          <option value="">To be assigned later</option>
-                          {instructorsList.map((inst) => (
-                            <option key={inst.id} value={inst.id}>
-                              {inst.full_name} ({inst.academic_title})
-                            </option>
-                          ))}
-                        </select>
+                        {newCourseInstProfileIds.map((profileId, index) => {
+                          const isPrimary = index === 0;
+                          return (
+                            <div key={index} className="flex gap-2 items-center">
+                              <div className="flex-1">
+                                <span className="block text-[10px] text-gray-400 font-medium mb-1">
+                                  {isPrimary ? "Primary Instructor" : `Co-Instructor #${index}`}
+                                </span>
+                                <select
+                                  value={profileId}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const nextIds = [...newCourseInstProfileIds];
+                                    nextIds[index] = val;
+                                    setNewCourseInstProfileIds(nextIds);
+                                    
+                                    // Fill backward compatibility names
+                                    if (isPrimary) {
+                                      setNewCourseInstProfileId(val);
+                                      if (val) {
+                                        const selected = instructorsList.find(i => String(i.id) === val);
+                                        if (selected) {
+                                          setNewCourseInstName(selected.full_name);
+                                          setNewCourseInstTitle(selected.academic_title);
+                                        }
+                                      } else {
+                                        setNewCourseInstName('');
+                                        setNewCourseInstTitle('');
+                                      }
+                                    }
+                                  }}
+                                  className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] bg-white rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3] cursor-pointer"
+                                >
+                                  <option value="">To be assigned later</option>
+                                  {instructorsList.map((inst) => (
+                                    <option key={inst.id} value={inst.id}>
+                                      {inst.full_name} ({inst.academic_title})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              {!isPrimary && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextIds = newCourseInstProfileIds.filter((_, idx) => idx !== index);
+                                    setNewCourseInstProfileIds(nextIds);
+                                  }}
+                                  className="self-end px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors cursor-pointer mt-5"
+                                  title="Remove Co-Instructor"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                        
+                        {newCourseInstProfileIds.length < 3 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewCourseInstProfileIds([...newCourseInstProfileIds, '']);
+                            }}
+                            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors cursor-pointer"
+                          >
+                            <span>+ Add Co-Instructor</span>
+                          </button>
+                        )}
                       </div>
 
                       {/* Instructor Information */}

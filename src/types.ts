@@ -35,6 +35,12 @@ export interface Course {
     title: string;
     avatar?: string;
   } | null;
+  instructors?: {
+    name: string;
+    title: string;
+    avatar?: string;
+  }[];
+  instructor_ids?: (string | number)[];
 }
 
 export interface User {

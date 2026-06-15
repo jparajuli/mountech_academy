@@ -61,7 +61,7 @@ export const AdminCourseSchema = z.object({
   thumbnailIconCode: z.string().trim().default("default"),
   isPaid: z.boolean().default(false),
   price: z.number().default(0),
-  instructor_profile_id: z.union([z.string(), z.number()]).nullable().optional(),
+  instructor_ids: z.array(z.union([z.string(), z.number()])).max(3).optional().nullable(),
 });
 
 export const LiveSessionSchema = z.object({

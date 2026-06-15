@@ -563,41 +563,67 @@ export function submitRating(req: Request, res: Response) {
 export function listCourses(req: Request, res: Response) {
   try {
     const rows = db.prepare(`
-      SELECT c.*, ip.id as ip_id, ip.full_name as ip_name, ip.academic_title as ip_academic_title, ip.avatar_url as ip_avatar, ip.short_bio as ip_bio, ip.user_email as ip_email, ip.linkedin_url as ip_linkedin
+      SELECT c.*,
+             json_group_array(
+               json_object(
+                 'id', ip.id,
+                 'name', ip.full_name,
+                 'title', ip.academic_title,
+                 'avatar', ip.avatar_url,
+                 'display_order', ci.display_order
+               )
+             ) AS instructors_json
       FROM courses c
-      LEFT JOIN instructor_profiles ip ON c.instructor_profile_id = ip.id
+      LEFT JOIN course_instructors ci ON c.id = ci.course_id
+      LEFT JOIN instructor_profiles ip ON ci.instructor_profile_id = ip.id
       WHERE c.is_locked = 0
+      GROUP BY c.id
     `).all() as any[];
-    const courses = rows.map((r) => ({
-      id: r.id,
-      title: r.title,
-      type: r.type,
-      difficulty: r.difficulty,
-      topic: r.topic,
-      description: r.description,
-      fullDescription: r.fullDescription,
-      instructorName: r.instructor_profile_id ? r.ip_name : r.instructorName,
-      instructorTitle: r.instructor_profile_id ? r.ip_academic_title : r.instructorTitle,
-      duration: r.duration,
-      lessonCount: r.lessonCount,
-      rating: r.rating,
-      enrolledCount: r.enrolledCount,
-      partnerName: r.partnerName,
-      skillsAcquired: JSON.parse(r.skillsAcquired || "[]"),
-      requirements: JSON.parse(r.requirements || "[]"),
-      syllabus: JSON.parse(r.syllabus || "[]"),
-      thumbnailBg: r.thumbnailBg,
-      thumbnailIconCode: r.thumbnailIconCode,
-      isPaid: r.isPaid === 1,
-      price: r.price,
-      isLocked: r.is_locked === 1,
-      instructor_profile_id: r.instructor_profile_id,
-      instructor: r.instructor_profile_id ? {
-        name: r.ip_name,
-        title: r.ip_academic_title,
-        avatar: r.ip_avatar
-      } : null
-    }));
+    const courses = rows.map((r) => {
+      let instructors: any[] = [];
+      try {
+        const parsed = JSON.parse(r.instructors_json);
+        if (Array.isArray(parsed)) {
+          instructors = parsed.filter((inst: any) => inst && inst.id !== null);
+          instructors.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        }
+      } catch (err) {
+        instructors = [];
+      }
+
+      const primaryInst = instructors[0] || null;
+
+      return {
+        id: r.id,
+        title: r.title,
+        type: r.type,
+        difficulty: r.difficulty,
+        topic: r.topic,
+        description: r.description,
+        fullDescription: r.fullDescription,
+        instructorName: primaryInst ? primaryInst.name : r.instructorName,
+        instructorTitle: primaryInst ? primaryInst.title : r.instructorTitle,
+        duration: r.duration,
+        lessonCount: r.lessonCount,
+        rating: r.rating,
+        enrolledCount: r.enrolledCount,
+        partnerName: r.partnerName,
+        skillsAcquired: JSON.parse(r.skillsAcquired || "[]"),
+        requirements: JSON.parse(r.requirements || "[]"),
+        syllabus: JSON.parse(r.syllabus || "[]"),
+        thumbnailBg: r.thumbnailBg,
+        thumbnailIconCode: r.thumbnailIconCode,
+        isPaid: r.isPaid === 1,
+        price: r.price,
+        isLocked: r.is_locked === 1,
+        instructors: instructors.map(i => ({ id: i.id, name: i.name, title: i.title, avatar: i.avatar })),
+        instructor: primaryInst ? {
+          name: primaryInst.name,
+          title: primaryInst.title,
+          avatar: primaryInst.avatar
+        } : null
+      };
+    });
     return res.json({ success: true, courses });
   } catch (err: any) {
     console.error("[GET COURSES ERR]", err);
@@ -609,40 +635,66 @@ export function listCourses(req: Request, res: Response) {
 export function listAdminCourses(req: Request, res: Response) {
   try {
     const rows = db.prepare(`
-      SELECT c.*, ip.id as ip_id, ip.full_name as ip_name, ip.academic_title as ip_academic_title, ip.avatar_url as ip_avatar, ip.short_bio as ip_bio, ip.user_email as ip_email, ip.linkedin_url as ip_linkedin
+      SELECT c.*,
+             json_group_array(
+               json_object(
+                 'id', ip.id,
+                 'name', ip.full_name,
+                 'title', ip.academic_title,
+                 'avatar', ip.avatar_url,
+                 'display_order', ci.display_order
+               )
+             ) AS instructors_json
       FROM courses c
-      LEFT JOIN instructor_profiles ip ON c.instructor_profile_id = ip.id
+      LEFT JOIN course_instructors ci ON c.id = ci.course_id
+      LEFT JOIN instructor_profiles ip ON ci.instructor_profile_id = ip.id
+      GROUP BY c.id
     `).all() as any[];
-    const courses = rows.map((r) => ({
-      id: r.id,
-      title: r.title,
-      type: r.type,
-      difficulty: r.difficulty,
-      topic: r.topic,
-      description: r.description,
-      fullDescription: r.fullDescription,
-      instructorName: r.instructor_profile_id ? r.ip_name : r.instructorName,
-      instructorTitle: r.instructor_profile_id ? r.ip_academic_title : r.instructorTitle,
-      duration: r.duration,
-      lessonCount: r.lessonCount,
-      rating: r.rating,
-      enrolledCount: r.enrolledCount,
-      partnerName: r.partnerName,
-      skillsAcquired: JSON.parse(r.skillsAcquired || "[]"),
-      requirements: JSON.parse(r.requirements || "[]"),
-      syllabus: JSON.parse(r.syllabus || "[]"),
-      thumbnailBg: r.thumbnailBg,
-      thumbnailIconCode: r.thumbnailIconCode,
-      isPaid: r.isPaid === 1,
-      price: r.price,
-      isLocked: r.is_locked === 1,
-      instructor_profile_id: r.instructor_profile_id,
-      instructor: r.instructor_profile_id ? {
-        name: r.ip_name,
-        title: r.ip_academic_title,
-        avatar: r.ip_avatar
-      } : null
-    }));
+    const courses = rows.map((r) => {
+      let instructors: any[] = [];
+      try {
+        const parsed = JSON.parse(r.instructors_json);
+        if (Array.isArray(parsed)) {
+          instructors = parsed.filter((inst: any) => inst && inst.id !== null);
+          instructors.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        }
+      } catch (err) {
+        instructors = [];
+      }
+
+      const primaryInst = instructors[0] || null;
+
+      return {
+        id: r.id,
+        title: r.title,
+        type: r.type,
+        difficulty: r.difficulty,
+        topic: r.topic,
+        description: r.description,
+        fullDescription: r.fullDescription,
+        instructorName: primaryInst ? primaryInst.name : r.instructorName,
+        instructorTitle: primaryInst ? primaryInst.title : r.instructorTitle,
+        duration: r.duration,
+        lessonCount: r.lessonCount,
+        rating: r.rating,
+        enrolledCount: r.enrolledCount,
+        partnerName: r.partnerName,
+        skillsAcquired: JSON.parse(r.skillsAcquired || "[]"),
+        requirements: JSON.parse(r.requirements || "[]"),
+        syllabus: JSON.parse(r.syllabus || "[]"),
+        thumbnailBg: r.thumbnailBg,
+        thumbnailIconCode: r.thumbnailIconCode,
+        isPaid: r.isPaid === 1,
+        price: r.price,
+        isLocked: r.is_locked === 1,
+        instructors: instructors.map(i => ({ id: i.id, name: i.name, title: i.title, avatar: i.avatar })),
+        instructor: primaryInst ? {
+          name: primaryInst.name,
+          title: primaryInst.title,
+          avatar: primaryInst.avatar
+        } : null
+      };
+    });
     return res.json({ success: true, courses });
   } catch (err: any) {
     console.error("[GET ADMIN COURSES ERR]", err);
@@ -837,19 +889,11 @@ export function createCourse(req: Request, res: Response) {
     thumbnailIconCode,
     isPaid,
     price,
-    instructor_profile_id
+    instructor_ids
   } = req.body;
 
   if (!title || !description || !fullDescription) {
     return res.status(400).json({ error: "Missing required core course parameters (title, description, fullDescription)." });
-  }
-
-  let parsedProfileId: number | null = null;
-  if (instructor_profile_id !== undefined && instructor_profile_id !== null && instructor_profile_id !== "") {
-    parsedProfileId = Number(instructor_profile_id);
-    if (isNaN(parsedProfileId)) {
-      parsedProfileId = null;
-    }
   }
 
   try {
@@ -890,45 +934,83 @@ export function createCourse(req: Request, res: Response) {
       price: price ? Number(price) : 0
     };
 
-    db.prepare(`
-      INSERT INTO courses (
-        id, title, type, difficulty, topic, description, fullDescription,
-        instructorName, instructorTitle, duration, lessonCount, rating, enrolledCount,
-        partnerName, skillsAcquired, requirements, syllabus, thumbnailBg, thumbnailIconCode, isPaid, price, instructor_profile_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      courseRecord.id,
-      courseRecord.title,
-      courseRecord.type,
-      courseRecord.difficulty,
-      courseRecord.topic,
-      courseRecord.description,
-      courseRecord.fullDescription,
-      courseRecord.instructorName,
-      courseRecord.instructorTitle,
-      courseRecord.duration,
-      courseRecord.lessonCount,
-      courseRecord.rating,
-      courseRecord.enrolledCount,
-      courseRecord.partnerName,
-      JSON.stringify(courseRecord.skillsAcquired),
-      JSON.stringify(courseRecord.requirements),
-      JSON.stringify(courseRecord.syllabus),
-      courseRecord.thumbnailBg,
-      courseRecord.thumbnailIconCode,
-      courseRecord.isPaid,
-      courseRecord.price,
-      parsedProfileId
-    );
+    const resolvedInstructorIds = Array.isArray(instructor_ids)
+      ? instructor_ids.filter((x): x is string | number => x !== null && x !== undefined && x !== "")
+      : [];
+
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO courses (
+          id, title, type, difficulty, topic, description, fullDescription,
+          instructorName, instructorTitle, duration, lessonCount, rating, enrolledCount,
+          partnerName, skillsAcquired, requirements, syllabus, thumbnailBg, thumbnailIconCode, isPaid, price, instructor_profile_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      `).run(
+        courseRecord.id,
+        courseRecord.title,
+        courseRecord.type,
+        courseRecord.difficulty,
+        courseRecord.topic,
+        courseRecord.description,
+        courseRecord.fullDescription,
+        courseRecord.instructorName,
+        courseRecord.instructorTitle,
+        courseRecord.duration,
+        courseRecord.lessonCount,
+        courseRecord.rating,
+        courseRecord.enrolledCount,
+        courseRecord.partnerName,
+        JSON.stringify(courseRecord.skillsAcquired),
+        JSON.stringify(courseRecord.requirements),
+        JSON.stringify(courseRecord.syllabus),
+        courseRecord.thumbnailBg,
+        courseRecord.thumbnailIconCode,
+        courseRecord.isPaid,
+        courseRecord.price
+      );
+
+      const insertCI = db.prepare(`
+        INSERT INTO course_instructors (course_id, instructor_profile_id, display_order)
+        VALUES (?, ?, ?)
+      `);
+
+      for (let i = 0; i < resolvedInstructorIds.length; i++) {
+        insertCI.run(courseRecord.id, Number(resolvedInstructorIds[i]), i);
+      }
+    })();
 
     console.log(`[COURSE CREATED] Course "${courseRecord.title}" successfully persisted in SQLite with ID: ${courseRecord.id}`);
 
     const createdRow = db.prepare(`
-      SELECT c.*, ip.id as ip_id, ip.full_name as ip_name, ip.academic_title as ip_academic_title, ip.avatar_url as ip_avatar, ip.short_bio as ip_bio, ip.user_email as ip_email, ip.linkedin_url as ip_linkedin
+      SELECT c.*,
+             json_group_array(
+               json_object(
+                 'id', ip.id,
+                 'name', ip.full_name,
+                 'title', ip.academic_title,
+                 'avatar', ip.avatar_url,
+                 'display_order', ci.display_order
+               )
+             ) AS instructors_json
       FROM courses c
-      LEFT JOIN instructor_profiles ip ON c.instructor_profile_id = ip.id
+      LEFT JOIN course_instructors ci ON c.id = ci.course_id
+      LEFT JOIN instructor_profiles ip ON ci.instructor_profile_id = ip.id
       WHERE c.id = ?
+      GROUP BY c.id
     `).get(courseRecord.id) as any;
+
+    let instructors: any[] = [];
+    try {
+      const parsed = JSON.parse(createdRow.instructors_json);
+      if (Array.isArray(parsed)) {
+        instructors = parsed.filter((inst: any) => inst && inst.id !== null);
+        instructors.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+      }
+    } catch (err) {
+      instructors = [];
+    }
+
+    const primaryInst = instructors[0] || null;
 
     const returnedCourse = {
       id: createdRow.id,
@@ -938,8 +1020,8 @@ export function createCourse(req: Request, res: Response) {
       topic: createdRow.topic,
       description: createdRow.description,
       fullDescription: createdRow.fullDescription,
-      instructorName: createdRow.instructor_profile_id ? createdRow.ip_name : createdRow.instructorName,
-      instructorTitle: createdRow.instructor_profile_id ? createdRow.ip_academic_title : createdRow.instructorTitle,
+      instructorName: primaryInst ? primaryInst.name : createdRow.instructorName,
+      instructorTitle: primaryInst ? primaryInst.title : createdRow.instructorTitle,
       duration: createdRow.duration,
       lessonCount: createdRow.lessonCount,
       rating: createdRow.rating,
@@ -953,11 +1035,11 @@ export function createCourse(req: Request, res: Response) {
       isPaid: createdRow.isPaid === 1,
       price: createdRow.price,
       isLocked: createdRow.is_locked === 1,
-      instructor_profile_id: createdRow.instructor_profile_id,
-      instructor: createdRow.instructor_profile_id ? {
-        name: createdRow.ip_name,
-        title: createdRow.ip_academic_title,
-        avatar: createdRow.ip_avatar
+      instructors: instructors.map(i => ({ id: i.id, name: i.name, title: i.title, avatar: i.avatar })),
+      instructor: primaryInst ? {
+        name: primaryInst.name,
+        title: primaryInst.title,
+        avatar: primaryInst.avatar
       } : null
     };
 
