@@ -75,5 +75,75 @@
     "name": "GitHub Student",
     "status": "SUCCESS",
     "details": "Authorized GitHub Session"
+  },
+  {
+    "timestamp": "2026-06-14T15:46:44.604Z",
+    "email": "jhanak.parajuli@gmail.com",
+    "name": "Jhanak Parajuli",
+    "status": "SUCCESS",
+    "details": "Authorized Google Session"
+  },
+  {
+    "timestamp": "2026-06-14T15:48:18.598Z",
+    "email": "student@mountech.academy",
+    "name": "Mountech Scholar",
+    "status": "SUCCESS",
+    "details": "Authorized Web Session"
+  },
+  {
+    "timestamp": "2026-06-14T15:49:21.558Z",
+    "email": "jhanak.parajuli@gmail.com",
+    "name": "Jhanak Parajuli",
+    "status": "SUCCESS",
+    "details": "Authorized Google Session"
+  },
+  {
+    "timestamp": "2026-06-14T15:49:59.739Z",
+    "email": "student@mountech.academy",
+    "name": "Mountech Scholar",
+    "status": "SUCCESS",
+    "details": "Authorized Web Session"
+  },
+  {
+    "timestamp": "2026-06-14T15:53:41.502Z",
+    "email": "jhanak.parajuli@gmail.com",
+    "name": "dsdasd",
+    "status": "SUCCESS",
+    "details": "Authorized Google Session"
+  },
+  {
+    "timestamp": "2026-06-14T16:08:56.431Z",
+    "email": "jhanak.parajuli@gmail.com",
+    "name": "dsdasd",
+    "status": "SUCCESS",
+    "details": "Authorized Google Session"
+  },
+  {
+    "timestamp": "2026-06-14T16:17:52.174Z",
+    "email": "student@mountech.academy",
+    "name": "Mountech Scholar",
+    "status": "SUCCESS",
+    "details": "Authorized Web Session"
+  },
+  {
+    "timestamp": "2026-06-14T20:47:21.942Z",
+    "email": "jhanak.parajuli@gmail.com",
+    "name": "dsdasd",
+    "status": "SUCCESS",
+    "details": "Authorized Google Session"
+  },
+  {
+    "timestamp": "2026-06-14T20:50:35.594Z",
+    "email": "student@mountech.academy",
+    "name": "Mountech Scholar",
+    "status": "SUCCESS",
+    "details": "Authorized Web Session"
+  },
+  {
+    "timestamp": "2026-06-14T21:07:58.598Z",
+    "email": "jhanak.parajuli@gmail.com",
+    "name": "Jhanak Parajuli",
+    "status": "SUCCESS",
+    "details": "Authorized Google Session"
   }
 ]
