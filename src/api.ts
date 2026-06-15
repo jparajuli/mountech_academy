@@ -1,4 +1,4 @@
-import { User } from './types';
+import { User, Course } from './types';
 
 // Read existing token from local storage
 export function getToken(): string | null {
@@ -52,6 +52,33 @@ export async function loginUser(email: string, password: string) {
   });
 }
 
+export async function resetPassword(email: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, newPassword }),
+  });
+}
+
+export async function requestPasswordReset(email: string): Promise<{ success: boolean; message: string; token?: string; resetLink?: string }> {
+  return apiFetch('/api/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function verifyResetToken(token: string): Promise<{ success: boolean; email: string }> {
+  return apiFetch(`/api/auth/verify-reset-token?token=${encodeURIComponent(token)}`, {
+    method: 'GET',
+  });
+}
+
+export async function resetPasswordWithToken(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch('/api/auth/reset-password-with-token', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword }),
+  });
+}
+
 export async function oauthLogin(email: string, name: string, provider: 'Google' | 'LinkedIn' | 'GitHub') {
   return apiFetch('/api/auth/oauth', {
     method: 'POST',
@@ -94,6 +121,17 @@ export async function enrollInCourse(courseId: string, courseTitle: string): Pro
   return apiFetch('/api/enroll', {
     method: 'POST',
     body: JSON.stringify({ courseId, courseTitle }),
+  });
+}
+
+export async function fetchCoursesList(): Promise<{ success: boolean; courses: Course[] }> {
+  return apiFetch('/api/courses');
+}
+
+export async function createNewCourse(courseData: any): Promise<{ success: boolean; message: string; course: Course }> {
+  return apiFetch('/api/courses', {
+    method: 'POST',
+    body: JSON.stringify(courseData),
   });
 }
 

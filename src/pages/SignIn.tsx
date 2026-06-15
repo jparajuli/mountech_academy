@@ -5,7 +5,7 @@ import {
   GraduationCap, CheckCircle, RefreshCw, Smartphone, ChevronRight, Inbox
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { registerUser, loginUser, oauthLogin, setToken, resendVerification } from '../api';
+import { registerUser, loginUser, oauthLogin, setToken, resendVerification, resetPassword, requestPasswordReset, verifyResetToken, resetPasswordWithToken } from '../api';
 import { 
   isFirebaseConfigured, 
   getFirebaseConfig, 
@@ -40,11 +40,46 @@ export default function SignIn({ onSignInSuccess }: SignInProps) {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
 
-  // Monitor for incoming verification redirect query callback
+  // Password reset States
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  // Token-based password recovery flow state layers
+  const [recoveryStep, setRecoveryStep] = useState<'request' | 'reset'>('request');
+  const [recoveryToken, setRecoveryToken] = useState('');
+  const [recoverySandboxLink, setRecoverySandboxLink] = useState('');
+  const [recoverySandboxToken, setRecoverySandboxToken] = useState('');
+
+  // Monitor for incoming verification redirect query callback or password reset links
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('verified') === 'true') {
       setSuccessMsg('Your email address has been successfully verified! You may log in below.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    const rToken = params.get('resetToken');
+    if (rToken) {
+      setError('');
+      setSuccessMsg('Contacting security servers to verify reset token...');
+      setIsResettingPassword(true);
+      setRecoveryStep('reset');
+      setRecoveryToken(rToken);
+
+      verifyResetToken(rToken)
+        .then((response) => {
+          setSuccessMsg(`Verification token approved! Define a new password for ${response.email}.`);
+          setResetEmail(response.email);
+          setEmail(response.email);
+        })
+        .catch((err) => {
+          setError(err.message || 'The password reset security token is invalid or has reached its expiration.');
+          setRecoveryStep('request');
+        });
+
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
@@ -148,6 +183,73 @@ export default function SignIn({ onSignInSuccess }: SignInProps) {
       setError(err.message || 'Error executing verification channel.');
     } finally {
       setResendLoading(false);
+    }
+  };
+
+  const handleResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (recoveryStep === 'request') {
+      const trimmedEmail = resetEmail.trim();
+      if (!trimmedEmail) {
+        setError('Please provide your registered scholar email address.');
+        return;
+      }
+
+      setResetLoading(true);
+      try {
+        const response = await requestPasswordReset(trimmedEmail);
+        setSuccessMsg(response.message || 'A password verification link has been sent to your email.');
+        // Store sandbox tokens for simulated testing in local/preview workspaces
+        if (response.token && response.resetLink) {
+          setRecoverySandboxToken(response.token);
+          setRecoverySandboxLink(response.resetLink);
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to submit password recovery request.');
+      } finally {
+        setResetLoading(false);
+      }
+    } else {
+      // recoveryStep === 'reset'
+      const trimmedToken = recoveryToken.trim();
+      if (!trimmedToken) {
+        setError('A password reset security token is required to proceed.');
+        return;
+      }
+
+      if (!newPassword || newPassword.length < 6) {
+        setError('Password must be at least 6 characters long.');
+        return;
+      }
+
+      setResetLoading(true);
+      try {
+        const response = await resetPasswordWithToken(trimmedToken, newPassword);
+        setSuccessMsg(response.message || 'Your password was successfully updated!');
+        
+        // Auto-fill login inputs for instant verification
+        setEmail(resetEmail);
+        setPassword(newPassword);
+        
+        // Clean up password input fields
+        setNewPassword('');
+        setRecoveryToken('');
+        setRecoverySandboxLink('');
+        setRecoverySandboxToken('');
+
+        setTimeout(() => {
+          setIsResettingPassword(false);
+          setRecoveryStep('request');
+          setSuccessMsg('Credentials successfully updated. You can now login.');
+        }, 2000);
+      } catch (err: any) {
+        setError(err.message || 'The password reset request failed. Invalid or expired token.');
+      } finally {
+        setResetLoading(false);
+      }
     }
   };
 
@@ -325,6 +427,172 @@ export default function SignIn({ onSignInSuccess }: SignInProps) {
                   </button>
                 </div>
               </div>
+            ) : isResettingPassword ? (
+              <div id="password-reset-view" className="space-y-6 animate-fade-in text-left">
+                <div className="w-12 h-12 bg-blue-50 text-[#0070f3] rounded-full flex items-center justify-center">
+                  <RefreshCw className="w-5 h-5 text-[#0070f3] animate-spin" style={{ animationDuration: '4s' }} />
+                </div>
+                
+                <div>
+                  <h3 className="text-xl font-bold text-[#111827]">
+                    {recoveryStep === 'request' ? 'Recover your password' : 'Apply new credentials'}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                    {recoveryStep === 'request'
+                      ? 'Type in your academic email address to receive a secure password recovery token link.'
+                      : 'Define a secure new password alongside your verified account token to regain entry.'}
+                  </p>
+                </div>
+
+                {successMsg && (
+                  <div className="p-3 bg-blue-50 border border-blue-100 text-[#0070f3] rounded-lg text-xs font-semibold leading-relaxed">
+                    🔔 {successMsg}
+                  </div>
+                )}
+
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-100 text-red-700 rounded-lg text-xs font-semibold leading-relaxed">
+                    ❌ {error}
+                  </div>
+                )}
+
+                {/* Simulated Web Sandbox Trigger helper */}
+                {recoveryStep === 'request' && recoverySandboxLink && (
+                  <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-amber-500">🛡️</span>
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-amber-800 font-bold block">Developer Sandbox Pipeline</span>
+                    </div>
+                    <p className="text-[11px] text-amber-700 leading-normal font-sans">
+                      SMTP delivery is disabled on this sandbox. We generated a valid token. Take action immediately to test the full loop:
+                    </p>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRecoveryToken(recoverySandboxToken);
+                          setRecoveryStep('reset');
+                          setError('');
+                          setSuccessMsg(`Token automatically loaded! Welcome to credential reset.`);
+                        }}
+                        className="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-2 rounded-lg text-[10px] uppercase font-mono tracking-widest transition-all shadow-sm cursor-pointer text-center"
+                      >
+                        ⚡ Simulate clicking verification link
+                      </button>
+                      <div className="p-2 bg-white/90 border border-amber-200 rounded-md font-mono text-[9px] text-amber-800 select-all overflow-x-auto break-all">
+                        {recoverySandboxLink}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={handleResetSubmit} className="space-y-4">
+                  {recoveryStep === 'request' ? (
+                    <div>
+                      <label className="block text-[10px] font-mono text-[#6b7280] uppercase tracking-wider mb-1 font-semibold">Scholar Email Address</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          id="reset-input-email"
+                          type="email"
+                          required
+                          placeholder="student@mountech.academy"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                          className="w-full bg-gray-50 border border-gray-200 text-sm text-[#111827] placeholder-gray-400 rounded-lg pl-10 pr-4 py-2.5 focus:outline-hidden focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3] focus:bg-white transition-all shadow-2xs"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-[10px] font-mono text-[#6b7280] uppercase tracking-wider mb-1 font-semibold">Verification Reset Token</label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            id="reset-input-token"
+                            type="text"
+                            required
+                            placeholder="Enter 64-character hex token"
+                            value={recoveryToken}
+                            onChange={(e) => setRecoveryToken(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 text-sm text-[#111827] placeholder-gray-400 rounded-lg pl-10 pr-4 py-2.5 focus:outline-hidden focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3] focus:bg-white transition-all shadow-2xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-mono text-[#6b7280] uppercase tracking-wider mb-1 font-semibold">Enter New Password</label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            id="reset-input-password"
+                            type={showResetPassword ? 'text' : 'password'}
+                            required
+                            placeholder="••••••••••••"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-200 text-sm text-[#111827] placeholder-gray-400 rounded-lg pl-10 pr-10 py-2.5 focus:outline-hidden focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3] focus:bg-white transition-all shadow-2xs"
+                          />
+                          <button
+                            id="toggle-reset-password-btn"
+                            type="button"
+                            onClick={() => setShowResetPassword(!showResetPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-650 transition-colors cursor-pointer"
+                          >
+                            {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <button
+                    id="submit-reset-password-button"
+                    type="submit"
+                    disabled={resetLoading}
+                    className="w-full bg-[#0070f3] hover:bg-[#0051b3] text-white font-semibold rounded-lg text-sm transition-all duration-200 py-2.5 mt-2 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                  >
+                    {resetLoading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span>{recoveryStep === 'request' ? 'Request Security Link' : 'Securely Update Password'}</span>
+                        <ArrowRight className="w-4 h-4 text-white" />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="pt-4 flex flex-col items-center gap-2.5 text-center">
+                  {recoveryStep === 'reset' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRecoveryStep('request');
+                        setError('');
+                        setSuccessMsg('');
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-800 font-semibold cursor-pointer font-sans"
+                    >
+                      ← Back to Recovery Request
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsResettingPassword(false);
+                      setRecoveryStep('request');
+                      setError('');
+                      setSuccessMsg('');
+                    }}
+                    className="text-xs text-[#0070f3] hover:underline font-bold cursor-pointer font-sans"
+                  >
+                    ← Back to Sign In
+                  </button>
+                </div>
+              </div>
             ) : (
               <>
                 {/* Headers */}
@@ -344,6 +612,27 @@ export default function SignIn({ onSignInSuccess }: SignInProps) {
                       <span className="text-red-500 font-bold shrink-0">❌</span>
                       <div className="flex-1 leading-relaxed text-red-800">{error}</div>
                     </div>
+                    {error.toLowerCase().includes('invalid email') && (
+                      <div className="pt-2.5 border-t border-red-200/50 mt-1 space-y-1">
+                        <p className="text-[11px] text-red-650 font-normal leading-normal font-sans text-left">
+                          Invalid email or password. Forgot your password, or need to change it? Set a new one instantly.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsResettingPassword(true);
+                            setRecoveryStep('request');
+                            setResetEmail(email);
+                            setError('');
+                            setSuccessMsg('');
+                          }}
+                          className="mt-1 inline-flex items-center text-[10px] font-bold tracking-wider uppercase text-[#0070f3] hover:underline cursor-pointer gap-1"
+                        >
+                          <RefreshCw className="w-3 h-3 text-[#0070f3] animate-spin" style={{ animationDuration: '3s' }} />
+                          <span>Change Password Now</span>
+                        </button>
+                      </div>
+                    )}
                     {(error.includes('unauthorized-domain') || error.includes('unauthorized domain') || error.includes('unauthorized')) && (
                       <div className="pt-3 border-t border-red-200/50 mt-2 space-y-2">
                         <p className="text-[10px] text-red-600 font-normal leading-normal font-sans">
@@ -431,7 +720,24 @@ export default function SignIn({ onSignInSuccess }: SignInProps) {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-mono text-[#6b7280] uppercase tracking-wider mb-1 font-semibold">Password</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-[10px] font-mono text-[#6b7280] uppercase tracking-wider font-semibold">Password</label>
+                      {!isSignUp && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsResettingPassword(true);
+                            setRecoveryStep('request');
+                            setResetEmail(email);
+                            setError('');
+                            setSuccessMsg('');
+                          }}
+                          className="text-[10px] font-mono font-bold text-[#0070f3] hover:underline cursor-pointer"
+                        >
+                          Change password?
+                        </button>
+                      )}
+                    </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input

@@ -558,3 +558,149 @@ export function submitRating(req: Request, res: Response) {
     return res.status(500).json({ error: "Failed to record star review: " + err.message });
   }
 }
+
+// List all courses from database
+export function listCourses(req: Request, res: Response) {
+  try {
+    const rows = db.prepare("SELECT * FROM courses").all() as any[];
+    const courses = rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      type: r.type,
+      difficulty: r.difficulty,
+      topic: r.topic,
+      description: r.description,
+      fullDescription: r.fullDescription,
+      instructorName: r.instructorName,
+      instructorTitle: r.instructorTitle,
+      duration: r.duration,
+      lessonCount: r.lessonCount,
+      rating: r.rating,
+      enrolledCount: r.enrolledCount,
+      partnerName: r.partnerName,
+      skillsAcquired: JSON.parse(r.skillsAcquired || "[]"),
+      requirements: JSON.parse(r.requirements || "[]"),
+      syllabus: JSON.parse(r.syllabus || "[]"),
+      thumbnailBg: r.thumbnailBg,
+      thumbnailIconCode: r.thumbnailIconCode,
+      isPaid: r.isPaid === 1,
+      price: r.price
+    }));
+    return res.json({ success: true, courses });
+  } catch (err: any) {
+    console.error("[GET COURSES ERR]", err);
+    return res.status(500).json({ error: "Failed to retrieve courses database index: " + err.message });
+  }
+}
+
+// Create a new course and content from the frontend
+export function createCourse(req: Request, res: Response) {
+  const user = (req as any).user;
+  const {
+    title,
+    type,
+    difficulty,
+    topic,
+    description,
+    fullDescription,
+    instructorName,
+    instructorTitle,
+    duration,
+    lessonCount,
+    partnerName,
+    skillsAcquired,
+    requirements,
+    syllabus,
+    thumbnailBg,
+    thumbnailIconCode,
+    isPaid,
+    price
+  } = req.body;
+
+  if (!title || !description || !fullDescription) {
+    return res.status(400).json({ error: "Missing required core course parameters (title, description, fullDescription)." });
+  }
+
+  try {
+    const slug = title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+    
+    // Check if distinct course ID is already taken
+    let targetId = slug;
+    const existing = db.prepare("SELECT id FROM courses WHERE id = ?").get(targetId);
+    if (existing) {
+      targetId = `${slug}-${Math.random().toString(36).substring(2, 5)}`;
+    }
+
+    const courseRecord = {
+      id: targetId,
+      title: title.trim(),
+      type: type || 'Short Course',
+      difficulty: difficulty || 'Beginner',
+      topic: topic || 'AI Essentials',
+      description: description.trim(),
+      fullDescription: fullDescription.trim(),
+      instructorName: (instructorName || user?.name || "Academic Facilitator").trim(),
+      instructorTitle: (instructorTitle || "Mountech Certification Board Member").trim(),
+      duration: duration || "2 hours",
+      lessonCount: lessonCount || "5 lessons",
+      rating: 4.8,
+      enrolledCount: "10+ students",
+      partnerName: partnerName ? partnerName.trim() : "Mountech Academy",
+      skillsAcquired: Array.isArray(skillsAcquired) ? skillsAcquired : [],
+      requirements: Array.isArray(requirements) ? requirements : [],
+      syllabus: Array.isArray(syllabus) ? syllabus : [],
+      thumbnailBg: thumbnailBg || "bg-slate-900 text-slate-100",
+      thumbnailIconCode: thumbnailIconCode || "default",
+      isPaid: isPaid ? 1 : 0,
+      price: price ? Number(price) : 0
+    };
+
+    db.prepare(`
+      INSERT INTO courses (
+        id, title, type, difficulty, topic, description, fullDescription,
+        instructorName, instructorTitle, duration, lessonCount, rating, enrolledCount,
+        partnerName, skillsAcquired, requirements, syllabus, thumbnailBg, thumbnailIconCode, isPaid, price
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      courseRecord.id,
+      courseRecord.title,
+      courseRecord.type,
+      courseRecord.difficulty,
+      courseRecord.topic,
+      courseRecord.description,
+      courseRecord.fullDescription,
+      courseRecord.instructorName,
+      courseRecord.instructorTitle,
+      courseRecord.duration,
+      courseRecord.lessonCount,
+      courseRecord.rating,
+      courseRecord.enrolledCount,
+      courseRecord.partnerName,
+      JSON.stringify(courseRecord.skillsAcquired),
+      JSON.stringify(courseRecord.requirements),
+      JSON.stringify(courseRecord.syllabus),
+      courseRecord.thumbnailBg,
+      courseRecord.thumbnailIconCode,
+      courseRecord.isPaid,
+      courseRecord.price
+    );
+
+    console.log(`[COURSE CREATED] Course "${courseRecord.title}" successfully persisted in SQLite with ID: ${courseRecord.id}`);
+
+    return res.status(201).json({
+      success: true,
+      message: `Course "${courseRecord.title}" successfully initialized and created.`,
+      course: {
+        ...courseRecord,
+        isPaid: courseRecord.isPaid === 1
+      }
+    });
+  } catch (err: any) {
+    console.error("[CREATE COURSE DB ERR]", err);
+    return res.status(500).json({ error: "Failed to persist new course: " + err.message });
+  }
+}

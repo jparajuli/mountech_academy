@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import path from "path";
+import { courses } from "../../src/courses";
 
 const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "mountech.db");
 const db = new Database(dbPath);
@@ -55,6 +56,81 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_enrollments_email ON enrollments(email);
   CREATE INDEX IF NOT EXISTS idx_ratings_course ON ratings(courseId);
   CREATE INDEX IF NOT EXISTS idx_logins_email ON logins(email);
+
+  CREATE TABLE IF NOT EXISTS courses (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL,
+    difficulty TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    description TEXT NOT NULL,
+    fullDescription TEXT NOT NULL,
+    instructorName TEXT NOT NULL,
+    instructorTitle TEXT NOT NULL,
+    duration TEXT NOT NULL,
+    lessonCount TEXT NOT NULL,
+    rating REAL NOT NULL DEFAULT 4.5,
+    enrolledCount TEXT NOT NULL DEFAULT '0',
+    partnerName TEXT,
+    skillsAcquired TEXT NOT NULL, -- JSON formatted array
+    requirements TEXT NOT NULL, -- JSON formatted array
+    syllabus TEXT NOT NULL, -- JSON formatted array
+    thumbnailBg TEXT NOT NULL,
+    thumbnailIconCode TEXT NOT NULL,
+    isPaid INTEGER NOT NULL DEFAULT 0,
+    price REAL DEFAULT 0
+  );
 `);
+
+// Dynamic resilient schema upgrades for password reset flows
+try {
+  db.exec("ALTER TABLE users ADD COLUMN resetToken TEXT;");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE users ADD COLUMN resetTokenExpires TEXT;");
+} catch (_) {}
+
+// Dynamic baseline database seeding for integrated professional sandbox courses
+try {
+  const countObj = db.prepare("SELECT count(*) as count FROM courses").get() as any;
+  if (!countObj || countObj.count === 0) {
+    console.log("[DB SEEDER] Standard courses table is empty, importing baseline courses.ts static schema...");
+    const insert = db.prepare(`
+      INSERT INTO courses (
+        id, title, type, difficulty, topic, description, fullDescription,
+        instructorName, instructorTitle, duration, lessonCount, rating, enrolledCount,
+        partnerName, skillsAcquired, requirements, syllabus, thumbnailBg, thumbnailIconCode, isPaid, price
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const c of courses) {
+      insert.run(
+        c.id,
+        c.title,
+        c.type,
+        c.difficulty,
+        c.topic,
+        c.description,
+        c.fullDescription,
+        c.instructorName,
+        c.instructorTitle,
+        c.duration,
+        c.lessonCount,
+        c.rating,
+        c.enrolledCount,
+        c.partnerName || null,
+        JSON.stringify(c.skillsAcquired),
+        JSON.stringify(c.requirements),
+        JSON.stringify(c.syllabus),
+        c.thumbnailBg,
+        c.thumbnailIconCode,
+        c.isPaid ? 1 : 0,
+        c.price || 0
+      );
+    }
+    console.log(`[DB SEEDER] Successfully populated database with ${courses.length} baseline courses.`);
+  }
+} catch (seedingError: any) {
+  console.error("[DB SEEDER ERROR] Seeding aborted because:", seedingError.message);
+}
 
 export default db;

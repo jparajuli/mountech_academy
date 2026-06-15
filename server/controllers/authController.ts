@@ -3,7 +3,7 @@ import crypto from "crypto";
 import bcrypt from "bcrypt";
 import db from "../db/database.js";
 import { createToken } from "../middlewares/auth.js";
-import { sendVerificationEmail } from "../utils/email.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../utils/email.js";
 import { appendLoginToSheet, hasSheetsConfig } from "../utils/sheets.js";
 
 // Database Log helper for Login authentication events
@@ -287,5 +287,137 @@ export function logins(req: Request, res: Response) {
     return res.json({ logins: records });
   } catch (err: any) {
     return res.status(500).json({ error: "Failed to read logged events: " + err.message });
+  }
+}
+
+// User Password Reset controller
+export async function resetPassword(req: Request, res: Response) {
+  const { email, newPassword } = req.body;
+  const normalizedEmail = email.trim().toLowerCase();
+
+  try {
+    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail) as any;
+    if (!user) {
+      return res.status(404).json({ error: "No student account found with this email address." });
+    }
+
+    // Hash securely using bcrypt
+    const passwordHash = bcrypt.hashSync(newPassword, 10);
+    db.prepare(`
+      UPDATE users 
+      SET passwordHash = ?, passwordAlgorithm = 'bcrypt' 
+      WHERE email = ?
+    `).run(passwordHash, normalizedEmail);
+
+    logLoginEvent(normalizedEmail, user.name, "PASSWORD_RESET", "Scholar changed password voluntarily");
+
+    return res.json({
+      success: true,
+      message: "Your password has been successfully reset. You can now log in."
+    });
+  } catch (err: any) {
+    console.error("[AUTH RESET PASSWORD ERR]", err);
+    return res.status(500).json({ error: "Failed to reset password: " + err.message });
+  }
+}
+
+// 1. Password Recovery Initiator (Generates resetToken)
+export async function forgotPassword(req: Request, res: Response) {
+  const { email } = req.body;
+  const normalizedEmail = email.trim().toLowerCase();
+
+  try {
+    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail) as any;
+    if (!user) {
+      return res.status(404).json({ error: "No registered student account was found with this email address." });
+    }
+
+    // Generate secure recovery token (expires in 1 hour)
+    const token = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 3600000).toISOString();
+
+    db.prepare(`
+      UPDATE users 
+      SET resetToken = ?, resetTokenExpires = ? 
+      WHERE email = ?
+    `).run(token, expires, normalizedEmail);
+
+    const reqHost = req.headers.host || "localhost:3000";
+    const rawUrl = process.env.APP_URL || `https://${reqHost}`;
+    const appUrl = (rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`).replace(/\/$/, "");
+    const resetLink = `${appUrl}/signin?resetToken=${token}`;
+
+    await sendPasswordResetEmail(normalizedEmail, user.name, token, reqHost);
+
+    return res.json({
+      success: true,
+      message: "A password verification link has been sent to your email address.",
+      token,
+      resetLink
+    });
+  } catch (err: any) {
+    console.error("[AUTH FORGOT PASSWORD ERR]", err);
+    return res.status(500).json({ error: "Failed to request password recovery: " + err.message });
+  }
+}
+
+// 2. Query token validity verification
+export async function verifyResetToken(req: Request, res: Response) {
+  const { token } = req.query;
+  if (!token || typeof token !== "string") {
+    return res.status(400).json({ error: "Password reset token is required." });
+  }
+
+  try {
+    const user = db.prepare("SELECT * FROM users WHERE resetToken = ?").get(token) as any;
+    if (!user) {
+      return res.status(400).json({ error: "The recovery link is invalid or expired. Please submit a new request." });
+    }
+
+    if (user.resetTokenExpires && new Date(user.resetTokenExpires) < new Date()) {
+      return res.status(400).json({ error: "The recovery link has expired. Please submit a new request." });
+    }
+
+    return res.json({
+      success: true,
+      email: user.email,
+    });
+  } catch (err: any) {
+    console.error("[AUTH VERIFY RESET TOKEN ERR]", err);
+    return res.status(500).json({ error: "Failed to verify recovery token: " + err.message });
+  }
+}
+
+// 3. Complete Password recovery using token
+export async function resetPasswordWithToken(req: Request, res: Response) {
+  const { token, newPassword } = req.body;
+
+  try {
+    const user = db.prepare("SELECT * FROM users WHERE resetToken = ?").get(token) as any;
+    if (!user) {
+      return res.status(400).json({ error: "The recovery link is invalid or expired. Please submit a new request." });
+    }
+
+    if (user.resetTokenExpires && new Date(user.resetTokenExpires) < new Date()) {
+      return res.status(400).json({ error: "The recovery link has expired. Please submit a new request." });
+    }
+
+    // Hash securely using bcrypt
+    const passwordHash = bcrypt.hashSync(newPassword, 10);
+    db.prepare(`
+      UPDATE users 
+      SET passwordHash = ?, passwordAlgorithm = 'bcrypt', resetToken = NULL, resetTokenExpires = NULL 
+      WHERE email = ?
+    `).run(passwordHash, user.email);
+
+    logLoginEvent(user.email, user.name, "PASSWORD_RECOVERED_SECURELY", "Scholar recovered account securely with token-based authentication");
+
+    return res.json({
+      success: true,
+      message: "Your password has been changed successfully. You can now login with your new credentials."
+    });
+  } catch (err: any) {
+    console.error("[AUTH RESET PASSWORD WITH TOKEN ERR]", err);
+    return res.status(500).json({ error: "Failed to recover password: " + err.message });
   }
 }

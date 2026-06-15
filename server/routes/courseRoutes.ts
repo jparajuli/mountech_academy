@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { EnrollSchema, CompleteSchema, RatingSchema } from "../schemas/course.js";
 import { validateRequest } from "../middlewares/validate.js";
-import { requireAuth } from "../middlewares/auth.js";
+import { requireAuth, requireRole } from "../middlewares/auth.js";
 import {
   getSyllabus,
   getEnrollments,
@@ -10,10 +10,14 @@ import {
   certificateDownload,
   getRatings,
   submitRating,
+  listCourses,
+  createCourse,
 } from "../controllers/courseController.js";
 
 const router = Router();
 
+router.get("/courses", listCourses);
+router.post("/courses", requireAuth, requireRole(["admin", "developer"]), createCourse);
 router.get("/download/syllabus", getSyllabus);
 router.get("/enrollments", requireAuth, getEnrollments);
 router.post("/enroll", requireAuth, validateRequest(EnrollSchema), enroll);

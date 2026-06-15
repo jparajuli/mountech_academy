@@ -44,3 +44,33 @@ export const UpdateRoleSchema = z.object({
     message: "Invalid role parameter. Permitted values: student, instructor, admin, developer"
   }),
 });
+
+export const ResetPasswordSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, { message: "Email is required" })
+    .email({ message: "Please provide a valid and complete real email address." }),
+  newPassword: z
+    .string()
+    .min(6, { message: "New password must be at least 6 characters long." }),
+});
+
+export const ForgotPasswordSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, { message: "Email is required" })
+    .email({ message: "Please provide a valid and complete real email address." }),
+});
+
+export const ResetPasswordWithTokenSchema = z.object({
+  token: z
+    .string()
+    .trim()
+    .min(1, { message: "Reset token is required" }),
+  newPassword: z
+    .string()
+    .min(6, { message: "New password must be at least 6 characters long." }),
+});
+
