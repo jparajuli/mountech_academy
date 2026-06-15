@@ -215,9 +215,18 @@ export default function CourseCard({ course, onClick }: CourseCardProps) {
       <div className="p-5 border-t border-gray-100 flex items-center justify-between bg-neutral-50/50">
         <div id={`instructor-info-${course.id}`} className="flex items-center gap-2">
           {/* Minimalist avatar icon */}
-          <div className="w-6 h-6 rounded-full bg-[#111827] text-white flex items-center justify-center font-bold text-[10px]">
-            {course.instructorName.trim().charAt(0)}
-          </div>
+          {course.instructor?.avatar ? (
+            <img 
+              src={course.instructor.avatar} 
+              alt={course.instructorName} 
+              className="w-6 h-6 rounded-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-[#111827] text-[#ffffff] flex items-center justify-center font-bold text-[10px]">
+              {course.instructorName ? course.instructorName.trim().charAt(0) : '?'}
+            </div>
+          )}
           <div className="flex flex-col">
             <span className="text-[11px] font-semibold text-gray-800 line-clamp-1 max-w-[120px]" title={course.instructorName}>
               {course.instructorName}

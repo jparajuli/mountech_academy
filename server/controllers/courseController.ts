@@ -562,7 +562,12 @@ export function submitRating(req: Request, res: Response) {
 // List all courses from database (Public: returned where is_locked = 0 only)
 export function listCourses(req: Request, res: Response) {
   try {
-    const rows = db.prepare("SELECT * FROM courses WHERE is_locked = 0").all() as any[];
+    const rows = db.prepare(`
+      SELECT c.*, ip.id as ip_id, ip.full_name as ip_name, ip.academic_title as ip_academic_title, ip.avatar_url as ip_avatar, ip.short_bio as ip_bio, ip.user_email as ip_email, ip.linkedin_url as ip_linkedin
+      FROM courses c
+      LEFT JOIN instructor_profiles ip ON c.instructor_profile_id = ip.id
+      WHERE c.is_locked = 0
+    `).all() as any[];
     const courses = rows.map((r) => ({
       id: r.id,
       title: r.title,
@@ -571,8 +576,8 @@ export function listCourses(req: Request, res: Response) {
       topic: r.topic,
       description: r.description,
       fullDescription: r.fullDescription,
-      instructorName: r.instructorName,
-      instructorTitle: r.instructorTitle,
+      instructorName: r.instructor_profile_id ? r.ip_name : r.instructorName,
+      instructorTitle: r.instructor_profile_id ? r.ip_academic_title : r.instructorTitle,
       duration: r.duration,
       lessonCount: r.lessonCount,
       rating: r.rating,
@@ -585,7 +590,13 @@ export function listCourses(req: Request, res: Response) {
       thumbnailIconCode: r.thumbnailIconCode,
       isPaid: r.isPaid === 1,
       price: r.price,
-      isLocked: r.is_locked === 1
+      isLocked: r.is_locked === 1,
+      instructor_profile_id: r.instructor_profile_id,
+      instructor: r.instructor_profile_id ? {
+        name: r.ip_name,
+        title: r.ip_academic_title,
+        avatar: r.ip_avatar
+      } : null
     }));
     return res.json({ success: true, courses });
   } catch (err: any) {
@@ -597,7 +608,11 @@ export function listCourses(req: Request, res: Response) {
 // List all courses for Admin (Returns all courses including locked ones)
 export function listAdminCourses(req: Request, res: Response) {
   try {
-    const rows = db.prepare("SELECT * FROM courses").all() as any[];
+    const rows = db.prepare(`
+      SELECT c.*, ip.id as ip_id, ip.full_name as ip_name, ip.academic_title as ip_academic_title, ip.avatar_url as ip_avatar, ip.short_bio as ip_bio, ip.user_email as ip_email, ip.linkedin_url as ip_linkedin
+      FROM courses c
+      LEFT JOIN instructor_profiles ip ON c.instructor_profile_id = ip.id
+    `).all() as any[];
     const courses = rows.map((r) => ({
       id: r.id,
       title: r.title,
@@ -606,8 +621,8 @@ export function listAdminCourses(req: Request, res: Response) {
       topic: r.topic,
       description: r.description,
       fullDescription: r.fullDescription,
-      instructorName: r.instructorName,
-      instructorTitle: r.instructorTitle,
+      instructorName: r.instructor_profile_id ? r.ip_name : r.instructorName,
+      instructorTitle: r.instructor_profile_id ? r.ip_academic_title : r.instructorTitle,
       duration: r.duration,
       lessonCount: r.lessonCount,
       rating: r.rating,
@@ -620,7 +635,13 @@ export function listAdminCourses(req: Request, res: Response) {
       thumbnailIconCode: r.thumbnailIconCode,
       isPaid: r.isPaid === 1,
       price: r.price,
-      isLocked: r.is_locked === 1
+      isLocked: r.is_locked === 1,
+      instructor_profile_id: r.instructor_profile_id,
+      instructor: r.instructor_profile_id ? {
+        name: r.ip_name,
+        title: r.ip_academic_title,
+        avatar: r.ip_avatar
+      } : null
     }));
     return res.json({ success: true, courses });
   } catch (err: any) {
@@ -650,8 +671,17 @@ export function updateCourse(req: Request, res: Response) {
     thumbnailBg,
     thumbnailIconCode,
     isPaid,
-    price
+    price,
+    instructor_profile_id
   } = req.body;
+
+  let parsedProfileId: number | null = null;
+  if (instructor_profile_id !== undefined && instructor_profile_id !== null && instructor_profile_id !== "") {
+    parsedProfileId = Number(instructor_profile_id);
+    if (isNaN(parsedProfileId)) {
+      parsedProfileId = null;
+    }
+  }
 
   try {
     const existing = db.prepare("SELECT 1 FROM courses WHERE id = ?").get(id);
@@ -678,7 +708,8 @@ export function updateCourse(req: Request, res: Response) {
         thumbnailBg = ?,
         thumbnailIconCode = ?,
         isPaid = ?,
-        price = ?
+        price = ?,
+        instructor_profile_id = ?
       WHERE id = ?
     `).run(
       title.trim(),
@@ -699,10 +730,17 @@ export function updateCourse(req: Request, res: Response) {
       thumbnailIconCode,
       isPaid ? 1 : 0,
       price ? Number(price) : 0,
+      parsedProfileId,
       id
     );
 
-    const updatedRow = db.prepare("SELECT * FROM courses WHERE id = ?").get(id) as any;
+    const updatedRow = db.prepare(`
+      SELECT c.*, ip.id as ip_id, ip.full_name as ip_name, ip.academic_title as ip_academic_title, ip.avatar_url as ip_avatar, ip.short_bio as ip_bio, ip.user_email as ip_email, ip.linkedin_url as ip_linkedin
+      FROM courses c
+      LEFT JOIN instructor_profiles ip ON c.instructor_profile_id = ip.id
+      WHERE c.id = ?
+    `).get(id) as any;
+
     const updatedCourse = {
       id: updatedRow.id,
       title: updatedRow.title,
@@ -711,8 +749,8 @@ export function updateCourse(req: Request, res: Response) {
       topic: updatedRow.topic,
       description: updatedRow.description,
       fullDescription: updatedRow.fullDescription,
-      instructorName: updatedRow.instructorName,
-      instructorTitle: updatedRow.instructorTitle,
+      instructorName: updatedRow.instructor_profile_id ? updatedRow.ip_name : updatedRow.instructorName,
+      instructorTitle: updatedRow.instructor_profile_id ? updatedRow.ip_academic_title : updatedRow.instructorTitle,
       duration: updatedRow.duration,
       lessonCount: updatedRow.lessonCount,
       rating: updatedRow.rating,
@@ -725,7 +763,13 @@ export function updateCourse(req: Request, res: Response) {
       thumbnailIconCode: updatedRow.thumbnailIconCode,
       isPaid: updatedRow.isPaid === 1,
       price: updatedRow.price,
-      isLocked: updatedRow.is_locked === 1
+      isLocked: updatedRow.is_locked === 1,
+      instructor_profile_id: updatedRow.instructor_profile_id,
+      instructor: updatedRow.instructor_profile_id ? {
+        name: updatedRow.ip_name,
+        title: updatedRow.ip_academic_title,
+        avatar: updatedRow.ip_avatar
+      } : null
     };
 
     return res.json({
@@ -792,11 +836,20 @@ export function createCourse(req: Request, res: Response) {
     thumbnailBg,
     thumbnailIconCode,
     isPaid,
-    price
+    price,
+    instructor_profile_id
   } = req.body;
 
   if (!title || !description || !fullDescription) {
     return res.status(400).json({ error: "Missing required core course parameters (title, description, fullDescription)." });
+  }
+
+  let parsedProfileId: number | null = null;
+  if (instructor_profile_id !== undefined && instructor_profile_id !== null && instructor_profile_id !== "") {
+    parsedProfileId = Number(instructor_profile_id);
+    if (isNaN(parsedProfileId)) {
+      parsedProfileId = null;
+    }
   }
 
   try {
@@ -841,8 +894,8 @@ export function createCourse(req: Request, res: Response) {
       INSERT INTO courses (
         id, title, type, difficulty, topic, description, fullDescription,
         instructorName, instructorTitle, duration, lessonCount, rating, enrolledCount,
-        partnerName, skillsAcquired, requirements, syllabus, thumbnailBg, thumbnailIconCode, isPaid, price
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        partnerName, skillsAcquired, requirements, syllabus, thumbnailBg, thumbnailIconCode, isPaid, price, instructor_profile_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       courseRecord.id,
       courseRecord.title,
@@ -864,18 +917,54 @@ export function createCourse(req: Request, res: Response) {
       courseRecord.thumbnailBg,
       courseRecord.thumbnailIconCode,
       courseRecord.isPaid,
-      courseRecord.price
+      courseRecord.price,
+      parsedProfileId
     );
 
     console.log(`[COURSE CREATED] Course "${courseRecord.title}" successfully persisted in SQLite with ID: ${courseRecord.id}`);
 
+    const createdRow = db.prepare(`
+      SELECT c.*, ip.id as ip_id, ip.full_name as ip_name, ip.academic_title as ip_academic_title, ip.avatar_url as ip_avatar, ip.short_bio as ip_bio, ip.user_email as ip_email, ip.linkedin_url as ip_linkedin
+      FROM courses c
+      LEFT JOIN instructor_profiles ip ON c.instructor_profile_id = ip.id
+      WHERE c.id = ?
+    `).get(courseRecord.id) as any;
+
+    const returnedCourse = {
+      id: createdRow.id,
+      title: createdRow.title,
+      type: createdRow.type,
+      difficulty: createdRow.difficulty,
+      topic: createdRow.topic,
+      description: createdRow.description,
+      fullDescription: createdRow.fullDescription,
+      instructorName: createdRow.instructor_profile_id ? createdRow.ip_name : createdRow.instructorName,
+      instructorTitle: createdRow.instructor_profile_id ? createdRow.ip_academic_title : createdRow.instructorTitle,
+      duration: createdRow.duration,
+      lessonCount: createdRow.lessonCount,
+      rating: createdRow.rating,
+      enrolledCount: createdRow.enrolledCount,
+      partnerName: createdRow.partnerName,
+      skillsAcquired: JSON.parse(createdRow.skillsAcquired || "[]"),
+      requirements: JSON.parse(createdRow.requirements || "[]"),
+      syllabus: JSON.parse(createdRow.syllabus || "[]"),
+      thumbnailBg: createdRow.thumbnailBg,
+      thumbnailIconCode: createdRow.thumbnailIconCode,
+      isPaid: createdRow.isPaid === 1,
+      price: createdRow.price,
+      isLocked: createdRow.is_locked === 1,
+      instructor_profile_id: createdRow.instructor_profile_id,
+      instructor: createdRow.instructor_profile_id ? {
+        name: createdRow.ip_name,
+        title: createdRow.ip_academic_title,
+        avatar: createdRow.ip_avatar
+      } : null
+    };
+
     return res.status(201).json({
       success: true,
       message: `Course "${courseRecord.title}" successfully initialized and created.`,
-      course: {
-        ...courseRecord,
-        isPaid: courseRecord.isPaid === 1
-      }
+      course: returnedCourse
     });
   } catch (err: any) {
     console.error("[CREATE COURSE DB ERR]", err);

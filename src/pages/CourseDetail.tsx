@@ -1741,6 +1741,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
               {(() => {
                 const matchInst = instructorsList.find(
                   (p) =>
+                    (course.instructor_profile_id && p.id === course.instructor_profile_id) ||
                     p.full_name.trim().toLowerCase() === (course.instructorName || '').trim().toLowerCase() ||
                     p.user_email.trim().toLowerCase() === (course.instructorName || '').trim().toLowerCase() ||
                     (course.instructorName || '').toLowerCase().includes(p.full_name.trim().toLowerCase())

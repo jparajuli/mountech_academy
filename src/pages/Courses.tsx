@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Course, User } from '../types';
+import { Course, User, InstructorProfile } from '../types';
 import { courses } from '../courses';
 import CourseCard from '../components/CourseCard';
 import FilterBar from '../components/FilterBar';
@@ -14,7 +14,8 @@ import {
 import { 
   getLoginHistory, LoginEvent, adminListUsers, adminUpdateUserRole, 
   getDeveloperLogs, adminListEnrollments, fetchCoursesList, createNewCourse,
-  fetchAdminCoursesList, updateCourseDetails, toggleCourseLockStatus, scheduleLiveSession
+  fetchAdminCoursesList, updateCourseDetails, toggleCourseLockStatus, scheduleLiveSession,
+  fetchInstructors
 } from '../api';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
@@ -67,6 +68,8 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
   const [newCourseFullDesc, setNewCourseFullDesc] = useState('');
   const [newCourseInstName, setNewCourseInstName] = useState('');
   const [newCourseInstTitle, setNewCourseInstTitle] = useState('');
+  const [instructorsList, setInstructorsList] = useState<InstructorProfile[]>([]);
+  const [newCourseInstProfileId, setNewCourseInstProfileId] = useState<string>('');
   const [newCourseDuration, setNewCourseDuration] = useState('');
   const [newCourseLessonCount, setNewCourseLessonCount] = useState('');
   const [newCoursePartner, setNewCoursePartner] = useState('');
@@ -109,6 +112,7 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
     setNewCourseFullDesc('');
     setNewCourseInstName('');
     setNewCourseInstTitle('');
+    setNewCourseInstProfileId('');
     setNewCourseDuration('');
     setNewCourseLessonCount('');
     setNewCoursePartner('');
@@ -146,6 +150,20 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
   useEffect(() => {
     loadCourses();
   }, [user]);
+
+  useEffect(() => {
+    const loadInstructors = async () => {
+      try {
+        const res = await fetchInstructors();
+        if (res && res.success) {
+          setInstructorsList(res.profiles || []);
+        }
+      } catch (err) {
+        console.warn("Failed to load instructors list when mounting:", err);
+      }
+    };
+    loadInstructors();
+  }, []);
 
   const handleAddSkill = () => {
     if (currSkill.trim() && !skillsList.includes(currSkill.trim())) {
@@ -233,6 +251,7 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
     setNewCourseFullDesc(course.fullDescription || '');
     setNewCourseInstName(course.instructorName || '');
     setNewCourseInstTitle(course.instructorTitle || '');
+    setNewCourseInstProfileId(course.instructor_profile_id ? String(course.instructor_profile_id) : '');
     setNewCourseDuration(course.duration || '');
     setNewCourseLessonCount(course.lessonCount || '');
     setNewCoursePartner(course.partnerName || '');
@@ -287,7 +306,8 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
         thumbnailBg: newCourseThumbnailBg,
         thumbnailIconCode: newCourseThumbnailIcon,
         isPaid: newCourseIsPaid,
-        price: newCourseIsPaid ? Number(newCoursePrice) : 0
+        price: newCourseIsPaid ? Number(newCoursePrice) : 0,
+        instructor_profile_id: newCourseInstProfileId ? Number(newCourseInstProfileId) : null
       };
 
       const res = await updateCourseDetails(editingCourseId, payload);
@@ -356,7 +376,8 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
         thumbnailBg: newCourseThumbnailBg,
         thumbnailIconCode: newCourseThumbnailIcon,
         isPaid: newCourseIsPaid,
-        price: newCourseIsPaid ? Number(newCoursePrice) : 0
+        price: newCourseIsPaid ? Number(newCoursePrice) : 0,
+        instructor_profile_id: newCourseInstProfileId ? Number(newCourseInstProfileId) : null
       };
 
       const res = await createNewCourse(payload);
@@ -1039,6 +1060,39 @@ function doPost(e) {
                           placeholder="Provide an extensive, beautifully paragraph-separated description. Outline what students will write, achieve, and build..."
                           className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
                         />
+                      </div>
+
+                      {/* Assign Instructor from Profile */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
+                          Assign Instructor Profile
+                        </label>
+                        <select
+                          id="assign-instructor-select"
+                          value={newCourseInstProfileId}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNewCourseInstProfileId(val);
+                            if (val) {
+                              const selected = instructorsList.find(i => String(i.id) === val);
+                              if (selected) {
+                                setNewCourseInstName(selected.full_name);
+                                setNewCourseInstTitle(selected.academic_title);
+                              }
+                            } else {
+                              setNewCourseInstName('');
+                              setNewCourseInstTitle('');
+                            }
+                          }}
+                          className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] bg-white rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3] cursor-pointer"
+                        >
+                          <option value="">To be assigned later</option>
+                          {instructorsList.map((inst) => (
+                            <option key={inst.id} value={inst.id}>
+                              {inst.full_name} ({inst.academic_title})
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       {/* Instructor Information */}

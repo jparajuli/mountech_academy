@@ -29,6 +29,12 @@ export interface Course {
   isPaid?: boolean;
   price?: number;
   isLocked?: boolean;
+  instructor_profile_id?: number | null;
+  instructor?: {
+    name: string;
+    title: string;
+    avatar?: string;
+  } | null;
 }
 
 export interface User {

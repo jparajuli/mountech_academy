@@ -79,7 +79,8 @@ db.exec(`
     thumbnailIconCode TEXT NOT NULL,
     isPaid INTEGER NOT NULL DEFAULT 0,
     price REAL DEFAULT 0,
-    is_locked INTEGER NOT NULL DEFAULT 0
+    is_locked INTEGER NOT NULL DEFAULT 0,
+    instructor_profile_id INTEGER REFERENCES instructor_profiles(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS live_sessions (
@@ -120,6 +121,9 @@ try {
 } catch (_) {}
 try {
   db.exec("ALTER TABLE live_sessions ADD COLUMN reminder_sent INTEGER NOT NULL DEFAULT 0;");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE courses ADD COLUMN instructor_profile_id INTEGER REFERENCES instructor_profiles(id) ON DELETE SET NULL;");
 } catch (_) {}
 
 // Dynamic baseline database seeding for integrated professional sandbox courses
