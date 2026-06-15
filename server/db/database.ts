@@ -105,6 +105,9 @@ try {
 try {
   db.exec("ALTER TABLE courses ADD COLUMN is_locked INTEGER NOT NULL DEFAULT 0;");
 } catch (_) {}
+try {
+  db.exec("ALTER TABLE live_sessions ADD COLUMN reminder_sent INTEGER NOT NULL DEFAULT 0;");
+} catch (_) {}
 
 // Dynamic baseline database seeding for integrated professional sandbox courses
 try {

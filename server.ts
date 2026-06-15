@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import express from "express";
 import app from "./server/app.js";
 import { runMigration } from "./server/db/migrate.js";
+import { startLiveSessionReminderScheduler } from "./server/utils/reminderScheduler.js";
 
 const PORT = 3000;
 
@@ -10,6 +11,8 @@ async function start() {
   // 1. Run database initialization and json-to-sqlite conversions on boot
   try {
     runMigration();
+    // Start automated 15-minute live class scheduled email reminders background worker
+    startLiveSessionReminderScheduler();
   } catch (err: any) {
     console.error("Critical: Database migration failed on startup:", err.message);
   }
