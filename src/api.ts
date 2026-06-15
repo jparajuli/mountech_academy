@@ -128,10 +128,28 @@ export async function fetchCoursesList(): Promise<{ success: boolean; courses: C
   return apiFetch('/api/courses');
 }
 
+export async function fetchAdminCoursesList(): Promise<{ success: boolean; courses: Course[] }> {
+  return apiFetch('/api/admin/courses');
+}
+
 export async function createNewCourse(courseData: any): Promise<{ success: boolean; message: string; course: Course }> {
   return apiFetch('/api/courses', {
     method: 'POST',
     body: JSON.stringify(courseData),
+  });
+}
+
+export async function updateCourseDetails(id: string, courseData: any): Promise<{ success: boolean; message: string; course: Course }> {
+  return apiFetch(`/api/admin/courses/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(courseData),
+  });
+}
+
+export async function toggleCourseLockStatus(id: string, isLocked?: boolean): Promise<{ success: boolean; isLocked: boolean }> {
+  return apiFetch(`/api/admin/courses/${id}/lock`, {
+    method: 'PATCH',
+    body: isLocked !== undefined ? JSON.stringify({ isLocked }) : undefined,
   });
 }
 

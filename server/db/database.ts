@@ -78,7 +78,8 @@ db.exec(`
     thumbnailBg TEXT NOT NULL,
     thumbnailIconCode TEXT NOT NULL,
     isPaid INTEGER NOT NULL DEFAULT 0,
-    price REAL DEFAULT 0
+    price REAL DEFAULT 0,
+    is_locked INTEGER NOT NULL DEFAULT 0
   );
 `);
 
@@ -88,6 +89,9 @@ try {
 } catch (_) {}
 try {
   db.exec("ALTER TABLE users ADD COLUMN resetTokenExpires TEXT;");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE courses ADD COLUMN is_locked INTEGER NOT NULL DEFAULT 0;");
 } catch (_) {}
 
 // Dynamic baseline database seeding for integrated professional sandbox courses
@@ -99,8 +103,8 @@ try {
       INSERT INTO courses (
         id, title, type, difficulty, topic, description, fullDescription,
         instructorName, instructorTitle, duration, lessonCount, rating, enrolledCount,
-        partnerName, skillsAcquired, requirements, syllabus, thumbnailBg, thumbnailIconCode, isPaid, price
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        partnerName, skillsAcquired, requirements, syllabus, thumbnailBg, thumbnailIconCode, isPaid, price, is_locked
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
     `);
     for (const c of courses) {
       insert.run(

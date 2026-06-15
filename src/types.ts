@@ -28,6 +28,7 @@ export interface Course {
   thumbnailIconCode: string; // identifier for which graphic to display
   isPaid?: boolean;
   price?: number;
+  isLocked?: boolean;
 }
 
 export interface User {

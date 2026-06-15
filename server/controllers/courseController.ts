@@ -559,8 +559,43 @@ export function submitRating(req: Request, res: Response) {
   }
 }
 
-// List all courses from database
+// List all courses from database (Public: returned where is_locked = 0 only)
 export function listCourses(req: Request, res: Response) {
+  try {
+    const rows = db.prepare("SELECT * FROM courses WHERE is_locked = 0").all() as any[];
+    const courses = rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      type: r.type,
+      difficulty: r.difficulty,
+      topic: r.topic,
+      description: r.description,
+      fullDescription: r.fullDescription,
+      instructorName: r.instructorName,
+      instructorTitle: r.instructorTitle,
+      duration: r.duration,
+      lessonCount: r.lessonCount,
+      rating: r.rating,
+      enrolledCount: r.enrolledCount,
+      partnerName: r.partnerName,
+      skillsAcquired: JSON.parse(r.skillsAcquired || "[]"),
+      requirements: JSON.parse(r.requirements || "[]"),
+      syllabus: JSON.parse(r.syllabus || "[]"),
+      thumbnailBg: r.thumbnailBg,
+      thumbnailIconCode: r.thumbnailIconCode,
+      isPaid: r.isPaid === 1,
+      price: r.price,
+      isLocked: r.is_locked === 1
+    }));
+    return res.json({ success: true, courses });
+  } catch (err: any) {
+    console.error("[GET COURSES ERR]", err);
+    return res.status(500).json({ error: "Failed to retrieve courses database index: " + err.message });
+  }
+}
+
+// List all courses for Admin (Returns all courses including locked ones)
+export function listAdminCourses(req: Request, res: Response) {
   try {
     const rows = db.prepare("SELECT * FROM courses").all() as any[];
     const courses = rows.map((r) => ({
@@ -584,12 +619,155 @@ export function listCourses(req: Request, res: Response) {
       thumbnailBg: r.thumbnailBg,
       thumbnailIconCode: r.thumbnailIconCode,
       isPaid: r.isPaid === 1,
-      price: r.price
+      price: r.price,
+      isLocked: r.is_locked === 1
     }));
     return res.json({ success: true, courses });
   } catch (err: any) {
-    console.error("[GET COURSES ERR]", err);
-    return res.status(500).json({ error: "Failed to retrieve courses database index: " + err.message });
+    console.error("[GET ADMIN COURSES ERR]", err);
+    return res.status(500).json({ error: "Failed to retrieve admin courses: " + err.message });
+  }
+}
+
+// Update an existing course
+export function updateCourse(req: Request, res: Response) {
+  const { id } = req.params;
+  const {
+    title,
+    type,
+    difficulty,
+    topic,
+    description,
+    fullDescription,
+    instructorName,
+    instructorTitle,
+    duration,
+    lessonCount,
+    partnerName,
+    skillsAcquired,
+    requirements,
+    syllabus,
+    thumbnailBg,
+    thumbnailIconCode,
+    isPaid,
+    price
+  } = req.body;
+
+  try {
+    const existing = db.prepare("SELECT 1 FROM courses WHERE id = ?").get(id);
+    if (!existing) {
+      return res.status(404).json({ error: "Course not found" });
+    }
+
+    db.prepare(`
+      UPDATE courses SET
+        title = ?,
+        type = ?,
+        difficulty = ?,
+        topic = ?,
+        description = ?,
+        fullDescription = ?,
+        instructorName = ?,
+        instructorTitle = ?,
+        duration = ?,
+        lessonCount = ?,
+        partnerName = ?,
+        skillsAcquired = ?,
+        requirements = ?,
+        syllabus = ?,
+        thumbnailBg = ?,
+        thumbnailIconCode = ?,
+        isPaid = ?,
+        price = ?
+      WHERE id = ?
+    `).run(
+      title.trim(),
+      type,
+      difficulty,
+      topic,
+      description.trim(),
+      fullDescription.trim(),
+      instructorName.trim(),
+      instructorTitle.trim(),
+      duration,
+      lessonCount,
+      partnerName ? partnerName.trim() : null,
+      JSON.stringify(skillsAcquired || []),
+      JSON.stringify(requirements || []),
+      JSON.stringify(syllabus || []),
+      thumbnailBg,
+      thumbnailIconCode,
+      isPaid ? 1 : 0,
+      price ? Number(price) : 0,
+      id
+    );
+
+    const updatedRow = db.prepare("SELECT * FROM courses WHERE id = ?").get(id) as any;
+    const updatedCourse = {
+      id: updatedRow.id,
+      title: updatedRow.title,
+      type: updatedRow.type,
+      difficulty: updatedRow.difficulty,
+      topic: updatedRow.topic,
+      description: updatedRow.description,
+      fullDescription: updatedRow.fullDescription,
+      instructorName: updatedRow.instructorName,
+      instructorTitle: updatedRow.instructorTitle,
+      duration: updatedRow.duration,
+      lessonCount: updatedRow.lessonCount,
+      rating: updatedRow.rating,
+      enrolledCount: updatedRow.enrolledCount,
+      partnerName: updatedRow.partnerName,
+      skillsAcquired: JSON.parse(updatedRow.skillsAcquired || "[]"),
+      requirements: JSON.parse(updatedRow.requirements || "[]"),
+      syllabus: JSON.parse(updatedRow.syllabus || "[]"),
+      thumbnailBg: updatedRow.thumbnailBg,
+      thumbnailIconCode: updatedRow.thumbnailIconCode,
+      isPaid: updatedRow.isPaid === 1,
+      price: updatedRow.price,
+      isLocked: updatedRow.is_locked === 1
+    };
+
+    return res.json({
+      success: true,
+      message: `Course "${title}" successfully updated.`,
+      course: updatedCourse
+    });
+  } catch (err: any) {
+    console.error("[UPDATE COURSE ERR]", err);
+    return res.status(500).json({ error: "Failed to update course: " + err.message });
+  }
+}
+
+// Toggle course locked status (Patch id/lock)
+export function toggleCourseLock(req: Request, res: Response) {
+  const { id } = req.params;
+  const { isLocked } = req.body || {};
+
+  try {
+    const course = db.prepare("SELECT title, is_locked FROM courses WHERE id = ?").get(id) as any;
+    if (!course) {
+      return res.status(404).json({ error: "Course not found" });
+    }
+
+    let targetLock: number;
+    if (typeof isLocked === "boolean") {
+      targetLock = isLocked ? 1 : 0;
+    } else {
+      // Toggle if no explicit boolean provided
+      targetLock = course.is_locked === 1 ? 0 : 1;
+    }
+
+    db.prepare("UPDATE courses SET is_locked = ? WHERE id = ?").run(targetLock, id);
+
+    return res.json({
+      success: true,
+      message: `Course "${course.title}" lock status updated.`,
+      isLocked: targetLock === 1
+    });
+  } catch (err: any) {
+    console.error("[TOGGLE LOCK ERR]", err);
+    return res.status(500).json({ error: "Failed to update course lock state: " + err.message });
   }
 }
 
