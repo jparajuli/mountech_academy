@@ -36,6 +36,7 @@ export interface Course {
     avatar?: string;
   } | null;
   instructors?: {
+    id?: string | number;
     name: string;
     title: string;
     avatar?: string;

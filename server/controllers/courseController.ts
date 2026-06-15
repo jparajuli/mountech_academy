@@ -724,16 +724,8 @@ export function updateCourse(req: Request, res: Response) {
     thumbnailIconCode,
     isPaid,
     price,
-    instructor_profile_id
+    instructor_ids
   } = req.body;
-
-  let parsedProfileId: number | null = null;
-  if (instructor_profile_id !== undefined && instructor_profile_id !== null && instructor_profile_id !== "") {
-    parsedProfileId = Number(instructor_profile_id);
-    if (isNaN(parsedProfileId)) {
-      parsedProfileId = null;
-    }
-  }
 
   try {
     const existing = db.prepare("SELECT 1 FROM courses WHERE id = ?").get(id);
@@ -741,57 +733,108 @@ export function updateCourse(req: Request, res: Response) {
       return res.status(404).json({ error: "Course not found" });
     }
 
-    db.prepare(`
-      UPDATE courses SET
-        title = ?,
-        type = ?,
-        difficulty = ?,
-        topic = ?,
-        description = ?,
-        fullDescription = ?,
-        instructorName = ?,
-        instructorTitle = ?,
-        duration = ?,
-        lessonCount = ?,
-        partnerName = ?,
-        skillsAcquired = ?,
-        requirements = ?,
-        syllabus = ?,
-        thumbnailBg = ?,
-        thumbnailIconCode = ?,
-        isPaid = ?,
-        price = ?,
-        instructor_profile_id = ?
-      WHERE id = ?
-    `).run(
-      title.trim(),
-      type,
-      difficulty,
-      topic,
-      description.trim(),
-      fullDescription.trim(),
-      instructorName.trim(),
-      instructorTitle.trim(),
-      duration,
-      lessonCount,
-      partnerName ? partnerName.trim() : null,
-      JSON.stringify(skillsAcquired || []),
-      JSON.stringify(requirements || []),
-      JSON.stringify(syllabus || []),
-      thumbnailBg,
-      thumbnailIconCode,
-      isPaid ? 1 : 0,
-      price ? Number(price) : 0,
-      parsedProfileId,
-      id
-    );
+    const resolvedInstructorIds = Array.isArray(instructor_ids)
+      ? instructor_ids.filter((x): x is string | number => x !== null && x !== undefined && x !== "")
+      : [];
+
+    let finalInstructorName = (instructorName || "").trim();
+    let finalInstructorTitle = (instructorTitle || "").trim();
+
+    if (resolvedInstructorIds.length > 0) {
+      const primaryProfile = db.prepare("SELECT full_name, academic_title FROM instructor_profiles WHERE id = ?").get(Number(resolvedInstructorIds[0])) as any;
+      if (primaryProfile) {
+        finalInstructorName = primaryProfile.full_name;
+        finalInstructorTitle = primaryProfile.academic_title;
+      }
+    }
+
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE courses SET
+          title = ?,
+          type = ?,
+          difficulty = ?,
+          topic = ?,
+          description = ?,
+          fullDescription = ?,
+          instructorName = ?,
+          instructorTitle = ?,
+          duration = ?,
+          lessonCount = ?,
+          partnerName = ?,
+          skillsAcquired = ?,
+          requirements = ?,
+          syllabus = ?,
+          thumbnailBg = ?,
+          thumbnailIconCode = ?,
+          isPaid = ?,
+          price = ?,
+          instructor_profile_id = NULL
+        WHERE id = ?
+      `).run(
+        title.trim(),
+        type,
+        difficulty,
+        topic,
+        description.trim(),
+        fullDescription.trim(),
+        finalInstructorName,
+        finalInstructorTitle,
+        duration,
+        lessonCount,
+        partnerName ? partnerName.trim() : null,
+        JSON.stringify(skillsAcquired || []),
+        JSON.stringify(requirements || []),
+        JSON.stringify(syllabus || []),
+        thumbnailBg,
+        thumbnailIconCode,
+        isPaid ? 1 : 0,
+        price ? Number(price) : 0,
+        id
+      );
+
+      db.prepare("DELETE FROM course_instructors WHERE course_id = ?").run(id);
+
+      const insertCI = db.prepare(`
+        INSERT INTO course_instructors (course_id, instructor_profile_id, display_order)
+        VALUES (?, ?, ?)
+      `);
+
+      for (let i = 0; i < resolvedInstructorIds.length; i++) {
+        insertCI.run(id, Number(resolvedInstructorIds[i]), i);
+      }
+    })();
 
     const updatedRow = db.prepare(`
-      SELECT c.*, ip.id as ip_id, ip.full_name as ip_name, ip.academic_title as ip_academic_title, ip.avatar_url as ip_avatar, ip.short_bio as ip_bio, ip.user_email as ip_email, ip.linkedin_url as ip_linkedin
+      SELECT c.*,
+             json_group_array(
+               json_object(
+                 'id', ip.id,
+                 'name', ip.full_name,
+                 'title', ip.academic_title,
+                 'avatar', ip.avatar_url,
+                 'display_order', ci.display_order
+               )
+             ) AS instructors_json
       FROM courses c
-      LEFT JOIN instructor_profiles ip ON c.instructor_profile_id = ip.id
+      LEFT JOIN course_instructors ci ON c.id = ci.course_id
+      LEFT JOIN instructor_profiles ip ON ci.instructor_profile_id = ip.id
       WHERE c.id = ?
+      GROUP BY c.id
     `).get(id) as any;
+
+    let instructors: any[] = [];
+    try {
+      const parsed = JSON.parse(updatedRow.instructors_json);
+      if (Array.isArray(parsed)) {
+        instructors = parsed.filter((inst: any) => inst && inst.id !== null);
+        instructors.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+      }
+    } catch (err) {
+      instructors = [];
+    }
+
+    const primaryInst = instructors[0] || null;
 
     const updatedCourse = {
       id: updatedRow.id,
@@ -801,8 +844,8 @@ export function updateCourse(req: Request, res: Response) {
       topic: updatedRow.topic,
       description: updatedRow.description,
       fullDescription: updatedRow.fullDescription,
-      instructorName: updatedRow.instructor_profile_id ? updatedRow.ip_name : updatedRow.instructorName,
-      instructorTitle: updatedRow.instructor_profile_id ? updatedRow.ip_academic_title : updatedRow.instructorTitle,
+      instructorName: primaryInst ? primaryInst.name : updatedRow.instructorName,
+      instructorTitle: primaryInst ? primaryInst.title : updatedRow.instructorTitle,
       duration: updatedRow.duration,
       lessonCount: updatedRow.lessonCount,
       rating: updatedRow.rating,
@@ -816,11 +859,11 @@ export function updateCourse(req: Request, res: Response) {
       isPaid: updatedRow.isPaid === 1,
       price: updatedRow.price,
       isLocked: updatedRow.is_locked === 1,
-      instructor_profile_id: updatedRow.instructor_profile_id,
-      instructor: updatedRow.instructor_profile_id ? {
-        name: updatedRow.ip_name,
-        title: updatedRow.ip_academic_title,
-        avatar: updatedRow.ip_avatar
+      instructors: instructors.map(i => ({ id: i.id, name: i.name, title: i.title, avatar: i.avatar })),
+      instructor: primaryInst ? {
+        name: primaryInst.name,
+        title: primaryInst.title,
+        avatar: primaryInst.avatar
       } : null
     };
 
@@ -910,6 +953,21 @@ export function createCourse(req: Request, res: Response) {
       targetId = `${slug}-${Math.random().toString(36).substring(2, 5)}`;
     }
 
+    const resolvedInstructorIds = Array.isArray(instructor_ids)
+      ? instructor_ids.filter((x): x is string | number => x !== null && x !== undefined && x !== "")
+      : [];
+
+    let finalInstructorName = (instructorName || user?.name || "Academic Facilitator").trim();
+    let finalInstructorTitle = (instructorTitle || "Mountech Certification Board Member").trim();
+
+    if (resolvedInstructorIds.length > 0) {
+      const primaryProfile = db.prepare("SELECT full_name, academic_title FROM instructor_profiles WHERE id = ?").get(Number(resolvedInstructorIds[0])) as any;
+      if (primaryProfile) {
+        finalInstructorName = primaryProfile.full_name;
+        finalInstructorTitle = primaryProfile.academic_title;
+      }
+    }
+
     const courseRecord = {
       id: targetId,
       title: title.trim(),
@@ -918,8 +976,8 @@ export function createCourse(req: Request, res: Response) {
       topic: topic || 'AI Essentials',
       description: description.trim(),
       fullDescription: fullDescription.trim(),
-      instructorName: (instructorName || user?.name || "Academic Facilitator").trim(),
-      instructorTitle: (instructorTitle || "Mountech Certification Board Member").trim(),
+      instructorName: finalInstructorName,
+      instructorTitle: finalInstructorTitle,
       duration: duration || "2 hours",
       lessonCount: lessonCount || "5 lessons",
       rating: 4.8,
@@ -933,10 +991,6 @@ export function createCourse(req: Request, res: Response) {
       isPaid: isPaid ? 1 : 0,
       price: price ? Number(price) : 0
     };
-
-    const resolvedInstructorIds = Array.isArray(instructor_ids)
-      ? instructor_ids.filter((x): x is string | number => x !== null && x !== undefined && x !== "")
-      : [];
 
     db.transaction(() => {
       db.prepare(`

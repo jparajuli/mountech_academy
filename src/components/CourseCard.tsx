@@ -232,7 +232,7 @@ export default function CourseCard({ course, onClick }: CourseCardProps) {
               {course.instructorName}
             </span>
             <span className="text-[9px] text-gray-400">
-              Instructor
+              {course.instructors && course.instructors.length > 1 ? `${course.instructors.length} Instructors` : 'Instructor'}
             </span>
           </div>
         </div>

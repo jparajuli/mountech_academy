@@ -259,7 +259,7 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
     let profileIds: string[] = [];
     if (course.instructors && course.instructors.length > 0) {
       profileIds = course.instructors.map(ci => {
-        const match = instructorsList.find(i => i.full_name === ci.name);
+        const match = instructorsList.find(i => (ci.id && Number(i.id) === Number(ci.id)) || i.full_name === ci.name);
         return match ? String(match.id) : '';
       }).filter(Boolean);
     }
