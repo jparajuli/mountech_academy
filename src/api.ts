@@ -1,4 +1,4 @@
-import { User, Course } from './types';
+import { User, Course, LiveSession } from './types';
 
 // Read existing token from local storage
 export function getToken(): string | null {
@@ -151,6 +151,24 @@ export async function toggleCourseLockStatus(id: string, isLocked?: boolean): Pr
     method: 'PATCH',
     body: isLocked !== undefined ? JSON.stringify({ isLocked }) : undefined,
   });
+}
+
+export async function scheduleLiveSession(
+  courseId: string, 
+  sessionData: { title: string; start_time: string; end_time: string; meet_url: string }
+): Promise<{ success: boolean; message: string; session: LiveSession }> {
+  return apiFetch(`/api/admin/courses/${courseId}/sessions`, {
+    method: 'POST',
+    body: JSON.stringify(sessionData),
+  });
+}
+
+export async function fetchLiveSessions(courseId: string): Promise<{ success: boolean; sessions: LiveSession[] }> {
+  return apiFetch(`/api/courses/${courseId}/sessions`);
+}
+
+export async function joinLiveSessionRequest(sessionId: number): Promise<{ success: boolean; meetUrl: string }> {
+  return apiFetch(`/api/sessions/${sessionId}/join`);
 }
 
 export interface CompleteResponse {

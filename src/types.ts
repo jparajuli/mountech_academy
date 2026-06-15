@@ -36,3 +36,13 @@ export interface User {
   name: string;
   role: 'admin' | 'instructor' | 'student' | 'developer';
 }
+
+export interface LiveSession {
+  id: number;
+  course_id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  meet_url?: string;
+}
+

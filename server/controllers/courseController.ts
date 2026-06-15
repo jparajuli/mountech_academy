@@ -882,3 +882,109 @@ export function createCourse(req: Request, res: Response) {
     return res.status(500).json({ error: "Failed to persist new course: " + err.message });
   }
 }
+
+// Phase 2: Live Session Controllers
+export function createLiveSession(req: Request, res: Response) {
+  const { courseId } = req.params;
+  const { title, start_time, end_time, meet_url } = req.body;
+
+  try {
+    const course = db.prepare("SELECT title FROM courses WHERE id = ?").get(courseId) as { title: string } | undefined;
+    if (!course) {
+      return res.status(404).json({ error: "Course not found" });
+    }
+
+    const result = db.prepare(`
+      INSERT INTO live_sessions (course_id, title, start_time, end_time, meet_url)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(courseId, title.trim(), start_time, end_time, meet_url.trim());
+
+    return res.status(201).json({
+      success: true,
+      message: `Live class scheduled for "${course.title}" successfully.`,
+      session: {
+        id: result.lastInsertRowid,
+        course_id: courseId,
+        title: title.trim(),
+        start_time,
+        end_time
+      }
+    });
+  } catch (err: any) {
+    console.error("[CREATE LIVE SESSION ERR]", err);
+    return res.status(500).json({ error: "Failed to schedule live class: " + err.message });
+  }
+}
+
+export function listLiveSessions(req: Request, res: Response) {
+  const { courseId } = req.params;
+
+  try {
+    const sessions = db.prepare(`
+      SELECT id, course_id, title, start_time, end_time FROM live_sessions
+      WHERE course_id = ?
+      ORDER BY datetime(start_time) ASC
+    `).all(courseId) as any[];
+
+    return res.json({
+      success: true,
+      sessions
+    });
+  } catch (err: any) {
+    console.error("[GET LIVE SESSIONS ERR]", err);
+    return res.status(500).json({ error: "Failed to retrieve live sessions: " + err.message });
+  }
+}
+
+export function joinLiveSession(req: Request, res: Response) {
+  const user = (req as any).user;
+  const { sessionId } = req.params;
+  const normalizedEmail = user.email.trim().toLowerCase();
+
+  try {
+    const session = db.prepare("SELECT * FROM live_sessions WHERE id = ?").get(sessionId) as any;
+    if (!session) {
+      return res.status(404).json({ error: "Scheduled live session not found." });
+    }
+
+    if (user.role !== "admin" && user.role !== "developer") {
+      const isEnrolled = db.prepare(`
+        SELECT 1 FROM enrollments WHERE email = ? AND courseId = ?
+      `).get(normalizedEmail, session.course_id);
+
+      if (!isEnrolled) {
+        return res.status(403).json({ error: "Access Denied: You must be registered in this course to join the live session." });
+      }
+    }
+
+    const startEpoch = new Date(session.start_time).getTime();
+    const endEpoch = new Date(session.end_time).getTime();
+    const currentEpoch = Date.now();
+    const joinWindowStart = startEpoch - (5 * 60 * 1000); // 5 minutes cushion
+
+    if (currentEpoch < joinWindowStart) {
+      const minsDiff = Math.ceil((joinWindowStart - currentEpoch) / 60000);
+      return res.status(403).json({
+        error: `Meeting is locked. The classroom opens exactly 5 minutes before start: ready in ${minsDiff} minutes.`,
+        readyInMs: joinWindowStart - currentEpoch
+      });
+    }
+
+    if (currentEpoch > endEpoch) {
+      return res.status(403).json({ error: "Forbidden: This scheduled live classroom session has already ended." });
+    }
+
+    if (req.headers.accept?.includes("text/html") || req.query.redirect === "true") {
+      return res.redirect(session.meet_url);
+    }
+
+    return res.json({
+      success: true,
+      meetUrl: session.meet_url
+    });
+  } catch (err: any) {
+    console.error("[JOIN LIVE SESSION GATEKEEPER ERR]", err);
+    return res.status(500).json({ error: "Gatekeeper check failed: " + err.message });
+  }
+}
+

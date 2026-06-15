@@ -81,6 +81,18 @@ db.exec(`
     price REAL DEFAULT 0,
     is_locked INTEGER NOT NULL DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS live_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    meet_url TEXT NOT NULL,
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_live_sessions_course ON live_sessions(course_id);
 `);
 
 // Dynamic resilient schema upgrades for password reset flows
