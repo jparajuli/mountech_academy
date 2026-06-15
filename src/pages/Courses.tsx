@@ -4,6 +4,8 @@ import { courses } from '../courses';
 import CourseCard from '../components/CourseCard';
 import FilterBar from '../components/FilterBar';
 import ResourcePortal from '../components/ResourcePortal';
+import ManageInstructors from '../components/ManageInstructors';
+import MyProfileSettings from '../components/MyProfileSettings';
 import { 
   LogOut, GraduationCap, ArrowUpRight, HelpCircle, 
   Shield, FileCode, Terminal, Copy, Check, Lock, Server, Activity,
@@ -25,7 +27,8 @@ interface CoursesProps {
 }
 
 export default function Courses({ user, onSignOut, onSelectCourse, enrolledCourseIds }: CoursesProps) {
-  const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin'>('catalog');
+  const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin' | 'instructor-profile'>('catalog');
+  const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState('All');
@@ -692,6 +695,17 @@ function doPost(e) {
                   </span>
                 </button>
               )}
+              {user.role === 'instructor' && (
+                <button
+                  onClick={() => setCurrentMenuTab('instructor-profile')}
+                  className={`transition-colors cursor-pointer select-none py-1 border-b-2 ${currentMenuTab === 'instructor-profile' ? 'text-indigo-600 border-indigo-600' : 'text-[#4b5563] border-transparent hover:text-indigo-600'}`}
+                >
+                  <span className="flex items-center gap-1">
+                    <Video className="w-3.5 h-3.5 text-indigo-500" />
+                    My Faculty Profile
+                  </span>
+                </button>
+              )}
             </nav>
           </div>
 
@@ -773,6 +787,14 @@ function doPost(e) {
             Control Panel
           </button>
         )}
+        {user.role === 'instructor' && (
+          <button 
+            onClick={() => setCurrentMenuTab('instructor-profile')} 
+            className={`pb-1 transition-all cursor-pointer ${currentMenuTab === 'instructor-profile' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-[#4b5563] border-transparent'}`}
+          >
+            My Profile
+          </button>
+        )}
       </div>
 
       {/* Hero Section (Clean Minimal Centered Board) */}
@@ -802,7 +824,9 @@ function doPost(e) {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-6 lg:px-8 py-10 flex-grow w-full font-sans">
-        {currentMenuTab === 'resources' ? (
+        {currentMenuTab === 'instructor-profile' ? (
+          <MyProfileSettings user={user} />
+        ) : currentMenuTab === 'resources' ? (
           <ResourcePortal courses={coursesList} user={user} enrolledCourseIds={enrolledCourseIds} />
         ) : currentMenuTab === 'admin' ? (
           <div id="rbac-admin-panel" className="space-y-8 animate-fade-in">
@@ -846,7 +870,37 @@ function doPost(e) {
               </div>
             </div>
 
-            {/* Alert Logs messages */}
+            {/* Admin Sub-navigation Header Tabs */}
+            <div className="flex border-b border-gray-200 gap-1 select-none">
+              <button
+                type="button"
+                onClick={() => setAdminSubTab('users')}
+                className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  adminSubTab === 'users'
+                    ? 'border-rose-600 text-rose-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Roles, System Metrics & Courses
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminSubTab('instructors')}
+                className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  adminSubTab === 'instructors'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Manage Instructor Profiles
+              </button>
+            </div>
+
+            {adminSubTab === 'instructors' ? (
+              <ManageInstructors />
+            ) : (
+              <>
+                {/* Alert Logs messages */}
             {rbacMessage && (
               <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg shadow-xs flex items-center gap-2">
                 <span className="text-emerald-500 font-bold font-mono">✓</span>
@@ -1822,6 +1876,8 @@ function doPost(e) {
               </div>
 
             </div>
+          </>
+        )}
 
           </div>
         ) : (

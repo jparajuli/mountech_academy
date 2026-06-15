@@ -46,3 +46,14 @@ export interface LiveSession {
   meet_url?: string;
 }
 
+export interface InstructorProfile {
+  id: number;
+  user_email: string;
+  full_name: string;
+  academic_title: string;
+  short_bio: string;
+  linkedin_url?: string;
+  avatar_url?: string;
+}
+
+

@@ -93,6 +93,19 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_live_sessions_course ON live_sessions(course_id);
+
+  CREATE TABLE IF NOT EXISTS instructor_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email TEXT NOT NULL UNIQUE,
+    full_name TEXT NOT NULL,
+    academic_title TEXT NOT NULL,
+    short_bio TEXT,
+    linkedin_url TEXT,
+    avatar_url TEXT,
+    FOREIGN KEY(user_email) REFERENCES users(email) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_instructor_profiles_email ON instructor_profiles(user_email);
 `);
 
 // Dynamic resilient schema upgrades for password reset flows

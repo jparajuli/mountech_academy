@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Course, User, LiveSession } from '../types';
+import { Course, User, LiveSession, InstructorProfile } from '../types';
 import { 
   ArrowLeft, Clock, BookOpen, Star, CheckCircle, HelpCircle, 
   Award, Play, ChevronRight, Terminal, Sparkles, AlertCircle, 
@@ -8,7 +8,8 @@ import {
   Lock, Unlock, Trophy, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest } from '../api';
+import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors } from '../api';
+import InstructorCard from '../components/InstructorCard';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
@@ -194,6 +195,10 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   const [ratingCount, setRatingCount] = useState<number>(0);
   const [loadingRatings, setLoadingRatings] = useState(false);
 
+  // Instructor Profiles States
+  const [instructorsList, setInstructorsList] = useState<InstructorProfile[]>([]);
+  const [loadingInstructors, setLoadingInstructors] = useState(false);
+
   // Live Sessions States
   const [liveSessions, setLiveSessions] = useState<LiveSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -233,6 +238,20 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     }
   };
 
+  const loadInstructors = async () => {
+    setLoadingInstructors(true);
+    try {
+      const res = await fetchInstructors();
+      if (res && res.success) {
+        setInstructorsList(res.profiles || []);
+      }
+    } catch (err) {
+      console.warn("Failed to retrieve dynamic instructor profiles:", err);
+    } finally {
+      setLoadingInstructors(false);
+    }
+  };
+
   const loadSessions = async () => {
     setLoadingSessions(true);
     try {
@@ -249,6 +268,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
 
   useEffect(() => {
     loadRatings();
+    loadInstructors();
     if (hasEnrolledAccess) {
       loadSessions();
     }
@@ -1718,23 +1738,38 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                 Meet Your Instructor
               </h2>
               
-              <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center">
-                <div className="w-14 h-14 rounded-full bg-[#111827] text-white flex items-center justify-center font-bold text-xl shrink-0 shadow-2xs">
-                  {course.instructorName.charAt(0).toUpperCase()}
-                </div>
-                
-                <div className="space-y-1 text-xs md:text-sm">
-                  <h4 id="detail-instructor-name" className="text-[#111827] font-bold text-sm tracking-tight md:text-base">
-                    {course.instructorName}
-                  </h4>
-                  <p id="detail-instructor-title" className="text-gray-400 font-mono text-xs">
-                    {course.instructorTitle}
-                  </p>
-                  <p className="text-gray-500 mt-2 leading-relaxed">
-                    Pioneering educator in advanced code architectures and machine learning systems. Our Mountech faculty works alongside industry lead developers to verify rigorous standards.
-                  </p>
-                </div>
-              </div>
+              {(() => {
+                const matchInst = instructorsList.find(
+                  (p) =>
+                    p.full_name.trim().toLowerCase() === (course.instructorName || '').trim().toLowerCase() ||
+                    p.user_email.trim().toLowerCase() === (course.instructorName || '').trim().toLowerCase() ||
+                    (course.instructorName || '').toLowerCase().includes(p.full_name.trim().toLowerCase())
+                );
+
+                if (matchInst) {
+                  return <InstructorCard profile={matchInst} />;
+                }
+
+                return (
+                  <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center">
+                    <div className="w-14 h-14 rounded-full bg-[#111827] text-white flex items-center justify-center font-bold text-xl shrink-0 shadow-2xs">
+                      {course.instructorName.charAt(0).toUpperCase()}
+                    </div>
+                    
+                    <div className="space-y-1 text-xs md:text-sm">
+                      <h4 id="detail-instructor-name" className="text-[#111827] font-bold text-sm tracking-tight md:text-base">
+                        {course.instructorName}
+                      </h4>
+                      <p id="detail-instructor-title" className="text-gray-400 font-mono text-xs">
+                        {course.instructorTitle}
+                      </p>
+                      <p className="text-gray-500 mt-2 leading-relaxed">
+                        Pioneering educator in advanced code architectures and machine learning systems. Our Mountech faculty works alongside industry lead developers to verify rigorous standards.
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Scholar Feedback & Star Rating Box */}

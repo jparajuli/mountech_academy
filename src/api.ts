@@ -1,4 +1,4 @@
-import { User, Course, LiveSession } from './types';
+import { User, Course, LiveSession, InstructorProfile } from './types';
 
 // Read existing token from local storage
 export function getToken(): string | null {
@@ -260,4 +260,43 @@ export async function adminUpdateUserRole(email: string, role: string): Promise<
 export async function getDeveloperLogs(): Promise<{ logs: any[] }> {
   return apiFetch('/api/developer/logs');
 }
+
+export async function fetchInstructors(): Promise<{ success: boolean; profiles: InstructorProfile[] }> {
+  return apiFetch('/api/instructors');
+}
+
+export async function fetchInstructorByEmail(email: string): Promise<{ success: boolean; profile: InstructorProfile }> {
+  return apiFetch(`/api/instructors/email/${encodeURIComponent(email)}`);
+}
+
+export async function createInstructorProfileAdmin(profileData: {
+  user_email: string;
+  full_name: string;
+  academic_title: string;
+  short_bio?: string;
+  linkedin_url?: string;
+  avatar_url?: string;
+}): Promise<{ success: boolean; message: string; profileId: number }> {
+  return apiFetch('/api/admin/instructors', {
+    method: 'POST',
+    body: JSON.stringify(profileData),
+  });
+}
+
+export async function updateInstructorProfileApi(
+  id: number,
+  profileData: {
+    full_name: string;
+    academic_title: string;
+    short_bio?: string;
+    linkedin_url?: string;
+    avatar_url?: string;
+  }
+): Promise<{ success: boolean; message: string; profile: InstructorProfile }> {
+  return apiFetch(`/api/instructors/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(profileData),
+  });
+}
+
 
