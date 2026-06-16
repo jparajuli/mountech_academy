@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 
 export async function sendVerificationEmail(email: string, name: string, token: string, reqHost: string): Promise<string> {
   // Use APP_URL if specified in env variables, fallback dynamically to reqHost
-  const rawUrl = process.env.APP_URL || `https://${reqHost}`;
+  const rawUrl = process.env.APP_URL || (reqHost.startsWith("http") ? reqHost : `https://${reqHost}`);
   const appUrl = (rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`).replace(/\/$/, "");
   const verifyLink = `${appUrl}/api/auth/verify?token=${token}`;
 
@@ -81,7 +81,7 @@ export async function sendVerificationEmail(email: string, name: string, token: 
 
 export async function sendPasswordResetEmail(email: string, name: string, token: string, reqHost: string): Promise<string> {
   // Use APP_URL if specified in env variables, fallback dynamically to reqHost
-  const rawUrl = process.env.APP_URL || `https://${reqHost}`;
+  const rawUrl = process.env.APP_URL || (reqHost.startsWith("http") ? reqHost : `https://${reqHost}`);
   const appUrl = (rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`).replace(/\/$/, "");
   const resetLink = `${appUrl}/signin?resetToken=${token}`;
 

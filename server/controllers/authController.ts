@@ -36,7 +36,7 @@ export async function oauth(req: Request, res: Response) {
       // Register custom pre-verified user
       const randomPassword = crypto.randomBytes(16).toString("hex");
       // Pre-verified OAuth log is generated as bcrypt securely
-      const passwordHash = bcrypt.hashSync(randomPassword, 10);
+      const passwordHash = await bcrypt.hash(randomPassword, 10);
       
       const insertStmt = db.prepare(`
         INSERT INTO users (email, name, passwordHash, passwordAlgorithm, role, isVerified)
@@ -87,7 +87,7 @@ export async function register(req: Request, res: Response) {
     }
 
     // Hash password securely with bcrypt for modern state of the art persistence
-    const passwordHash = bcrypt.hashSync(password, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
     const verificationToken = crypto.randomBytes(32).toString("hex");
 
     const insertStmt = db.prepare(`
@@ -96,11 +96,12 @@ export async function register(req: Request, res: Response) {
     `);
     insertStmt.run(normalizedEmail, name.trim(), passwordHash, verificationToken);
 
+    const baseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     const link = await sendVerificationEmail(
       normalizedEmail,
       name.trim(),
       verificationToken,
-      req.headers.host || "localhost:3000"
+      baseUrl
     );
 
     return res.status(201).json({
@@ -137,11 +138,12 @@ export async function resend(req: Request, res: Response) {
       updateTokenStmt.run(verificationToken, normalizedEmail);
     }
 
+    const baseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     const link = await sendVerificationEmail(
       user.email,
       user.name,
       verificationToken,
-      req.headers.host || "localhost:3000"
+      baseUrl
     );
 
     return res.json({
@@ -226,7 +228,7 @@ export async function login(req: Request, res: Response) {
       }
     } else {
       // Modern bcrypt verification
-      isMatch = bcrypt.compareSync(password, user.passwordHash);
+      isMatch = await bcrypt.compare(password, user.passwordHash);
     }
 
     if (!isMatch) {
@@ -237,7 +239,7 @@ export async function login(req: Request, res: Response) {
     // Apply password hashing live upgrades transparently!
     if (needsUpgrade) {
       console.log(`[AUTH CRYPTO UPGRADE] Upgrading algorithm to bcrypt for ${normalizedEmail}...`);
-      const newBcryptHash = bcrypt.hashSync(password, 10);
+      const newBcryptHash = await bcrypt.hash(password, 10);
       db.prepare(`
         UPDATE users 
         SET passwordHash = ?, passwordAlgorithm = 'bcrypt' 
@@ -302,7 +304,7 @@ export async function resetPassword(req: Request, res: Response) {
     }
 
     // Hash securely using bcrypt
-    const passwordHash = bcrypt.hashSync(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, 10);
     db.prepare(`
       UPDATE users 
       SET passwordHash = ?, passwordAlgorithm = 'bcrypt' 
@@ -403,7 +405,7 @@ export async function resetPasswordWithToken(req: Request, res: Response) {
     }
 
     // Hash securely using bcrypt
-    const passwordHash = bcrypt.hashSync(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, 10);
     db.prepare(`
       UPDATE users 
       SET passwordHash = ?, passwordAlgorithm = 'bcrypt', resetToken = NULL, resetTokenExpires = NULL 
