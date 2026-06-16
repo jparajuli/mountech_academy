@@ -171,6 +171,38 @@ try {
   `);
 } catch (_) {}
 
+try {
+  db.exec("ALTER TABLE courses ADD COLUMN syllabus_content TEXT;");
+} catch (_) {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS exams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      is_published INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+    );
+  `);
+} catch (_) {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS exam_questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exam_id INTEGER NOT NULL,
+      question_text TEXT NOT NULL,
+      question_type TEXT NOT NULL,
+      options TEXT, -- JSON array of options
+      correct_answer TEXT NOT NULL,
+      points INTEGER NOT NULL DEFAULT 1,
+      FOREIGN KEY(exam_id) REFERENCES exams(id) ON DELETE CASCADE
+    );
+  `);
+} catch (_) {}
+
 // Dynamic baseline database seeding for integrated professional sandbox courses
 try {
   const countObj = db.prepare("SELECT count(*) as count FROM courses").get() as any;

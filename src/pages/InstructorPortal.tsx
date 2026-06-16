@@ -21,8 +21,12 @@ import {
   CheckCircle2, 
   Calendar,
   Search,
-  BookMarked
+  BookMarked,
+  FileEdit,
+  ClipboardList
 } from 'lucide-react';
+import { InstructorSyllabusEditor } from '../components/InstructorSyllabusEditor';
+import { InstructorExamBuilder } from '../components/InstructorExamBuilder';
 
 interface InstructorPortalProps {
   user: User;
@@ -276,7 +280,7 @@ interface CourseManagementProps {
 }
 
 function CourseManagementView({ course, onBack }: CourseManagementProps) {
-  const [activeTab, setActiveTab] = useState<'students' | 'materials'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'materials' | 'syllabus' | 'exams'>('students');
   const [students, setStudents] = useState<EnrolledStudent[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [studentsError, setStudentsError] = useState<string | null>(null);
@@ -332,7 +336,7 @@ function CourseManagementView({ course, onBack }: CourseManagementProps) {
   useEffect(() => {
     if (activeTab === 'students') {
       loadStudents();
-    } else {
+    } else if (activeTab === 'materials') {
       loadMaterials();
     }
   }, [course.id, activeTab]);
@@ -430,7 +434,7 @@ function CourseManagementView({ course, onBack }: CourseManagementProps) {
 
       {/* Tabs list bar */}
       <div className="border-b border-gray-200">
-        <div className="flex space-x-6 text-sm font-semibold select-none">
+        <div className="flex space-x-6 text-sm font-semibold select-none overflow-x-auto whitespace-nowrap">
           <button
             onClick={() => setActiveTab('students')}
             className={`pb-3 border-b-2 hover:text-[#0070f3] cursor-pointer transition-colors flex items-center gap-2 ${activeTab === 'students' ? 'text-[#0070f3] border-[#0070f3]' : 'text-gray-500 border-transparent'}`}
@@ -447,6 +451,20 @@ function CourseManagementView({ course, onBack }: CourseManagementProps) {
           >
             <FileText className="w-4 h-4" />
             <span>Educational Materials</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('syllabus')}
+            className={`pb-3 border-b-2 hover:text-[#0070f3] cursor-pointer transition-colors flex items-center gap-2 ${activeTab === 'syllabus' ? 'text-[#0070f3] border-[#0070f3]' : 'text-gray-500 border-transparent'}`}
+          >
+            <FileEdit className="w-4 h-4" />
+            <span>Syllabus Layout</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('exams')}
+            className={`pb-3 border-b-2 hover:text-[#0070f3] cursor-pointer transition-colors flex items-center gap-2 ${activeTab === 'exams' ? 'text-[#0070f3] border-[#0070f3]' : 'text-gray-500 border-transparent'}`}
+          >
+            <ClipboardList className="w-4 h-4" />
+            <span>Exam Builder</span>
           </button>
         </div>
       </div>
@@ -508,7 +526,7 @@ function CourseManagementView({ course, onBack }: CourseManagementProps) {
               </div>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'materials' ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-fade-in">
             {/* Form column */}
             <div className="bg-white border border-gray-150 rounded-xl p-5 shadow-sm space-y-4">
@@ -648,6 +666,20 @@ function CourseManagementView({ course, onBack }: CourseManagementProps) {
                 </div>
               )}
             </div>
+          </div>
+        ) : activeTab === 'syllabus' ? (
+          <div className="animate-fade-in">
+            <InstructorSyllabusEditor 
+              courseId={course.id} 
+              initialSyllabusContent={course.syllabus_content || ''} 
+              onSyllabusSaved={(newContent) => {
+                course.syllabus_content = newContent;
+              }}
+            />
+          </div>
+        ) : (
+          <div className="animate-fade-in">
+            <InstructorExamBuilder courseId={course.id} />
           </div>
         )}
       </div>

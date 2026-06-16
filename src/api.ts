@@ -1,4 +1,4 @@
-import { User, Course, LiveSession, InstructorProfile } from './types';
+import { User, Course, LiveSession, InstructorProfile, Exam, ExamQuestion } from './types';
 
 // Read existing token from local storage
 export function getToken(): string | null {
@@ -343,6 +343,57 @@ export interface AuditLogEntry {
 
 export async function adminListAuditLogs(limit = 100, offset = 0): Promise<{ logs: AuditLogEntry[]; total: number; limit: number; offset: number }> {
   return apiFetch(`/api/admin/audit-logs?limit=${limit}&offset=${offset}`);
+}
+
+// Update Course Syllabus
+export async function updateCourseSyllabus(courseId: string, syllabus_content: string): Promise<{ success: boolean; message: string; syllabus_content: string }> {
+  return apiFetch(`/api/instructor/courses/${courseId}/syllabus`, {
+    method: 'PUT',
+    body: JSON.stringify({ syllabus_content }),
+  });
+}
+
+// Fetch Course Exams
+export async function fetchCourseExams(courseId: string): Promise<{ success: boolean; exams: Exam[] }> {
+  return apiFetch(`/api/instructor/courses/${courseId}/exams`);
+}
+
+// Create Course Exam
+export async function createCourseExam(courseId: string, examData: { title: string; description: string; is_published: boolean }): Promise<{ success: boolean; message: string; examId: number }> {
+  return apiFetch(`/api/instructor/courses/${courseId}/exams`, {
+    method: 'POST',
+    body: JSON.stringify(examData),
+  });
+}
+
+// Delete Course Exam
+export async function deleteCourseExam(examId: number): Promise<{ success: boolean; message: string }> {
+  return apiFetch(`/api/instructor/exams/${examId}`, {
+    method: 'DELETE',
+  });
+}
+
+// Create Exam Question
+export async function createExamQuestion(examId: number, questionData: Omit<ExamQuestion, 'id' | 'exam_id'>): Promise<{ success: boolean; message: string; questionId: number }> {
+  return apiFetch(`/api/instructor/exams/${examId}/questions`, {
+    method: 'POST',
+    body: JSON.stringify(questionData),
+  });
+}
+
+// Update Exam Question
+export async function updateExamQuestion(examId: number, questionId: number, questionData: Omit<ExamQuestion, 'id' | 'exam_id'>): Promise<{ success: boolean; message: string }> {
+  return apiFetch(`/api/instructor/exams/${examId}/questions/${questionId}`, {
+    method: 'PUT',
+    body: JSON.stringify(questionData),
+  });
+}
+
+// Delete Exam Question
+export async function deleteExamQuestion(examId: number, questionId: number): Promise<{ success: boolean; message: string }> {
+  return apiFetch(`/api/instructor/exams/${examId}/questions/${questionId}`, {
+    method: 'DELETE',
+  });
 }
 
 

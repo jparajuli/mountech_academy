@@ -29,6 +29,7 @@ export interface Course {
   isPaid?: boolean;
   price?: number;
   isLocked?: boolean;
+  syllabus_content?: string;
   instructor_profile_id?: number | null;
   instructor?: {
     name: string;
@@ -67,6 +68,25 @@ export interface InstructorProfile {
   short_bio: string;
   linkedin_url?: string;
   avatar_url?: string;
+}
+
+export interface ExamQuestion {
+  id?: number;
+  exam_id?: number;
+  question_text: string;
+  question_type: 'multiple_choice' | 'true_false' | 'short_answer';
+  options: string[];
+  correct_answer: string;
+  points: number;
+}
+
+export interface Exam {
+  id?: number;
+  course_id: string;
+  title: string;
+  description?: string;
+  is_published: boolean;
+  questions?: ExamQuestion[];
 }
 
 
