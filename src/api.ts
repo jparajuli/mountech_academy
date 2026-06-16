@@ -139,6 +139,39 @@ export async function createNewCourse(courseData: any): Promise<{ success: boole
   });
 }
 
+export async function fetchInstructorDashboard(): Promise<{ success: boolean; courses: Course[] }> {
+  return apiFetch('/api/instructor/dashboard');
+}
+
+export interface EnrolledStudent {
+  name: string;
+  email: string;
+  enrollmentDate: string;
+}
+
+export async function fetchInstructorCourseStudents(courseId: string): Promise<{ success: boolean; students: EnrolledStudent[] }> {
+  return apiFetch(`/api/instructor/courses/${encodeURIComponent(courseId)}/students`);
+}
+
+export interface CourseMaterial {
+  id: number;
+  course_id: string;
+  title: string;
+  file_url: string;
+  created_at: string;
+}
+
+export async function fetchInstructorCourseMaterials(courseId: string): Promise<{ success: boolean; materials: CourseMaterial[] }> {
+  return apiFetch(`/api/instructor/courses/${encodeURIComponent(courseId)}/materials`);
+}
+
+export async function addCourseMaterial(courseId: string, title: string, file_url: string): Promise<{ success: boolean; material: CourseMaterial; message: string }> {
+  return apiFetch(`/api/instructor/courses/${encodeURIComponent(courseId)}/materials`, {
+    method: 'POST',
+    body: JSON.stringify({ title, file_url }),
+  });
+}
+
 export async function updateCourseDetails(id: string, courseData: any): Promise<{ success: boolean; message: string; course: Course }> {
   return apiFetch(`/api/admin/courses/${id}`, {
     method: 'PUT',

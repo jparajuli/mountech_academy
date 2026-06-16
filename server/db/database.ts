@@ -117,6 +117,15 @@ db.exec(`
     FOREIGN KEY(instructor_profile_id) REFERENCES instructor_profiles(id) ON DELETE CASCADE,
     UNIQUE(course_id, instructor_profile_id)
   );
+
+  CREATE TABLE IF NOT EXISTS course_materials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    file_url TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+  );
 `);
 
 // Dynamic resilient schema upgrades for password reset flows
@@ -145,6 +154,19 @@ try {
       FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE,
       FOREIGN KEY(instructor_profile_id) REFERENCES instructor_profiles(id) ON DELETE CASCADE,
       UNIQUE(course_id, instructor_profile_id)
+    );
+  `);
+} catch (_) {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS course_materials (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      file_url TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
   `);
 } catch (_) {}

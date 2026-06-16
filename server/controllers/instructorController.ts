@@ -152,3 +152,216 @@ export function updateInstructorProfile(req: Request, res: Response) {
     return res.status(500).json({ error: "Failed to persist profile modifications: " + err.message });
   }
 }
+
+// GET /api/instructor/dashboard - Return courses assigned to active instructor
+export function getInstructorDashboard(req: Request, res: Response) {
+  const user = (req as any).user;
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized access." });
+  }
+
+  try {
+    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+    if (!profile) {
+      return res.json({ success: true, courses: [] });
+    }
+
+    const rows = db.prepare(`
+      SELECT c.*,
+             json_group_array(
+               json_object(
+                 'id', ip.id,
+                 'name', ip.full_name,
+                 'title', ip.academic_title,
+                 'avatar', ip.avatar_url,
+                 'display_order', ci.display_order
+               )
+             ) AS instructors_json
+      FROM courses c
+      LEFT JOIN course_instructors ci ON c.id = ci.course_id
+      LEFT JOIN instructor_profiles ip ON ci.instructor_profile_id = ip.id
+      WHERE c.id IN (
+        SELECT course_id FROM course_instructors WHERE instructor_profile_id = ?
+      )
+      GROUP BY c.id
+    `).all(profile.id) as any[];
+
+    const courses = rows.map((r: any) => {
+      let instructors: any[] = [];
+      try {
+        const parsed = JSON.parse(r.instructors_json);
+        if (Array.isArray(parsed)) {
+          instructors = parsed.filter((inst: any) => inst && inst.id !== null);
+          instructors.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        }
+      } catch (err) {
+        instructors = [];
+      }
+
+      const primaryInst = instructors[0] || null;
+
+      return {
+        id: r.id,
+        title: r.title,
+        type: r.type,
+        difficulty: r.difficulty,
+        topic: r.topic,
+        description: r.description,
+        fullDescription: r.fullDescription,
+        instructorName: primaryInst ? primaryInst.name : r.instructorName,
+        instructorTitle: primaryInst ? primaryInst.title : r.instructorTitle,
+        duration: r.duration,
+        lessonCount: r.lessonCount,
+        rating: r.rating,
+        enrolledCount: r.enrolledCount,
+        partnerName: r.partnerName,
+        skillsAcquired: JSON.parse(r.skillsAcquired || "[]"),
+        requirements: JSON.parse(r.requirements || "[]"),
+        syllabus: JSON.parse(r.syllabus || "[]"),
+        thumbnailBg: r.thumbnailBg,
+        thumbnailIconCode: r.thumbnailIconCode,
+        isPaid: r.isPaid === 1,
+        price: r.price,
+        isLocked: r.is_locked === 1,
+        instructors: instructors.map(i => ({ id: i.id, name: i.name, title: i.title, avatar: i.avatar })),
+        instructor: primaryInst ? {
+          name: primaryInst.name,
+          title: primaryInst.title,
+          avatar: primaryInst.avatar
+        } : null
+      };
+    });
+
+    return res.json({ success: true, courses });
+  } catch (err: any) {
+    console.error("[GET INSTRUCTOR DASHBOARD ERR]", err);
+    return res.status(500).json({ error: "Failed to retrieve instructor dashboard details: " + err.message });
+  }
+}
+
+// GET /api/instructor/courses/:courseId/students - Return students for course
+export function getCourseStudents(req: Request, res: Response) {
+  const { courseId } = req.params;
+  const user = (req as any).user;
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized access." });
+  }
+
+  try {
+    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+    if (!profile) {
+      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+    }
+
+    const association = db.prepare(`
+      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+    `).get(courseId, profile.id);
+
+    if (!association) {
+      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+    }
+
+    const students = db.prepare(`
+      SELECT email, name, timestamp AS enrollmentDate
+      FROM enrollments
+      WHERE courseId = ?
+      ORDER BY timestamp DESC
+    `).all(courseId) as any[];
+
+    return res.json({
+      success: true,
+      students
+    });
+  } catch (err: any) {
+    console.error("[GET COURSE STUDENTS ERR]", err);
+    return res.status(500).json({ error: "Failed to query enrolled student records: " + err.message });
+  }
+}
+
+// GET /api/instructor/courses/:courseId/materials - Return materials for course
+export function getCourseMaterials(req: Request, res: Response) {
+  const { courseId } = req.params;
+  const user = (req as any).user;
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized access." });
+  }
+
+  try {
+    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+    if (!profile) {
+      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+    }
+
+    const association = db.prepare(`
+      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+    `).get(courseId, profile.id);
+
+    if (!association) {
+      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+    }
+
+    const materials = db.prepare(`
+      SELECT id, course_id, title, file_url, created_at
+      FROM course_materials
+      WHERE course_id = ?
+      ORDER BY created_at DESC
+    `).all(courseId) as any[];
+
+    return res.json({
+      success: true,
+      materials
+    });
+  } catch (err: any) {
+    console.error("[GET COURSE MATERIALS ERR]", err);
+    return res.status(500).json({ error: "Failed to query course materials: " + err.message });
+  }
+}
+
+// POST /api/instructor/courses/:courseId/materials - Add course material
+export function createCourseMaterial(req: Request, res: Response) {
+  const { courseId } = req.params;
+  const { title, file_url } = req.body;
+  const user = (req as any).user;
+
+  if (!title || !title.trim()) {
+    return res.status(400).json({ error: "Material title is required." });
+  }
+  if (!file_url || !file_url.trim()) {
+    return res.status(400).json({ error: "File URL is required." });
+  }
+
+  try {
+    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+    if (!profile) {
+      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+    }
+
+    const association = db.prepare(`
+      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+    `).get(courseId, profile.id);
+
+    if (!association) {
+      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+    }
+
+    const result = db.prepare(`
+      INSERT INTO course_materials (course_id, title, file_url)
+      VALUES (?, ?, ?)
+    `).run(courseId, title.trim(), file_url.trim());
+
+    const newMaterial = db.prepare(`
+      SELECT id, course_id, title, file_url, created_at
+      FROM course_materials
+      WHERE id = ?
+    `).get(result.lastInsertRowid) as any;
+
+    return res.status(201).json({
+      success: true,
+      message: "Course material added successfully.",
+      material: newMaterial
+    });
+  } catch (err: any) {
+    console.error("[CREATE COURSE MATERIAL ERR]", err);
+    return res.status(500).json({ error: "Failed to persist course material record: " + err.message });
+  }
+}

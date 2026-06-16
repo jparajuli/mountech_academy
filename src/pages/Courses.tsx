@@ -737,15 +737,29 @@ function doPost(e) {
                 </button>
               )}
               {user.role === 'instructor' && (
-                <button
-                  onClick={() => setCurrentMenuTab('instructor-profile')}
-                  className={`transition-colors cursor-pointer select-none py-1 border-b-2 ${currentMenuTab === 'instructor-profile' ? 'text-indigo-600 border-indigo-600' : 'text-[#4b5563] border-transparent hover:text-indigo-600'}`}
-                >
-                  <span className="flex items-center gap-1">
-                    <Video className="w-3.5 h-3.5 text-indigo-500" />
-                    My Faculty Profile
-                  </span>
-                </button>
+                <>
+                  <button
+                    onClick={() => setCurrentMenuTab('instructor-profile')}
+                    className={`transition-colors cursor-pointer select-none py-1 border-b-2 ${currentMenuTab === 'instructor-profile' ? 'text-indigo-600 border-indigo-600' : 'text-[#4b5563] border-transparent hover:text-indigo-600'}`}
+                  >
+                    <span className="flex items-center gap-1">
+                      <Video className="w-3.5 h-3.5 text-indigo-500" />
+                      My Faculty Profile
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      window.history.pushState(null, '', '/instructor');
+                      window.dispatchEvent(new Event('popstate'));
+                    }}
+                    className="transition-colors cursor-pointer select-none py-1 border-b-2 text-[#4b5563] border-transparent hover:text-indigo-600 font-semibold"
+                  >
+                    <span className="flex items-center gap-1">
+                      <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
+                      Instructor Dashboard
+                    </span>
+                  </button>
+                </>
               )}
             </nav>
           </div>
@@ -829,12 +843,23 @@ function doPost(e) {
           </button>
         )}
         {user.role === 'instructor' && (
-          <button 
-            onClick={() => setCurrentMenuTab('instructor-profile')} 
-            className={`pb-1 transition-all cursor-pointer ${currentMenuTab === 'instructor-profile' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-[#4b5563] border-transparent'}`}
-          >
-            My Profile
-          </button>
+          <>
+            <button 
+              onClick={() => setCurrentMenuTab('instructor-profile')} 
+              className={`pb-1 transition-all cursor-pointer ${currentMenuTab === 'instructor-profile' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-[#4b5563] border-transparent'}`}
+            >
+              My Profile
+            </button>
+            <button 
+              onClick={() => {
+                window.history.pushState(null, '', '/instructor');
+                window.dispatchEvent(new Event('popstate'));
+              }} 
+              className="pb-1 transition-all cursor-pointer text-[#4b5563] border-transparent hover:text-indigo-600 shrink-0"
+            >
+              Dashboard
+            </button>
+          </>
         )}
       </div>
 

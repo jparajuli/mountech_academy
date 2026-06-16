@@ -3,6 +3,8 @@ import { Course, User } from './types';
 import SignIn from './pages/SignIn';
 import Courses from './pages/Courses';
 import CourseDetail from './pages/CourseDetail';
+import InstructorRoute from './components/InstructorRoute';
+import InstructorPortal from './pages/InstructorPortal';
 import { getProfile, getEnrollments, enrollInCourse, completeCourse, clearToken, getToken } from './api';
 
 export default function App() {
@@ -13,6 +15,15 @@ export default function App() {
   const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<{ sheetsSynced: boolean; message?: string } | null>(null);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
 
   // Initialize and validate the user session
   useEffect(() => {
@@ -179,6 +190,15 @@ export default function App() {
   if (!user) {
     return (
       <SignIn onSignInSuccess={handleSignInSuccess} />
+    );
+  }
+
+  // Secure Instructor Portal layout gateway
+  if (currentPath.startsWith('/instructor')) {
+    return (
+      <InstructorRoute user={user}>
+        <InstructorPortal user={user} onSignOut={handleSignOut} />
+      </InstructorRoute>
     );
   }
 
