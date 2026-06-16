@@ -48,3 +48,22 @@ export function updateRole(req: Request, res: Response) {
     return res.status(500).json({ error: "Failed to modify role registration: " + err.message });
   }
 }
+
+// Admin: Fetch all audit logins log
+export function getAuditLogs(req: Request, res: Response) {
+  try {
+    const limit = parseInt(req.query.limit as string) || 100;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const total = (db.prepare("SELECT COUNT(*) AS count FROM logins").get() as any).count;
+    const logs = db.prepare(`
+      SELECT * FROM logins 
+      ORDER BY timestamp DESC 
+      LIMIT ? OFFSET ?
+    `).all(limit, offset);
+
+    return res.json({ logs, total, limit, offset });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to retrieve audit logins logs: " + err.message });
+  }
+}

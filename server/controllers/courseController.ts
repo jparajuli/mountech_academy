@@ -5,13 +5,6 @@ import path from "path";
 import fs from "fs";
 import db from "../db/database.js";
 import { verifyToken } from "../middlewares/auth.js";
-import {
-  appendEnrollmentToSheet,
-  fetchEnrollmentsAndCompletionsFromSheet,
-  hasSheetsConfig,
-  logSheetError,
-  markCourseCompletedInSheet,
-} from "../utils/sheets.js";
 import { sendEmail } from "../utils/mailer.js";
 
 
@@ -330,37 +323,13 @@ export async function getEnrollments(req: Request, res: Response) {
     const userLocalIDs = localEnrollments.map((e) => e.courseId);
     const userCompletedLocalIDs = localEnrollments.filter((e) => e.status === "Completed").map((e) => e.courseId);
 
-    if (!hasSheetsConfig()) {
-      return res.json({
-        enrollments: Array.from(new Set(userLocalIDs)),
-        completions: Array.from(new Set(userCompletedLocalIDs)),
-        sheetsSynced: false,
-        warning: "Google Sheets service is not configured. Running in local session sync fallback mode."
-      });
-    }
-
-    const sheetsData = await fetchEnrollmentsAndCompletionsFromSheet(normalizedEmail);
-    const mergedIDs = Array.from(new Set([...userLocalIDs, ...sheetsData.enrollments]));
-    const mergedCompletedIDs = Array.from(new Set([...userCompletedLocalIDs, ...sheetsData.completions]));
-    
-    return res.json({
-      enrollments: mergedIDs,
-      completions: mergedCompletedIDs,
-      sheetsSynced: true
-    });
-  } catch (error: any) {
-    logSheetError("Sheets retrieval failed, falling back to local storage", error);
-    // Dynamic query from local DB fallback indexings represent safe resilience
-    const localEnrollments = db.prepare("SELECT * FROM enrollments WHERE email = ?").all(normalizedEmail) as any[];
-    const userLocalIDs = localEnrollments.map((e) => e.courseId);
-    const userCompletedLocalIDs = localEnrollments.filter((e) => e.status === "Completed").map((e) => e.courseId);
-
     return res.json({
       enrollments: Array.from(new Set(userLocalIDs)),
       completions: Array.from(new Set(userCompletedLocalIDs)),
-      sheetsSynced: false,
-      warning: "Google Sheets retrieval failed temporarily. Displaying cached records."
+      sheetsSynced: false
     });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch registrations: " + error.message });
   }
 }
 
@@ -418,28 +387,13 @@ export async function enroll(req: Request, res: Response) {
       });
     }
 
-    if (!hasSheetsConfig()) {
-      return res.json({
-        success: true,
-        sheetsSynced: false,
-        message: "Enrolled in local session. Google Sheets secret configuration is missing in environment."
-      });
-    }
-
-    await appendEnrollmentToSheet(normalizedEmail, user.name, courseId, courseTitle);
-    return res.json({
-      success: true,
-      sheetsSynced: true,
-      message: "Successfully synchronized enrollment securely to Google Sheets."
-    });
-  } catch (error: any) {
-    logSheetError("Google Sheets sync failed", error);
     return res.json({
       success: true,
       sheetsSynced: false,
-      warning: "Enrollment captured locally. Unable to sync with Google Sheets.",
-      errorDetails: error.message
+      message: "Enrolled in local session successfully."
     });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to enroll: " + error.message });
   }
 }
 
@@ -463,28 +417,13 @@ export async function complete(req: Request, res: Response) {
       insertStmt.run(normalizedEmail, user.name, courseId, getCourseTitle(courseId), new Date().toISOString());
     }
 
-    if (!hasSheetsConfig()) {
-      return res.json({
-        success: true,
-        sheetsSynced: false,
-        message: "Successfully completed locally. Google Sheets credentials are not configured."
-      });
-    }
-
-    await markCourseCompletedInSheet(normalizedEmail, courseId);
-    return res.json({
-      success: true,
-      sheetsSynced: true,
-      message: "Successfully updated completion status in Google Sheets."
-    });
-  } catch (error: any) {
-    logSheetError("Completing in sheet failed", error);
     return res.json({
       success: true,
       sheetsSynced: false,
-      warning: "Completion captured locally. Google Sheets update failed.",
-      errorDetails: error.message
+      message: "Successfully completed course locally."
     });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to complete course: " + error.message });
   }
 }
 

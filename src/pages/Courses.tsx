@@ -6,6 +6,7 @@ import FilterBar from '../components/FilterBar';
 import ResourcePortal from '../components/ResourcePortal';
 import ManageInstructors from '../components/ManageInstructors';
 import MyProfileSettings from '../components/MyProfileSettings';
+import { AdminAuditLogs } from '../components/AdminAuditLogs';
 import { 
   LogOut, GraduationCap, ArrowUpRight, HelpCircle, 
   Shield, FileCode, Terminal, Copy, Check, Lock, Server, Activity,
@@ -29,7 +30,7 @@ interface CoursesProps {
 
 export default function Courses({ user, onSignOut, onSelectCourse, enrolledCourseIds }: CoursesProps) {
   const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin' | 'instructor-profile'>('catalog');
-  const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors'>('users');
+  const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors' | 'audit'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState('All');
@@ -960,10 +961,23 @@ function doPost(e) {
               >
                 Manage Instructor Profiles
               </button>
+              <button
+                type="button"
+                onClick={() => setAdminSubTab('audit')}
+                className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  adminSubTab === 'audit'
+                    ? 'border-emerald-600 text-emerald-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Authentication Audit Logs
+              </button>
             </div>
 
             {adminSubTab === 'instructors' ? (
               <ManageInstructors />
+            ) : adminSubTab === 'audit' ? (
+              <AdminAuditLogs />
             ) : (
               <>
                 {/* Alert Logs messages */}

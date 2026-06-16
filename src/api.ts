@@ -332,4 +332,17 @@ export async function updateInstructorProfileApi(
   });
 }
 
+export interface AuditLogEntry {
+  id: number;
+  timestamp: string;
+  email: string;
+  name: string;
+  status: string;
+  details: string;
+}
+
+export async function adminListAuditLogs(limit = 100, offset = 0): Promise<{ logs: AuditLogEntry[]; total: number; limit: number; offset: number }> {
+  return apiFetch(`/api/admin/audit-logs?limit=${limit}&offset=${offset}`);
+}
+
 

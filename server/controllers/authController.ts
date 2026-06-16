@@ -4,8 +4,6 @@ import bcrypt from "bcrypt";
 import db from "../db/database.js";
 import { createToken } from "../middlewares/auth.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../utils/email.js";
-import { appendLoginToSheet, hasSheetsConfig } from "../utils/sheets.js";
-
 // Helper to determine base URL securely, with full support for local, Codespaces, and custom configurations without Host Header Injection vulnerabilities.
 export function getBaseUrl(): string {
   if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
@@ -26,11 +24,6 @@ export function logLoginEvent(email: string, name: string, status: string, detai
       VALUES (?, ?, ?, ?, ?)
     `);
     stmt.run(email, name, status, new Date().toISOString(), details);
-
-    // Dynamic stream triggers to sheets asynchronous task
-    appendLoginToSheet(email, name, status, details).catch((err) => {
-      console.error("[GOOGLE SHEETS ENGINE] Async sheets logger failed:", err.message);
-    });
   } catch (err: any) {
     console.error("[DATABASE LOGGER] Local log insertion failed:", err.message);
   }

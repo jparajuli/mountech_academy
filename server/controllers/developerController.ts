@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import db from "../db/database.js";
-import { hasSheetsConfig } from "../utils/sheets.js";
 
 // Developer: Access system configuration / diagnostic state / debug logs
 export function getDeveloperLogs(req: Request, res: Response) {
@@ -16,7 +15,7 @@ export function getDeveloperLogs(req: Request, res: Response) {
       activeDatabaseFallback: "mountech.db (SQLite)",
       credentialsLoaded: {
         hasFirebaseConfig: fs.existsSync(path.join(process.cwd(), "firebase-applet-config.json")),
-        hasSheetsConfig: hasSheetsConfig()
+        hasSheetsConfig: false
       },
       metrics: {
         registeredScholars: usersCount,
