@@ -6,6 +6,18 @@ import { createToken } from "../middlewares/auth.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../utils/email.js";
 import { appendLoginToSheet, hasSheetsConfig } from "../utils/sheets.js";
 
+// Helper to determine base URL securely, with full support for local, Codespaces, and custom configurations without Host Header Injection vulnerabilities.
+export function getBaseUrl(): string {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
+  if (process.env.APP_URL) return process.env.APP_URL;
+  if (process.env.CODESPACES === "true" && process.env.CODESPACE_NAME) {
+    const domain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN || "app.github.dev";
+    return `https://${process.env.CODESPACE_NAME}-3000.${domain}`;
+  }
+  return "http://localhost:3000";
+}
+
+
 // Database Log helper for Login authentication events
 export function logLoginEvent(email: string, name: string, status: string, details: string) {
   try {
@@ -96,7 +108,7 @@ export async function register(req: Request, res: Response) {
     `);
     insertStmt.run(normalizedEmail, name.trim(), passwordHash, verificationToken);
 
-    const baseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const baseUrl = getBaseUrl();
     const link = await sendVerificationEmail(
       normalizedEmail,
       name.trim(),
@@ -138,7 +150,7 @@ export async function resend(req: Request, res: Response) {
       updateTokenStmt.run(verificationToken, normalizedEmail);
     }
 
-    const baseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const baseUrl = getBaseUrl();
     const link = await sendVerificationEmail(
       user.email,
       user.name,
@@ -256,7 +268,7 @@ export async function login(req: Request, res: Response) {
         message: "Please verify your email address before signing in.",
         email: normalizedEmail,
         verificationLink: verifyTokenStr
-          ? `${process.env.APP_URL || ("http://" + req.headers.host)}/api/auth/verify?token=${verifyTokenStr}`
+          ? `${getBaseUrl()}/api/auth/verify?token=${verifyTokenStr}`
           : null
       });
     }
@@ -344,12 +356,10 @@ export async function forgotPassword(req: Request, res: Response) {
       WHERE email = ?
     `).run(token, expires, normalizedEmail);
 
-    const reqHost = req.headers.host || "localhost:3000";
-    const rawUrl = process.env.APP_URL || `https://${reqHost}`;
-    const appUrl = (rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`).replace(/\/$/, "");
+    const appUrl = getBaseUrl().replace(/\/$/, "");
     const resetLink = `${appUrl}/signin?resetToken=${token}`;
 
-    await sendPasswordResetEmail(normalizedEmail, user.name, token, reqHost);
+    await sendPasswordResetEmail(normalizedEmail, user.name, token, appUrl);
 
     return res.json({
       success: true,
