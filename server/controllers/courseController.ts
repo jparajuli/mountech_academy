@@ -12,6 +12,8 @@ import {
   logSheetError,
   markCourseCompletedInSheet,
 } from "../utils/sheets.js";
+import { sendEmail } from "../utils/mailer.js";
+
 
 function getCourseTitle(courseId: string): string {
   const titles: Record<string, string> = {
@@ -380,6 +382,40 @@ export async function enroll(req: Request, res: Response) {
         VALUES (?, ?, ?, ?, 'Enrolled', ?)
       `);
       insertStmt.run(normalizedEmail, user.name, courseId, courseTitle, new Date().toISOString());
+
+      // Dispatch automated confirmation email securely using nodemailer helper
+      sendEmail(
+        normalizedEmail,
+        `Enrollment Confirmed: ${courseTitle} 🎓`,
+        `
+          <div style="font-family: 'Inter', system-ui, sans-serif; padding: 30px; line-height: 1.6; color: #111827; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h1 style="color: #0070f3; font-size: 24px; font-weight: 800; margin: 0; font-family: monospace;">MOUNTECH ACADEMY</h1>
+              <p style="color: #6b7280; font-size: 11px; text-transform: uppercase; tracking-wider: 1px; margin: 5px 0 0 0;">Interactive Technology Certifications</p>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #f3f4f6; margin-bottom: 20px;" />
+            <h2 style="font-size: 18px; font-weight: 700; color: #111827; margin-top: 0;">Enrollment Registration Success!</h2>
+            <p>Dear <strong>${user.name}</strong>,</p>
+            <p>Congratulations! Your academic registration has been received successfully. You have unlocked live access to the following classroom:</p>
+            
+            <div style="background: #f0f7ff; border-left: 4px solid #0070f3; border-radius: 4px; padding: 15px; margin: 20px 0;">
+              <strong style="font-size: 15px; color: #0050b3;">${courseTitle}</strong><br/>
+              <span style="font-size: 11px; color: #6b7280; font-family: monospace; font-weight: 600;">Track Code: ${courseId}</span>
+            </div>
+
+            <p style="font-size: 13px; color: #4b5563;">
+              To start attending sessions, access study materials uploaded by your course instructors, and complete assignments, visit the course page of your Scholar Catalog dashboard.
+            </p>
+            
+            <hr style="border: 0; border-top: 1px solid #f3f4f6; margin: 25px 0;" />
+            <p style="font-size: 11px; color: #9ca3af; line-height: 1.4; margin: 0;">
+              This email was sent from an automated transactional mailing server. Replies to this address are not monitored.
+            </p>
+          </div>
+        `
+      ).catch(err => {
+        console.error("[SMTP_CONFIRMATION_FAIL] Failed sending confirmation message:", err.message);
+      });
     }
 
     if (!hasSheetsConfig()) {
