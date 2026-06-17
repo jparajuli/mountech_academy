@@ -539,7 +539,7 @@ export function listCourses(req: Request, res: Response) {
   try {
     const rows = db.prepare(`
       SELECT c.*,
-             (SELECT name FROM users WHERE id = c.syllabus_last_updated_by) AS syllabus_last_updated_by_name,
+             (SELECT name FROM users WHERE users.id = c.syllabus_last_updated_by) AS syllabus_last_updated_by_name,
              json_group_array(
                json_object(
                  'id', ip.id,
@@ -616,7 +616,7 @@ export function listAdminCourses(req: Request, res: Response) {
   try {
     const rows = db.prepare(`
       SELECT c.*,
-             (SELECT name FROM users WHERE id = c.syllabus_last_updated_by) AS syllabus_last_updated_by_name,
+             (SELECT name FROM users WHERE users.id = c.syllabus_last_updated_by) AS syllabus_last_updated_by_name,
              json_group_array(
                json_object(
                  'id', ip.id,
@@ -690,7 +690,7 @@ export function listAdminCourses(req: Request, res: Response) {
 // PUT /api/courses/:courseId/syllabus - Shared Syllabus editing controller
 export function updateSharedSyllabus(req: Request, res: Response) {
   const { courseId } = req.params;
-  const { syllabus_content } = req.body;
+  const { syllabus_content, clientLastUpdatedAt } = req.body;
   const user = (req as any).user;
 
   if (!user) {
@@ -698,9 +698,25 @@ export function updateSharedSyllabus(req: Request, res: Response) {
   }
 
   try {
-    const course = db.prepare("SELECT 1 FROM courses WHERE id = ?").get(courseId);
-    if (!course) {
+    const courseRecord = db.prepare("SELECT syllabus_last_updated_at FROM courses WHERE id = ?").get(courseId) as any;
+    if (!courseRecord) {
       return res.status(404).json({ error: "Target course record not found." });
+    }
+
+    const dbLastUpdatedAt = courseRecord.syllabus_last_updated_at;
+
+    if (dbLastUpdatedAt) {
+      // Compare DB timestamp against the clientLastUpdatedAt timestamp.
+      // If clientLastUpdatedAt is missing or is helper timestamp strictly less than database, trigger conflict
+      const isConflict = !clientLastUpdatedAt || new Date(dbLastUpdatedAt).getTime() > new Date(clientLastUpdatedAt).getTime();
+      
+      if (isConflict) {
+        return res.status(409).json({ 
+          error: "Conflict: Another user has updated this syllabus since you opened it.",
+          code: "CONCURRENCY_CONFLICT",
+          dbLastUpdatedAt
+        });
+      }
     }
 
     // Retrieve user database ID

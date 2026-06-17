@@ -19,6 +19,7 @@ export const UpdateInstructorProfileSchema = z.object({
 
 export const UpdateSyllabusSchema = z.object({
   syllabus_content: z.string({ message: "Syllabus content is required." }),
+  clientLastUpdatedAt: z.string().optional().nullable(),
 });
 
 export const CreateExamSchema = z.object({

@@ -21,6 +21,9 @@ export const SyllabusEditor: React.FC<SyllabusEditorProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<{ date: string; user: string } | null>(null);
+  const [currentLastUpdatedAt, setCurrentLastUpdatedAt] = useState<string | null>(null);
+  const [isConflict, setIsConflict] = useState<boolean>(false);
+  const [copied, setCopied] = useState<boolean>(false);
 
   // Sync initial content on props change
   useEffect(() => {
@@ -35,11 +38,17 @@ export const SyllabusEditor: React.FC<SyllabusEditorProps> = ({
         const res = await fetchAdminCoursesList();
         if (res.success && res.courses) {
           const match = res.courses.find(c => String(c.id) === String(courseId));
-          if (match && match.syllabus_last_updated_at && match.syllabus_last_updated_by_name) {
-            setLastUpdated({
-              date: match.syllabus_last_updated_at,
-              user: match.syllabus_last_updated_by_name
-            });
+          if (match) {
+            if (match.syllabus_last_updated_at) {
+              setCurrentLastUpdatedAt(match.syllabus_last_updated_at);
+              setLastUpdated({
+                date: match.syllabus_last_updated_at,
+                user: match.syllabus_last_updated_by_name || 'System / Prior Version'
+              });
+            } else {
+              setCurrentLastUpdatedAt(null);
+              setLastUpdated(null);
+            }
             return;
           }
         }
@@ -50,11 +59,17 @@ export const SyllabusEditor: React.FC<SyllabusEditorProps> = ({
         const res = await fetchInstructorDashboard();
         if (res.success && res.courses) {
           const match = res.courses.find(c => String(c.id) === String(courseId));
-          if (match && match.syllabus_last_updated_at && match.syllabus_last_updated_by_name) {
-            setLastUpdated({
-              date: match.syllabus_last_updated_at,
-              user: match.syllabus_last_updated_by_name
-            });
+          if (match) {
+            if (match.syllabus_last_updated_at) {
+              setCurrentLastUpdatedAt(match.syllabus_last_updated_at);
+              setLastUpdated({
+                date: match.syllabus_last_updated_at,
+                user: match.syllabus_last_updated_by_name || 'System / Prior Version'
+              });
+            } else {
+              setCurrentLastUpdatedAt(null);
+              setLastUpdated(null);
+            }
             return;
           }
         }
@@ -65,11 +80,17 @@ export const SyllabusEditor: React.FC<SyllabusEditorProps> = ({
         const res = await fetchCoursesList();
         if (res.success && res.courses) {
           const match = res.courses.find(c => String(c.id) === String(courseId));
-          if (match && match.syllabus_last_updated_at && match.syllabus_last_updated_by_name) {
-            setLastUpdated({
-              date: match.syllabus_last_updated_at,
-              user: match.syllabus_last_updated_by_name
-            });
+          if (match) {
+            if (match.syllabus_last_updated_at) {
+              setCurrentLastUpdatedAt(match.syllabus_last_updated_at);
+              setLastUpdated({
+                date: match.syllabus_last_updated_at,
+                user: match.syllabus_last_updated_by_name || 'System / Prior Version'
+              });
+            } else {
+              setCurrentLastUpdatedAt(null);
+              setLastUpdated(null);
+            }
             return;
           }
         }
@@ -87,11 +108,13 @@ export const SyllabusEditor: React.FC<SyllabusEditorProps> = ({
     setSaving(true);
     setError(null);
     setSuccess(false);
+    setIsConflict(false);
 
     try {
-      const res = await updateCourseSyllabus(courseId, syllabus);
+      const res = await updateCourseSyllabus(courseId, syllabus, currentLastUpdatedAt || undefined);
       if (res.success) {
         setSuccess(true);
+        setIsConflict(false);
         
         // Update local coordination state immediately with the saved values
         if (res.syllabus_last_updated_at && res.syllabus_last_updated_by_name) {
@@ -99,6 +122,7 @@ export const SyllabusEditor: React.FC<SyllabusEditorProps> = ({
             date: res.syllabus_last_updated_at,
             user: res.syllabus_last_updated_by_name
           });
+          setCurrentLastUpdatedAt(res.syllabus_last_updated_at);
         } else {
           // Re-fetch coordination audit if they aren't directly returned
           await loadCoordinationAudit();
@@ -113,7 +137,12 @@ export const SyllabusEditor: React.FC<SyllabusEditorProps> = ({
         setError(res.message || 'Error occurred while saving course syllabus.');
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed connecting to server. Ensure you have proper instructor/admin credentials.');
+      if (err.status === 409 || err.code === 'CONCURRENCY_CONFLICT') {
+        setIsConflict(true);
+        setError("Conflict: Another user has updated this syllabus since you opened it. Please copy your recent changes to your clipboard, and refresh the page to sync the latest version.");
+      } else {
+        setError(err?.message || 'Failed connecting to server. Ensure you have proper instructor/admin credentials.');
+      }
     } finally {
       setSaving(false);
     }
@@ -185,12 +214,46 @@ export const SyllabusEditor: React.FC<SyllabusEditorProps> = ({
         </button>
       </div>
 
-      {error && (
+      {isConflict ? (
+        <div className="p-5 bg-rose-50 border border-rose-200 rounded-xl space-y-4 shadow-3xs animate-fade-in" id="syllabus-conflict-banner">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-rose-600 rounded-lg text-white shrink-0">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-rose-955">Warning: Someone else has modified this syllabus</h4>
+              <p className="text-xs text-rose-900 leading-relaxed font-sans">
+                Another instructor has updated this syllabus since you opened it. Please copy your recent changes to your clipboard, and refresh the page to sync the latest version.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(syllabus);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 3000);
+              }}
+              className="px-4 py-2 border border-rose-300 text-rose-700 hover:bg-rose-100/50 hover:text-rose-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+            >
+              {copied ? 'Copied to Clipboard! ✓' : 'Copy Changes to Clipboard'}
+            </button>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-3xs"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      ) : error ? (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-xs text-red-700 font-sans">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
           <span>{error}</span>
         </div>
-      )}
+      ) : null}
 
       {success && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-start gap-2 text-xs text-emerald-800">

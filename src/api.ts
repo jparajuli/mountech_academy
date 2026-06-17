@@ -31,7 +31,10 @@ async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.error || `HTTP error! Status: ${response.status}`);
+    const error = new Error(errData.error || `HTTP error! Status: ${response.status}`);
+    (error as any).status = response.status;
+    (error as any).code = errData.code;
+    throw error;
   }
 
   return response.json();
@@ -346,7 +349,11 @@ export async function adminListAuditLogs(limit = 100, offset = 0): Promise<{ log
 }
 
 // Update Course Syllabus
-export async function updateCourseSyllabus(courseId: string, syllabus_content: string): Promise<{ 
+export async function updateCourseSyllabus(
+  courseId: string, 
+  syllabus_content: string, 
+  clientLastUpdatedAt?: string
+): Promise<{ 
   success: boolean; 
   message: string; 
   syllabus_content: string;
@@ -356,7 +363,7 @@ export async function updateCourseSyllabus(courseId: string, syllabus_content: s
 }> {
   return apiFetch(`/api/courses/${courseId}/syllabus`, {
     method: 'PUT',
-    body: JSON.stringify({ syllabus_content }),
+    body: JSON.stringify({ syllabus_content, clientLastUpdatedAt }),
   });
 }
 
