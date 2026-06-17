@@ -1,20 +1,29 @@
 import React from 'react';
 import { User } from '../types';
 
+// 1. Centralized Role Type (DRY Principle)
+export type Role = 'admin' | 'instructor' | 'student' | 'developer';
+
 interface AccessControlProps {
   user: User | null;
-  allowedRoles: ('admin' | 'instructor' | 'student' | 'developer')[];
+  allowedRoles: Role[];
   fallback?: React.ReactNode;
   children: React.ReactNode;
 }
 
-// 1. Custom Hook for Role-Based checks
+// 2. Custom Hook for Role-Based checks
 export function useRBAC(user: User | null) {
-  const role = user?.role || 'student';
+  // SECURITY FIX: Default to null for unauthenticated users, not 'student'
+  const role = user?.role || null;
   
-  const hasRole = (allowed: ('admin' | 'instructor' | 'student' | 'developer') | ('admin' | 'instructor' | 'student' | 'developer')[]) => {
+  const hasRole = (allowed: Role | Role[]) => {
+    if (!role) return false;
+    
+    // ENTERPRISE PATTERN: Super-users implicitly bypass specific UI restrictions
+    if (role === 'admin' || role === 'developer') return true;
+
     if (Array.isArray(allowed)) {
-      return allowed.includes(role);
+      return allowed.includes(role as Role);
     }
     return role === allowed;
   };
@@ -26,29 +35,30 @@ export function useRBAC(user: User | null) {
     isInstructor: role === 'instructor',
     isDeveloper: role === 'developer',
     isStudent: role === 'student',
+    isAuthenticated: !!role // Helpful bonus flag!
   };
 }
 
-// 2. Access Control Wrapper Component
+// 3. Access Control Wrapper Component (For UI Elements like Buttons)
 export function AccessControl({ user, allowedRoles, fallback = null, children }: AccessControlProps) {
-  const { hasRole } = useRBAC(user);
+  const { hasRole, isAuthenticated } = useRBAC(user);
 
-  if (!user || !hasRole(allowedRoles)) {
+  if (!isAuthenticated || !hasRole(allowedRoles)) {
     return <>{fallback}</>;
   }
 
   return <>{children}</>;
 }
 
-// 3. Higher-Order Component (HOC) for protecting full views
+// 4. Higher-Order Component (For protecting full Page Views)
 export function withAccessControl<P extends { user: User | null }>(
   WrappedComponent: React.ComponentType<P>,
-  allowedRoles: ('admin' | 'instructor' | 'student' | 'developer')[]
+  allowedRoles: Role[]
 ) {
   return function ProtectedComponent(props: P) {
-    const { hasRole } = useRBAC(props.user);
+    const { hasRole, isAuthenticated } = useRBAC(props.user);
 
-    if (!props.user || !hasRole(allowedRoles)) {
+    if (!isAuthenticated || !hasRole(allowedRoles)) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center bg-white border border-rose-100 rounded-2xl shadow-sm">
           <div className="p-3 bg-rose-50 text-rose-600 rounded-xl mb-4 border border-rose-100">
@@ -58,7 +68,7 @@ export function withAccessControl<P extends { user: User | null }>(
           </div>
           <h3 className="text-lg font-bold text-gray-900 tracking-tight">Access Restricted</h3>
           <p className="text-xs text-gray-500 max-w-sm mt-2 leading-relaxed">
-            Your current institutional role (<span className="font-mono font-bold text-rose-600 bg-rose-50 px-1 py-0.5 rounded text-[10px]">{props.user?.role || 'student'}</span>) is insufficient to access these administrative command boards.
+            Your current institutional role (<span className="font-mono font-bold text-rose-600 bg-rose-50 px-1 py-0.5 rounded text-[10px]">{props.user?.role || 'guest'}</span>) is insufficient to access this administrative area.
           </p>
         </div>
       );
