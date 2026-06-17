@@ -539,7 +539,7 @@ export function listCourses(req: Request, res: Response) {
   try {
     const rows = db.prepare(`
       SELECT c.*,
-             (SELECT name FROM users WHERE users.id = c.syllabus_last_updated_by) AS syllabus_last_updated_by_name,
+             (SELECT name FROM users WHERE users.email = c.syllabus_last_updated_by) AS syllabus_last_updated_by_name,
              json_group_array(
                json_object(
                  'id', ip.id,
@@ -616,7 +616,7 @@ export function listAdminCourses(req: Request, res: Response) {
   try {
     const rows = db.prepare(`
       SELECT c.*,
-             (SELECT name FROM users WHERE users.id = c.syllabus_last_updated_by) AS syllabus_last_updated_by_name,
+             (SELECT name FROM users WHERE users.email = c.syllabus_last_updated_by) AS syllabus_last_updated_by_name,
              json_group_array(
                json_object(
                  'id', ip.id,
@@ -719,14 +719,8 @@ export function updateSharedSyllabus(req: Request, res: Response) {
       }
     }
 
-    // Retrieve user database ID
-    let userId = user.id;
-    if (!userId) {
-      const dbUser = db.prepare("SELECT id FROM users WHERE LOWER(email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (dbUser) {
-        userId = dbUser.id;
-      }
-    }
+    // Retrieve user database identifier (email)
+    let userId = user.email;
 
     const lastUpdatedInstant = new Date().toISOString();
 
