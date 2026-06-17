@@ -265,28 +265,8 @@ export function getInstructorDashboard(req: Request, res: Response) {
 // GET /api/instructor/courses/:courseId/students - Return students for course
 export function getCourseStudents(req: Request, res: Response) {
   const { courseId } = req.params;
-  const user = (req as any).user;
-  if (!user) {
-    return res.status(401).json({ error: "Unauthorized access." });
-  }
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(courseId, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
-      }
-    }
-
     const students = db.prepare(`
       SELECT email, name, timestamp AS enrollmentDate
       FROM enrollments
@@ -307,28 +287,8 @@ export function getCourseStudents(req: Request, res: Response) {
 // GET /api/instructor/courses/:courseId/materials - Return materials for course
 export function getCourseMaterials(req: Request, res: Response) {
   const { courseId } = req.params;
-  const user = (req as any).user;
-  if (!user) {
-    return res.status(401).json({ error: "Unauthorized access." });
-  }
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(courseId, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
-      }
-    }
-
     const materials = db.prepare(`
       SELECT id, course_id, title, file_url, created_at
       FROM course_materials
@@ -350,7 +310,6 @@ export function getCourseMaterials(req: Request, res: Response) {
 export function createCourseMaterial(req: Request, res: Response) {
   const { courseId } = req.params;
   const { title, file_url } = req.body;
-  const user = (req as any).user;
 
   if (!title || !title.trim()) {
     return res.status(400).json({ error: "Material title is required." });
@@ -360,22 +319,6 @@ export function createCourseMaterial(req: Request, res: Response) {
   }
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(courseId, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
-      }
-    }
-
     const result = db.prepare(`
       INSERT INTO course_materials (course_id, title, file_url)
       VALUES (?, ?, ?)
@@ -402,25 +345,8 @@ export function createCourseMaterial(req: Request, res: Response) {
 export function updateCourseSyllabus(req: Request, res: Response) {
   const { courseId } = req.params;
   const { syllabus_content } = req.body;
-  const user = (req as any).user;
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(courseId, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
-      }
-    }
-
     db.prepare(`
       UPDATE courses SET syllabus_content = ? WHERE id = ?
     `).run(syllabus_content || "", courseId);
@@ -440,25 +366,8 @@ export function updateCourseSyllabus(req: Request, res: Response) {
 export function createCourseExam(req: Request, res: Response) {
   const { courseId } = req.params;
   const { title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes } = req.body;
-  const user = (req as any).user;
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(courseId, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
-      }
-    }
-
     const publishedVal = (is_published === true || is_published === 1) ? 1 : 0;
     const questionsToDisplayVal = Number(questions_to_display) || 5;
     const passingScoreVal = Number(passing_score_percentage) || 70;
@@ -484,30 +393,8 @@ export function createCourseExam(req: Request, res: Response) {
 export function updateCourseExam(req: Request, res: Response) {
   const { examId } = req.params;
   const { title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes } = req.body;
-  const user = (req as any).user;
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
-      if (!exam) {
-        return res.status(404).json({ error: "Exam not found." });
-      }
-
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(exam.course_id, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
-      }
-    }
-
     const publishedVal = (is_published === true || is_published === 1) ? 1 : 0;
     const questionsToDisplayVal = Number(questions_to_display) || 5;
     const passingScoreVal = Number(passing_score_percentage) || 70;
@@ -532,25 +419,8 @@ export function updateCourseExam(req: Request, res: Response) {
 // GET /api/instructor/courses/:courseId/exams - List course exams
 export function listCourseExams(req: Request, res: Response) {
   const { courseId } = req.params;
-  const user = (req as any).user;
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(courseId, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
-      }
-    }
-
     const exams = db.prepare(`
       SELECT * FROM exams WHERE course_id = ? ORDER BY id DESC
     `).all(courseId) as any[];
@@ -585,33 +455,8 @@ export function listCourseExams(req: Request, res: Response) {
 export function createExamQuestion(req: Request, res: Response) {
   const { examId } = req.params;
   const { question_text, question_type, options, correct_answer, points } = req.body;
-  const user = (req as any).user;
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-    
-    // A. Fetch parent exam to verify ownership mapping
-    const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
-    if (!exam) {
-      return res.status(404).json({ error: "Exam not found." });
-    }
-
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      // B. Check course instructors association for parent course
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(exam.course_id, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not assigned to edit this exam course." });
-      }
-    }
-
     const optionsJson = JSON.stringify(options || []);
 
     const result = db.prepare(`
@@ -634,34 +479,9 @@ export function createExamQuestion(req: Request, res: Response) {
 export function updateExamQuestion(req: Request, res: Response) {
   const { examId, questionId } = req.params;
   const { question_text, question_type, options, correct_answer, points } = req.body;
-  const user = (req as any).user;
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-
-    // A. Verify parent exam
-    const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
-    if (!exam) {
-      return res.status(404).json({ error: "Exam not found." });
-    }
-
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      // B. Verify course-ownership
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(exam.course_id, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not authorized for this exam course." });
-      }
-    }
-
-    // C. Verify question matches this exam
+    // Verify question matches this exam
     const questionExists = db.prepare("SELECT 1 FROM exam_questions WHERE id = ? AND exam_id = ?").get(questionId, examId);
     if (!questionExists) {
       return res.status(404).json({ error: "Question not found or does not belong to this exam." });
@@ -688,31 +508,8 @@ export function updateExamQuestion(req: Request, res: Response) {
 // DELETE /api/instructor/exams/:examId - Optional but highly valuable delete exam
 export function deleteCourseExam(req: Request, res: Response) {
   const { examId } = req.params;
-  const user = (req as any).user;
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-
-    const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
-    if (!exam) {
-      return res.status(404).json({ error: "Exam not found." });
-    }
-
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(exam.course_id, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not authorized for this exam course." });
-      }
-    }
-
     db.prepare("DELETE FROM exams WHERE id = ?").run(examId);
 
     return res.json({
@@ -728,31 +525,8 @@ export function deleteCourseExam(req: Request, res: Response) {
 // DELETE /api/instructor/exams/:examId/questions/:questionId - Optional but highly valuable delete question
 export function deleteExamQuestion(req: Request, res: Response) {
   const { examId, questionId } = req.params;
-  const user = (req as any).user;
 
   try {
-    const isAdmin = user && (user.role === "admin" || user.role === "developer");
-
-    const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
-    if (!exam) {
-      return res.status(404).json({ error: "Exam not found." });
-    }
-
-    if (!isAdmin) {
-      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-      if (!profile) {
-        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-      }
-
-      const association = db.prepare(`
-        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-      `).get(exam.course_id, profile.id);
-
-      if (!association) {
-        return res.status(403).json({ error: "Access Denied: You are not authorized for this exam course." });
-      }
-    }
-
     db.prepare("DELETE FROM exam_questions WHERE id = ? AND exam_id = ?").run(questionId, examId);
 
     return res.json({

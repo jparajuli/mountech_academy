@@ -1,9 +1,11 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
-import db from "../db/database.js";
+import * as UserRepository from "../repositories/UserRepository.js";
+import * as AuditRepository from "../repositories/AuditRepository.js";
 import { createToken } from "../middlewares/auth.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../utils/email.js";
+
 // Helper to determine base URL securely, with full support for local, Codespaces, and custom configurations without Host Header Injection vulnerabilities.
 export function getBaseUrl(): string {
   if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
@@ -15,18 +17,9 @@ export function getBaseUrl(): string {
   return "http://localhost:3000";
 }
 
-
 // Database Log helper for Login authentication events
 export function logLoginEvent(email: string, name: string, status: string, details: string) {
-  try {
-    const stmt = db.prepare(`
-      INSERT INTO logins (email, name, status, timestamp, details)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    stmt.run(email, name, status, new Date().toISOString(), details);
-  } catch (err: any) {
-    console.error("[DATABASE LOGGER] Local log insertion failed:", err.message);
-  }
+  AuditRepository.logLoginEvent(email, name, status, details);
 }
 
 // User OAuth registration & login controller (instantly pre-verified)
@@ -35,7 +28,7 @@ export async function oauth(req: Request, res: Response) {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    let user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail) as any;
+    let user = UserRepository.findByEmail(normalizedEmail);
 
     if (!user) {
       // Register custom pre-verified user
@@ -43,11 +36,12 @@ export async function oauth(req: Request, res: Response) {
       // Pre-verified OAuth log is generated as bcrypt securely
       const passwordHash = await bcrypt.hash(randomPassword, 10);
       
-      const insertStmt = db.prepare(`
-        INSERT INTO users (email, name, passwordHash, passwordAlgorithm, role, isVerified)
-        VALUES (?, ?, ?, 'bcrypt', 'student', 1)
-      `);
-      insertStmt.run(normalizedEmail, name.trim(), passwordHash);
+      UserRepository.createStudent({
+        email: normalizedEmail,
+        name: name.trim(),
+        passwordHash,
+        isVerified: 1
+      });
       
       user = {
         email: normalizedEmail,
@@ -57,12 +51,7 @@ export async function oauth(req: Request, res: Response) {
       };
     } else if (user.isVerified === 0) {
       // If user was previously registered but not verified, verify them since OAuth confirms email ownership
-      const updateStmt = db.prepare(`
-        UPDATE users 
-        SET isVerified = 1, verificationToken = NULL 
-        WHERE email = ?
-      `);
-      updateStmt.run(normalizedEmail);
+      UserRepository.verifyUser(normalizedEmail);
       user.isVerified = 1;
     }
 
@@ -86,7 +75,7 @@ export async function register(req: Request, res: Response) {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    const existing = db.prepare("SELECT 1 FROM users WHERE email = ?").get(normalizedEmail);
+    const existing = UserRepository.findByEmail(normalizedEmail);
     if (existing) {
       return res.status(400).json({ error: "An account with this email address already exists." });
     }
@@ -95,11 +84,12 @@ export async function register(req: Request, res: Response) {
     const passwordHash = await bcrypt.hash(password, 10);
     const verificationToken = crypto.randomBytes(32).toString("hex");
 
-    const insertStmt = db.prepare(`
-      INSERT INTO users (email, name, passwordHash, passwordAlgorithm, role, isVerified, verificationToken)
-      VALUES (?, ?, ?, 'bcrypt', 'student', 0, ?)
-    `);
-    insertStmt.run(normalizedEmail, name.trim(), passwordHash, verificationToken);
+    UserRepository.createStudent({
+      email: normalizedEmail,
+      name: name.trim(),
+      passwordHash,
+      verificationToken
+    });
 
     const baseUrl = getBaseUrl();
     const link = await sendVerificationEmail(
@@ -127,7 +117,7 @@ export async function resend(req: Request, res: Response) {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail) as any;
+    const user = UserRepository.findByEmail(normalizedEmail);
     if (!user) {
       return res.status(404).json({ error: "No student account found with this email speech." });
     }
@@ -139,8 +129,7 @@ export async function resend(req: Request, res: Response) {
     let verificationToken = user.verificationToken;
     if (!verificationToken) {
       verificationToken = crypto.randomBytes(32).toString("hex");
-      const updateTokenStmt = db.prepare("UPDATE users SET verificationToken = ? WHERE email = ?");
-      updateTokenStmt.run(verificationToken, normalizedEmail);
+      UserRepository.updateVerificationToken(normalizedEmail, verificationToken);
     }
 
     const baseUrl = getBaseUrl();
@@ -169,12 +158,12 @@ export async function verify(req: Request, res: Response) {
   }
 
   try {
-    const user = db.prepare("SELECT * FROM users WHERE verificationToken = ?").get(token) as any;
+    const user = UserRepository.findByVerificationToken(token);
     if (!user) {
       return res.status(400).send("<h1>Verification Failed</h1><p>The verification link is invalid, expired, or has already been used.</p>");
     }
 
-    db.prepare("UPDATE users SET isVerified = 1, verificationToken = NULL WHERE email = ?").run(user.email);
+    UserRepository.verifyUser(user.email);
 
     return res.send(`
       <html>
@@ -215,7 +204,7 @@ export async function login(req: Request, res: Response) {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail) as any;
+    const user = UserRepository.findByEmail(normalizedEmail);
     if (!user) {
       logLoginEvent(normalizedEmail, "Unknown", "FAILED_INVALID_CREDENTIALS", "Unauthorized Web Access");
       return res.status(401).json({ error: "Invalid email or password." });
@@ -245,11 +234,7 @@ export async function login(req: Request, res: Response) {
     if (needsUpgrade) {
       console.log(`[AUTH CRYPTO UPGRADE] Upgrading algorithm to bcrypt for ${normalizedEmail}...`);
       const newBcryptHash = await bcrypt.hash(password, 10);
-      db.prepare(`
-        UPDATE users 
-        SET passwordHash = ?, passwordAlgorithm = 'bcrypt' 
-        WHERE email = ?
-      `).run(newBcryptHash, normalizedEmail);
+      UserRepository.updatePassword(normalizedEmail, newBcryptHash, true);
     }
 
     // Block login for unverified accounts strictly
@@ -290,7 +275,7 @@ export function me(req: Request, res: Response) {
 export function logins(req: Request, res: Response) {
   try {
     const currentEmail = (req as any).user.email;
-    const records = db.prepare("SELECT * FROM logins WHERE email = ? ORDER BY timestamp DESC").all(currentEmail);
+    const records = AuditRepository.getRecentLoginsByEmail(currentEmail);
     return res.json({ logins: records });
   } catch (err: any) {
     return res.status(500).json({ error: "Failed to read logged events: " + err.message });
@@ -303,18 +288,14 @@ export async function resetPassword(req: Request, res: Response) {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail) as any;
+    const user = UserRepository.findByEmail(normalizedEmail);
     if (!user) {
       return res.status(404).json({ error: "No student account found with this email address." });
     }
 
     // Hash securely using bcrypt
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    db.prepare(`
-      UPDATE users 
-      SET passwordHash = ?, passwordAlgorithm = 'bcrypt' 
-      WHERE email = ?
-    `).run(passwordHash, normalizedEmail);
+    UserRepository.updatePassword(normalizedEmail, passwordHash);
 
     logLoginEvent(normalizedEmail, user.name, "PASSWORD_RESET", "Scholar changed password voluntarily");
 
@@ -334,7 +315,7 @@ export async function forgotPassword(req: Request, res: Response) {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    const user = db.prepare("SELECT * FROM users WHERE email = ?").get(normalizedEmail) as any;
+    const user = UserRepository.findByEmail(normalizedEmail);
     if (!user) {
       return res.status(404).json({ error: "No registered student account was found with this email address." });
     }
@@ -343,11 +324,7 @@ export async function forgotPassword(req: Request, res: Response) {
     const token = crypto.randomBytes(32).toString("hex");
     const expires = new Date(Date.now() + 3600000).toISOString();
 
-    db.prepare(`
-      UPDATE users 
-      SET resetToken = ?, resetTokenExpires = ? 
-      WHERE email = ?
-    `).run(token, expires, normalizedEmail);
+    UserRepository.saveResetToken(normalizedEmail, token, expires);
 
     const appUrl = getBaseUrl().replace(/\/$/, "");
     const resetLink = `${appUrl}/signin?resetToken=${token}`;
@@ -374,7 +351,7 @@ export async function verifyResetToken(req: Request, res: Response) {
   }
 
   try {
-    const user = db.prepare("SELECT * FROM users WHERE resetToken = ?").get(token) as any;
+    const user = UserRepository.findByResetToken(token);
     if (!user) {
       return res.status(400).json({ error: "The recovery link is invalid or expired. Please submit a new request." });
     }
@@ -398,7 +375,7 @@ export async function resetPasswordWithToken(req: Request, res: Response) {
   const { token, newPassword } = req.body;
 
   try {
-    const user = db.prepare("SELECT * FROM users WHERE resetToken = ?").get(token) as any;
+    const user = UserRepository.findByResetToken(token);
     if (!user) {
       return res.status(400).json({ error: "The recovery link is invalid or expired. Please submit a new request." });
     }
@@ -409,11 +386,8 @@ export async function resetPasswordWithToken(req: Request, res: Response) {
 
     // Hash securely using bcrypt
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    db.prepare(`
-      UPDATE users 
-      SET passwordHash = ?, passwordAlgorithm = 'bcrypt', resetToken = NULL, resetTokenExpires = NULL 
-      WHERE email = ?
-    `).run(passwordHash, user.email);
+    UserRepository.updatePassword(user.email, passwordHash);
+    UserRepository.clearResetToken(user.email);
 
     logLoginEvent(user.email, user.name, "PASSWORD_RECOVERED_SECURELY", "Scholar recovered account securely with token-based authentication");
 
