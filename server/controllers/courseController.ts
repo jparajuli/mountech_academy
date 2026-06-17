@@ -539,6 +539,7 @@ export function listCourses(req: Request, res: Response) {
   try {
     const rows = db.prepare(`
       SELECT c.*,
+             (SELECT name FROM users WHERE id = c.syllabus_last_updated_by) AS syllabus_last_updated_by_name,
              json_group_array(
                json_object(
                  'id', ip.id,
@@ -586,6 +587,10 @@ export function listCourses(req: Request, res: Response) {
         skillsAcquired: JSON.parse(r.skillsAcquired || "[]"),
         requirements: JSON.parse(r.requirements || "[]"),
         syllabus: JSON.parse(r.syllabus || "[]"),
+        syllabus_content: r.syllabus_content,
+        syllabus_last_updated_at: r.syllabus_last_updated_at,
+        syllabus_last_updated_by: r.syllabus_last_updated_by,
+        syllabus_last_updated_by_name: r.syllabus_last_updated_by_name,
         thumbnailBg: r.thumbnailBg,
         thumbnailIconCode: r.thumbnailIconCode,
         isPaid: r.isPaid === 1,
@@ -611,6 +616,7 @@ export function listAdminCourses(req: Request, res: Response) {
   try {
     const rows = db.prepare(`
       SELECT c.*,
+             (SELECT name FROM users WHERE id = c.syllabus_last_updated_by) AS syllabus_last_updated_by_name,
              json_group_array(
                json_object(
                  'id', ip.id,
@@ -657,6 +663,10 @@ export function listAdminCourses(req: Request, res: Response) {
         skillsAcquired: JSON.parse(r.skillsAcquired || "[]"),
         requirements: JSON.parse(r.requirements || "[]"),
         syllabus: JSON.parse(r.syllabus || "[]"),
+        syllabus_content: r.syllabus_content,
+        syllabus_last_updated_at: r.syllabus_last_updated_at,
+        syllabus_last_updated_by: r.syllabus_last_updated_by,
+        syllabus_last_updated_by_name: r.syllabus_last_updated_by_name,
         thumbnailBg: r.thumbnailBg,
         thumbnailIconCode: r.thumbnailIconCode,
         isPaid: r.isPaid === 1,
@@ -674,6 +684,58 @@ export function listAdminCourses(req: Request, res: Response) {
   } catch (err: any) {
     console.error("[GET ADMIN COURSES ERR]", err);
     return res.status(500).json({ error: "Failed to retrieve admin courses: " + err.message });
+  }
+}
+
+// PUT /api/courses/:courseId/syllabus - Shared Syllabus editing controller
+export function updateSharedSyllabus(req: Request, res: Response) {
+  const { courseId } = req.params;
+  const { syllabus_content } = req.body;
+  const user = (req as any).user;
+
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized access: login required." });
+  }
+
+  try {
+    const course = db.prepare("SELECT 1 FROM courses WHERE id = ?").get(courseId);
+    if (!course) {
+      return res.status(404).json({ error: "Target course record not found." });
+    }
+
+    // Retrieve user database ID
+    let userId = user.id;
+    if (!userId) {
+      const dbUser = db.prepare("SELECT id FROM users WHERE LOWER(email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (dbUser) {
+        userId = dbUser.id;
+      }
+    }
+
+    const lastUpdatedInstant = new Date().toISOString();
+
+    db.prepare(`
+      UPDATE courses 
+      SET syllabus_content = ?, 
+          syllabus_last_updated_at = ?, 
+          syllabus_last_updated_by = ? 
+      WHERE id = ?
+    `).run(syllabus_content || "", lastUpdatedInstant, userId, courseId);
+
+    // Retrieve the user name of the updater to render in the client directly
+    const updaterName = user.name || "Unknown Author";
+
+    return res.json({
+      success: true,
+      message: "Academic course syllabus unified successfully.",
+      syllabus_content,
+      syllabus_last_updated_at: lastUpdatedInstant,
+      syllabus_last_updated_by: userId,
+      syllabus_last_updated_by_name: updaterName
+    });
+  } catch (err: any) {
+    console.error("[SHARED SYLLABUS EDIT ERR]", err);
+    return res.status(500).json({ error: "Failed to update unified syllabus node: " + err.message });
   }
 }
 

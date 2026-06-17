@@ -7,6 +7,7 @@ import ResourcePortal from '../components/ResourcePortal';
 import ManageInstructors from '../components/ManageInstructors';
 import MyProfileSettings from '../components/MyProfileSettings';
 import { AdminAuditLogs } from '../components/AdminAuditLogs';
+import { SyllabusEditor } from '../components/Shared/SyllabusEditor';
 import { 
   LogOut, GraduationCap, ArrowUpRight, HelpCircle, 
   Shield, FileCode, Terminal, Copy, Check, Lock, Server, Activity,
@@ -88,6 +89,7 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
   const [currReq, setCurrReq] = useState('');
 
   const [syllabusList, setSyllabusList] = useState<{ chapter: string; title: string; description: string }[]>([]);
+  const [editingSyllabusContent, setEditingSyllabusContent] = useState<string>('');
   const [currChapter, setCurrChapter] = useState('');
   const [currChapTitle, setCurrChapTitle] = useState('');
   const [currChapDesc, setCurrChapDesc] = useState('');
@@ -126,6 +128,7 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
     setSkillsList([]);
     setReqsList([]);
     setSyllabusList([]);
+    setEditingSyllabusContent('');
     setEditingCourseId(null);
     setCreateCourseError('');
     setCreateCourseSuccess('');
@@ -282,6 +285,7 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
     setSkillsList(course.skillsAcquired || []);
     setReqsList(course.requirements || []);
     setSyllabusList(course.syllabus || []);
+    setEditingSyllabusContent((course as any).syllabus_content || '');
     
     setEditingCourseId(course.id);
     setShowCreateCourseSection(true);
@@ -1525,108 +1529,121 @@ function doPost(e) {
                   </div>
 
                   {editingCourseId && (
-                    <div className="bg-white border border-[#e5e7eb] rounded-2xl shadow-sm p-6 space-y-4 shadow-3xs animate-fade-in" id="live-session-scheduler-card">
-                      <div className="border-b border-gray-150 pb-3">
-                        <h3 className="text-sm font-bold text-[#111827] uppercase tracking-wider flex items-center gap-1.5">
-                          <Video className="w-4 h-4 text-rose-500 animate-pulse shrink-0" />
-                          <span>Schedule Live Class Seminar</span>
-                        </h3>
-                        <p className="text-[11px] text-[#6b7280] mt-0.5">
-                          Publish a new Google Meet classroom event for registered scholars in this elective.
-                        </p>
+                    <>
+                      <div className="bg-white border border-[#e5e7eb] rounded-2xl shadow-sm p-6 space-y-4 shadow-3xs animate-fade-in" id="live-session-scheduler-card">
+                        <div className="border-b border-gray-150 pb-3">
+                          <h3 className="text-sm font-bold text-[#111827] uppercase tracking-wider flex items-center gap-1.5">
+                            <Video className="w-4 h-4 text-rose-500 animate-pulse shrink-0" />
+                            <span>Schedule Live Class Seminar</span>
+                          </h3>
+                          <p className="text-[11px] text-[#6b7280] mt-0.5">
+                            Publish a new Google Meet classroom event for registered scholars in this elective.
+                          </p>
+                        </div>
+
+                        {scheduleError && (
+                          <div className="p-3 bg-red-50 border border-red-100 text-red-800 text-xs font-semibold rounded-lg flex items-center gap-2">
+                            <span className="shrink-0">⚠️</span>
+                            <span>{scheduleError}</span>
+                          </div>
+                        )}
+                        {scheduleSuccess && (
+                          <div className="p-3 bg-emerald-55 border border-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg flex items-center gap-2">
+                            <span className="shrink-0">✓</span>
+                            <span>{scheduleSuccess}</span>
+                          </div>
+                        )}
+
+                        <form onSubmit={handleScheduleSessionSubmit} className="space-y-4 text-xs">
+                          <div>
+                            <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
+                              Lecture / Seminar Session Title *
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={sessionTitle}
+                              onChange={(e) => setSessionTitle(e.target.value)}
+                              placeholder="e.g. Q&A and Exam Review with Sarah Sterling"
+                              className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
+                                Start Date & Time (Local) *
+                              </label>
+                              <input
+                                type="datetime-local"
+                                required
+                                value={sessionStart}
+                                onChange={(e) => setSessionStart(e.target.value)}
+                                className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
+                                End Date & Time (Local) *
+                              </label>
+                              <input
+                                type="datetime-local"
+                                required
+                                value={sessionEnd}
+                                onChange={(e) => setSessionEnd(e.target.value)}
+                                className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
+                              Google Meet URL *
+                            </label>
+                            <input
+                              type="url"
+                              required
+                              value={sessionMeetUrl}
+                              onChange={(e) => setSessionMeetUrl(e.target.value)}
+                              placeholder="e.g. https://meet.google.com/abc-defg-hij"
+                              className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
+                            />
+                          </div>
+
+                          <div className="flex justify-end pt-2">
+                            <button
+                              type="submit"
+                              disabled={scheduling}
+                              className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg shadow-xs transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              {scheduling ? (
+                                <>
+                                  <Activity className="w-3.5 h-3.5 animate-spin" />
+                                  Scheduling...
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-3.5 h-3.5" />
+                                  Schedule Live Lecture
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </form>
                       </div>
 
-                      {scheduleError && (
-                        <div className="p-3 bg-red-50 border border-red-100 text-red-800 text-xs font-semibold rounded-lg flex items-center gap-2">
-                          <span className="shrink-0">⚠️</span>
-                          <span>{scheduleError}</span>
-                        </div>
-                      )}
-                      {scheduleSuccess && (
-                        <div className="p-3 bg-emerald-55 border border-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg flex items-center gap-2">
-                          <span className="shrink-0">✓</span>
-                          <span>{scheduleSuccess}</span>
-                        </div>
-                      )}
-
-                      <form onSubmit={handleScheduleSessionSubmit} className="space-y-4 text-xs">
-                        <div>
-                          <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
-                            Lecture / Seminar Session Title *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={sessionTitle}
-                            onChange={(e) => setSessionTitle(e.target.value)}
-                            placeholder="e.g. Q&A and Exam Review with Sarah Sterling"
-                            className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
-                              Start Date & Time (Local) *
-                            </label>
-                            <input
-                              type="datetime-local"
-                              required
-                              value={sessionStart}
-                              onChange={(e) => setSessionStart(e.target.value)}
-                              className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
-                              End Date & Time (Local) *
-                            </label>
-                            <input
-                              type="datetime-local"
-                              required
-                              value={sessionEnd}
-                              onChange={(e) => setSessionEnd(e.target.value)}
-                              className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
-                            Google Meet URL *
-                          </label>
-                          <input
-                            type="url"
-                            required
-                            value={sessionMeetUrl}
-                            onChange={(e) => setSessionMeetUrl(e.target.value)}
-                            placeholder="e.g. https://meet.google.com/abc-defg-hij"
-                            className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
-                          />
-                        </div>
-
-                        <div className="flex justify-end pt-2">
-                          <button
-                            type="submit"
-                            disabled={scheduling}
-                            className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg shadow-xs transition-all flex items-center gap-1 cursor-pointer"
-                          >
-                            {scheduling ? (
-                              <>
-                                <Activity className="w-3.5 h-3.5 animate-spin" />
-                                Scheduling...
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="w-3.5 h-3.5" />
-                                Schedule Live Lecture
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
+                      <div className="mt-8 md:col-span-2">
+                        <SyllabusEditor
+                          courseId={editingCourseId}
+                          initialSyllabus={editingSyllabusContent}
+                          onSyllabusSaved={(newContent) => {
+                            setEditingSyllabusContent(newContent);
+                            loadCourses();
+                          }}
+                        />
+                      </div>
+                    </>
                   )}
                   </>
                 ) : (

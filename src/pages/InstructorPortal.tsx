@@ -25,7 +25,7 @@ import {
   FileEdit,
   ClipboardList
 } from 'lucide-react';
-import { InstructorSyllabusEditor } from '../components/InstructorSyllabusEditor';
+import { SyllabusEditor } from '../components/Shared/SyllabusEditor';
 import { InstructorExamBuilder } from '../components/InstructorExamBuilder';
 
 interface InstructorPortalProps {
@@ -669,7 +669,7 @@ function CourseManagementView({ course, onBack }: CourseManagementProps) {
           </div>
         ) : activeTab === 'syllabus' ? (
           <div className="animate-fade-in">
-            <InstructorSyllabusEditor 
+            <SyllabusEditor 
               courseId={course.id} 
               initialSyllabusContent={course.syllabus_content || ''} 
               onSyllabusSaved={(newContent) => {

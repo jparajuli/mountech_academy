@@ -176,6 +176,14 @@ try {
 } catch (_) {}
 
 try {
+  db.exec("ALTER TABLE courses ADD COLUMN syllabus_last_updated_at TEXT;");
+} catch (_) {}
+
+try {
+  db.exec("ALTER TABLE courses ADD COLUMN syllabus_last_updated_by INTEGER;");
+} catch (_) {}
+
+try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

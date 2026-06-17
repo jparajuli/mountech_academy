@@ -56,6 +56,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     }
 
     (req as any).user = {
+      id: dbUser ? dbUser.id : null,
       email: payload.email,
       name: dbUser ? dbUser.name : payload.name,
       role
@@ -80,4 +81,47 @@ export function requireRole(allowedRoles: string[]) {
     }
     next();
   };
+}
+
+export function requireSyllabusEditAuth(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user;
+  if (!user) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+
+  // Admin and Developer roles have global access
+  if (user.role === "admin" || user.role === "developer") {
+    return next();
+  }
+
+  // Instructor role has access if assigned in course_instructors
+  if (user.role === "instructor") {
+    const { courseId } = req.params;
+    if (!courseId) {
+      return res.status(400).json({ error: "Course ID is required." });
+    }
+
+    try {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?")
+        .get(user.email.trim().toLowerCase()) as any;
+        
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
+
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(courseId, profile.id);
+
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not assigned as an instructor for this course." });
+      }
+
+      return next();
+    } catch (error: any) {
+      return res.status(500).json({ error: "Authorization lookup failure: " + error.message });
+    }
+  }
+
+  return res.status(403).json({ error: "Access Denied: Insufficient permissions to edit curriculum." });
 }

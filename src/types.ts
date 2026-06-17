@@ -30,6 +30,9 @@ export interface Course {
   price?: number;
   isLocked?: boolean;
   syllabus_content?: string;
+  syllabus_last_updated_at?: string;
+  syllabus_last_updated_by?: number;
+  syllabus_last_updated_by_name?: string;
   instructor_profile_id?: number | null;
   instructor?: {
     name: string;

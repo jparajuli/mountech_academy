@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { EnrollSchema, CompleteSchema, RatingSchema, AdminCourseSchema, LiveSessionSchema } from "../schemas/course.js";
 import { validateRequest } from "../middlewares/validate.js";
-import { requireAuth, requireRole } from "../middlewares/auth.js";
+import { requireAuth, requireRole, requireSyllabusEditAuth } from "../middlewares/auth.js";
 import {
   getSyllabus,
   getEnrollments,
@@ -21,6 +21,7 @@ import {
   getCourseExamsForStudent,
   startStudentExam,
   submitStudentExamResponse,
+  updateSharedSyllabus,
 } from "../controllers/courseController.js";
 
 const router = Router();
@@ -31,6 +32,7 @@ router.post("/courses", requireAuth, requireRole(["admin", "developer"]), create
 router.put("/admin/courses/:id", requireAuth, requireRole(["admin", "developer"]), validateRequest(AdminCourseSchema), updateCourse);
 router.patch("/admin/courses/:id/lock", requireAuth, requireRole(["admin", "developer"]), toggleCourseLock);
 router.get("/download/syllabus", getSyllabus);
+router.put("/courses/:courseId/syllabus", requireAuth, requireSyllabusEditAuth, updateSharedSyllabus);
 router.get("/enrollments", requireAuth, getEnrollments);
 router.post("/enroll", requireAuth, validateRequest(EnrollSchema), enroll);
 router.post("/complete", requireAuth, validateRequest(CompleteSchema), complete);

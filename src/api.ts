@@ -346,8 +346,15 @@ export async function adminListAuditLogs(limit = 100, offset = 0): Promise<{ log
 }
 
 // Update Course Syllabus
-export async function updateCourseSyllabus(courseId: string, syllabus_content: string): Promise<{ success: boolean; message: string; syllabus_content: string }> {
-  return apiFetch(`/api/instructor/courses/${courseId}/syllabus`, {
+export async function updateCourseSyllabus(courseId: string, syllabus_content: string): Promise<{ 
+  success: boolean; 
+  message: string; 
+  syllabus_content: string;
+  syllabus_last_updated_at?: string;
+  syllabus_last_updated_by?: number;
+  syllabus_last_updated_by_name?: string;
+}> {
+  return apiFetch(`/api/courses/${courseId}/syllabus`, {
     method: 'PUT',
     body: JSON.stringify({ syllabus_content }),
   });
