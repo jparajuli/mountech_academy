@@ -25,6 +25,9 @@ export const CreateExamSchema = z.object({
   title: z.string().trim().min(1, { message: "Exam title is required." }),
   description: z.string().trim().optional().nullable().default(""),
   is_published: z.any().optional().default(0), // 0 or 1 or boolean
+  questions_to_display: z.number().int().min(1).optional().default(5),
+  passing_score_percentage: z.number().int().min(1).max(100).optional().default(70),
+  duration_minutes: z.number().int().min(1).optional().default(30),
 });
 
 export const CreateQuestionSchema = z.object({

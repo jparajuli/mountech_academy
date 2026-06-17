@@ -359,7 +359,7 @@ export async function fetchCourseExams(courseId: string): Promise<{ success: boo
 }
 
 // Create Course Exam
-export async function createCourseExam(courseId: string, examData: { title: string; description: string; is_published: boolean }): Promise<{ success: boolean; message: string; examId: number }> {
+export async function createCourseExam(courseId: string, examData: { title: string; description: string; is_published: boolean; questions_to_display?: number; passing_score_percentage?: number; duration_minutes?: number }): Promise<{ success: boolean; message: string; examId: number }> {
   return apiFetch(`/api/instructor/courses/${courseId}/exams`, {
     method: 'POST',
     body: JSON.stringify(examData),
@@ -393,6 +393,44 @@ export async function updateExamQuestion(examId: number, questionId: number, que
 export async function deleteExamQuestion(examId: number, questionId: number): Promise<{ success: boolean; message: string }> {
   return apiFetch(`/api/instructor/exams/${examId}/questions/${questionId}`, {
     method: 'DELETE',
+  });
+}
+
+// Update Course Exam Configuration
+export async function updateCourseExamDetails(examId: number, examData: { title: string; description: string; is_published: boolean; questions_to_display?: number; passing_score_percentage?: number; duration_minutes?: number }): Promise<{ success: boolean; message: string }> {
+  return apiFetch(`/api/instructor/exams/${examId}`, {
+    method: 'PUT',
+    body: JSON.stringify(examData),
+  });
+}
+
+// Student fetch course exams (published only)
+export async function fetchStudentExams(courseId: string): Promise<{ success: boolean; exams: (Exam & { passed?: boolean; attempts?: any[]; bestAttempt?: any })[] }> {
+  return apiFetch(`/api/courses/${courseId}/student-exams`);
+}
+
+// Student initiate a secure randomized exam attempt
+export async function startStudentExam(courseId: string, examId: number): Promise<{ success: boolean; message: string; attemptId: number; exam: Exam; questions: ExamQuestion[] }> {
+  return apiFetch(`/api/courses/${courseId}/exams/${examId}/start`, {
+    method: 'POST',
+  });
+}
+
+// Student submit answers for server-side evaluation & grading
+export async function submitStudentExamAnswers(attemptId: number, answers: { questionId: number, answer: string }[]): Promise<{
+  success: boolean;
+  message: string;
+  attempt: any;
+  earnedPoints: number;
+  totalPoints: number;
+  percentage: number;
+  passed: boolean;
+  passing_score_percentage: number;
+  questions: any[];
+}> {
+  return apiFetch(`/api/attempts/${attemptId}/submit`, {
+    method: 'POST',
+    body: JSON.stringify({ answers }),
   });
 }
 

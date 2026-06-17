@@ -183,6 +183,7 @@ try {
       title TEXT NOT NULL,
       description TEXT,
       is_published INTEGER NOT NULL DEFAULT 0,
+      duration_minutes INTEGER NOT NULL DEFAULT 30,
       FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
   `);
@@ -199,6 +200,49 @@ try {
       correct_answer TEXT NOT NULL,
       points INTEGER NOT NULL DEFAULT 1,
       FOREIGN KEY(exam_id) REFERENCES exams(id) ON DELETE CASCADE
+    );
+  `);
+} catch (_) {}
+
+// Phase 1 Schema Expansion for Attempts and Grading Customization
+try {
+  db.exec("ALTER TABLE exams ADD COLUMN questions_to_display INTEGER NOT NULL DEFAULT 5;");
+} catch (_) {}
+
+try {
+  db.exec("ALTER TABLE exams ADD COLUMN passing_score_percentage INTEGER NOT NULL DEFAULT 70;");
+} catch (_) {}
+
+try {
+  db.exec("ALTER TABLE exams ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 30;");
+} catch (_) {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS exam_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      exam_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      score REAL,
+      passed INTEGER, -- BOOLEAN: 0 or 1
+      started_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT,
+      FOREIGN KEY(exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(email) ON DELETE CASCADE
+    );
+  `);
+} catch (_) {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS student_answers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      attempt_id INTEGER NOT NULL,
+      question_id INTEGER NOT NULL,
+      submitted_answer TEXT,
+      is_correct INTEGER, -- BOOLEAN: 0 or 1
+      FOREIGN KEY(attempt_id) REFERENCES exam_attempts(id) ON DELETE CASCADE,
+      FOREIGN KEY(question_id) REFERENCES exam_questions(id) ON DELETE CASCADE
     );
   `);
 } catch (_) {}

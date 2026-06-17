@@ -18,6 +18,9 @@ import {
   createLiveSession,
   listLiveSessions,
   joinLiveSession,
+  getCourseExamsForStudent,
+  startStudentExam,
+  submitStudentExamResponse,
 } from "../controllers/courseController.js";
 
 const router = Router();
@@ -39,5 +42,10 @@ router.post("/ratings", requireAuth, validateRequest(RatingSchema), submitRating
 router.post("/admin/courses/:courseId/sessions", requireAuth, requireRole(["admin", "developer"]), validateRequest(LiveSessionSchema), createLiveSession);
 router.get("/courses/:courseId/sessions", listLiveSessions);
 router.get("/sessions/:sessionId/join", requireAuth, joinLiveSession);
+
+// Student Exams Phase 3 routes
+router.get("/courses/:courseId/student-exams", requireAuth, getCourseExamsForStudent);
+router.post("/courses/:courseId/exams/:examId/start", requireAuth, startStudentExam);
+router.post("/attempts/:attemptId/submit", requireAuth, submitStudentExamResponse);
 
 export default router;

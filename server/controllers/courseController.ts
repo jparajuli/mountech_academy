@@ -1188,3 +1188,263 @@ export function joinLiveSession(req: Request, res: Response) {
   }
 }
 
+// GET /api/courses/:courseId/student-exams - List published exams for student in a course
+export function getCourseExamsForStudent(req: Request, res: Response) {
+  const { courseId } = req.params;
+  const user = (req as any).user;
+  const email = user.email.trim().toLowerCase();
+
+  try {
+    // Check enrollment
+    const enrollment = db.prepare(`
+      SELECT 1 FROM enrollments WHERE email = ? AND courseId = ?
+    `).get(email, courseId);
+
+    if (!enrollment && user.role !== "admin" && user.role !== "developer") {
+      return res.status(403).json({ error: "Access Denied: You must be enrolled in this course to view exams." });
+    }
+
+    const exams = db.prepare(`
+      SELECT id, course_id, title, description, questions_to_display, passing_score_percentage, duration_minutes 
+      FROM exams 
+      WHERE course_id = ? AND is_published = 1
+    `).all(courseId) as any[];
+
+    // For each exam, attach the student's highest score attempt if any
+    const examsWithAttempts = exams.map(exam => {
+      const attempts = db.prepare(`
+        SELECT id, score, passed, started_at, completed_at 
+        FROM exam_attempts 
+        WHERE exam_id = ? AND LOWER(user_id) = ? 
+        ORDER BY completed_at DESC, id DESC
+      `).all(exam.id, email) as any[];
+
+      const passed = attempts.some(a => a.passed === 1);
+      const bestAttempt = attempts.reduce((best, current) => {
+        if (!current.completed_at) return best;
+        if (!best) return current;
+        return (current.score || 0) > (best.score || 0) ? current : best;
+      }, null as any);
+
+      return {
+        ...exam,
+        attempts,
+        passed,
+        bestAttempt
+      };
+    });
+
+    return res.json({
+      success: true,
+      exams: examsWithAttempts
+    });
+  } catch (err: any) {
+    console.error("[GET STUDENT EXAMS ERR]", err);
+    return res.status(500).json({ error: "Failed to retrieve student exams: " + err.message });
+  }
+}
+
+// POST /api/courses/:courseId/exams/:examId/start - Start a student exam
+export function startStudentExam(req: Request, res: Response) {
+  const { courseId, examId } = req.params;
+  const user = (req as any).user;
+  const email = user.email.trim().toLowerCase();
+
+  try {
+    // 1. Verify enrollment
+    const enrollment = db.prepare(`
+      SELECT 1 FROM enrollments WHERE email = ? AND courseId = ?
+    `).get(email, courseId);
+
+    if (!enrollment && user.role !== "admin" && user.role !== "developer") {
+      return res.status(403).json({ error: "Access Denied: You must be enrolled in this course to take this exam." });
+    }
+
+    // 2. Fetch exam and verify it exists & is published
+    const exam = db.prepare(`
+      SELECT id, title, description, questions_to_display, passing_score_percentage, is_published, duration_minutes
+      FROM exams
+      WHERE id = ? AND course_id = ?
+    `).get(examId, courseId) as any;
+
+    if (!exam) {
+      return res.status(404).json({ error: "Exam not found or does not belong to this course." });
+    }
+
+    if (exam.is_published !== 1 && user.role !== "admin" && user.role !== "developer") {
+      return res.status(403).json({ error: "Access Denied: This exam is not currently published." });
+    }
+
+    // 3. Create exam attempt in database
+    const insertAttempt = db.prepare(`
+      INSERT INTO exam_attempts (exam_id, user_id, score, passed, started_at)
+      VALUES (?, ?, NULL, NULL, datetime('now'))
+    `).run(Number(examId), email);
+
+    const attemptId = insertAttempt.lastInsertRowid;
+
+    // 4. Query random subset of questions
+    const limitCount = exam.questions_to_display || 5;
+    const questions = db.prepare(`
+      SELECT id, question_text, question_type, options, points 
+      FROM exam_questions 
+      WHERE exam_id = ? 
+      ORDER BY RANDOM() 
+      LIMIT ?
+    `).all(Number(examId), limitCount) as any[];
+
+    // 5. Structure/Parse questions block (JSON options and stripping answer for security)
+    const secureQuestions = questions.map(q => {
+      let parsedOptions = [];
+      try {
+        parsedOptions = typeof q.options === "string" ? JSON.parse(q.options) : q.options || [];
+      } catch (e) {
+        parsedOptions = [];
+      }
+      return {
+        id: q.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        options: parsedOptions,
+        points: q.points
+      };
+    });
+
+    return res.json({
+      success: true,
+      message: "Exam attempt started successfully.",
+      attemptId,
+      exam: {
+        id: exam.id,
+        title: exam.title,
+        description: exam.description,
+        questions_to_display: exam.questions_to_display,
+        passing_score_percentage: exam.passing_score_percentage,
+        duration_minutes: exam.duration_minutes
+      },
+      questions: secureQuestions
+    });
+  } catch (err: any) {
+    console.error("[START STUDENT EXAM ERR]", err);
+    return res.status(500).json({ error: "Failed to initiate exam: " + err.message });
+  }
+}
+
+// POST /api/attempts/:attemptId/submit - Grade and save exam results
+export function submitStudentExamResponse(req: Request, res: Response) {
+  const { attemptId } = req.params;
+  const { answers } = req.body; // Expects array: [{ questionId: number, answer: string }] 
+  const user = (req as any).user;
+  const email = user.email.trim().toLowerCase();
+
+  try {
+    // 1. Retrieve & verify attempt
+    const attempt = db.prepare(`
+      SELECT * FROM exam_attempts WHERE id = ?
+    `).get(Number(attemptId)) as any;
+
+    if (!attempt) {
+      return res.status(404).json({ error: "Exam attempt not found." });
+    }
+
+    if (attempt.user_id.toLowerCase() !== email && user.role !== "admin" && user.role !== "developer") {
+      return res.status(403).json({ error: "Access Denied: You do not own this exam attempt." });
+    }
+
+    if (attempt.completed_at) {
+      return res.status(400).json({ error: "This exam attempt has already been submitted and graded." });
+    }
+
+    // 2. Fetch exam config (for passing score percentage)
+    const exam = db.prepare(`
+      SELECT * FROM exams WHERE id = ?
+    `).get(attempt.exam_id) as any;
+
+    if (!exam) {
+      return res.status(404).json({ error: "Associated exam no longer exists." });
+    }
+
+    // Normalize incoming answers to map easily by questionId or question_id
+    const answersList = Array.isArray(answers) ? answers : [];
+    
+    // 3. For each answered question, fetch correct_answer, check correctness, and log
+    let earnedPoints = 0;
+    let totalPoints = 0;
+    const gradedQuestions: any[] = [];
+
+    // Let's loop over submitted answers. To prevent forged question requests, ensure questions belong to this exam!
+    for (const ans of answersList) {
+      const qId = ans.questionId !== undefined ? ans.questionId : ans.question_id;
+      const submittedValue = (ans.answer !== undefined ? ans.answer : ans.submitted_answer || "").toString().trim();
+
+      const question = db.prepare(`
+        SELECT id, question_text, question_type, correct_answer, points, options
+        FROM exam_questions
+        WHERE id = ? AND exam_id = ?
+      `).get(Number(qId), attempt.exam_id) as any;
+
+      if (!question) continue; // Skip invalid or hijacked questions
+
+      const isCorrect = submittedValue.toLowerCase() === question.correct_answer.toString().trim().toLowerCase();
+      totalPoints += question.points;
+      if (isCorrect) {
+        earnedPoints += question.points;
+      }
+
+      // Record student answer node in student_answers
+      db.prepare(`
+        INSERT INTO student_answers (attempt_id, question_id, submitted_answer, is_correct)
+        VALUES (?, ?, ?, ?)
+      `).run(Number(attemptId), question.id, submittedValue, isCorrect ? 1 : 0);
+
+      gradedQuestions.push({
+        id: question.id,
+        question_text: question.question_text,
+        question_type: question.question_type,
+        submitted_answer: submittedValue,
+        correct_answer: question.correct_answer, // Since they submitted, we can return results
+        is_correct: isCorrect,
+        points: question.points
+      });
+    }
+
+    // Defensive fallback if total points is 0 (e.g. somehow empty submission or no valid questions)
+    if (totalPoints === 0) {
+      totalPoints = 1;
+    }
+
+    const percentage = Math.round((earnedPoints / totalPoints) * 100);
+    const passed = percentage >= (exam.passing_score_percentage || 70) ? 1 : 0;
+
+    // 4. Update core attempt entry
+    db.prepare(`
+      UPDATE exam_attempts
+      SET score = ?, passed = ?, completed_at = datetime('now')
+      WHERE id = ?
+    `).run(percentage, passed, Number(attemptId));
+
+    return res.json({
+      success: true,
+      message: "Exam graded successfully.",
+      attempt: {
+        id: Number(attemptId),
+        exam_id: attempt.exam_id,
+        score: percentage,
+        passed: passed === 1,
+        started_at: attempt.started_at,
+        completed_at: new Date().toISOString()
+      },
+      earnedPoints,
+      totalPoints,
+      percentage,
+      passed: passed === 1,
+      passing_score_percentage: exam.passing_score_percentage || 70,
+      questions: gradedQuestions
+    });
+
+  } catch (err: any) {
+    console.error("[SUBMIT EXAM RESPONSE ERR]", err);
+    return res.status(500).json({ error: "Failed to grade exam submission: " + err.message });
+  }
+}
+

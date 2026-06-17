@@ -43,6 +43,9 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
   const [examTitle, setExamTitle] = useState<string>('');
   const [examDescription, setExamDescription] = useState<string>('');
   const [examIsPublished, setExamIsPublished] = useState<boolean>(false);
+  const [examQuestionsToDisplay, setExamQuestionsToDisplay] = useState<number>(5);
+  const [examPassingScorePercentage, setExamPassingScorePercentage] = useState<number>(70);
+  const [examDurationMinutes, setExamDurationMinutes] = useState<number>(30);
   const [submittingExam, setSubmittingExam] = useState<boolean>(false);
 
   // Selected Exam for builder interaction
@@ -102,12 +105,18 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
         title: examTitle.trim(),
         description: examDescription.trim(),
         is_published: examIsPublished,
-      });
+        questions_to_display: Number(examQuestionsToDisplay) || 5,
+        passing_score_percentage: Number(examPassingScorePercentage) || 70,
+        duration_minutes: Number(examDurationMinutes) || 30,
+      } as any);
 
       if (res.success) {
         setExamTitle('');
         setExamDescription('');
         setExamIsPublished(false);
+        setExamQuestionsToDisplay(5);
+        setExamPassingScorePercentage(70);
+        setExamDurationMinutes(30);
         setShowCreateExam(false);
         await loadExams();
       } else {
@@ -383,6 +392,57 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
                   />
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold font-mono text-gray-500 uppercase tracking-wider mb-1">
+                      Random Question Limit (From Bank)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={examQuestionsToDisplay}
+                      onChange={(e) => setExamQuestionsToDisplay(Math.max(1, parseInt(e.target.value) || 1))}
+                      placeholder="e.g. 5"
+                      className="w-full text-xs border border-gray-250 rounded-lg p-2.5 focus:border-indigo-500 bg-white"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-0.5">How many random questions are pulled for each student's attempt.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold font-mono text-gray-500 uppercase tracking-wider mb-1">
+                      Passing Score Percentage (%)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      required
+                      value={examPassingScorePercentage}
+                      onChange={(e) => setExamPassingScorePercentage(Math.min(100, Math.max(1, parseInt(e.target.value) || 70)))}
+                      placeholder="e.g. 70"
+                      className="w-full text-xs border border-gray-250 rounded-lg p-2.5 focus:border-indigo-500 bg-white"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-0.5">The threshold of correct answers required to pass the exam.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold font-mono text-gray-500 uppercase tracking-wider mb-1">
+                      Duration Timer (Minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={examDurationMinutes}
+                      onChange={(e) => setExamDurationMinutes(Math.max(1, parseInt(e.target.value) || 30))}
+                      placeholder="e.g. 30"
+                      className="w-full text-xs border border-gray-250 rounded-lg p-2.5 focus:border-indigo-500 bg-white"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-0.5">Time limit before automatic answer submission.</p>
+                  </div>
+                </div>
+
                 <div className="flex justify-end gap-2.5">
                   <button
                     type="button"
@@ -442,7 +502,10 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
                   </div>
 
                   <div className="border-t border-gray-100 pt-4 mt-5 flex items-center justify-between text-xs font-semibold font-mono text-gray-500 select-none">
-                    <span>{exam.questions?.length || 0} Questions Loaded</span>
+                    <div className="flex flex-col gap-0.5">
+                      <span>{exam.questions?.length || 0} Questions in Bank</span>
+                      <span className="text-[10px] text-gray-400">Draw limit: {exam.questions_to_display || 5} • Required: {exam.passing_score_percentage || 70}% • Duration: {exam.duration_minutes || 30} mins</span>
+                    </div>
                     
                     <div className="flex items-center gap-2">
                       <button

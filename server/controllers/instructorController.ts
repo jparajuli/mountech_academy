@@ -404,7 +404,7 @@ export function updateCourseSyllabus(req: Request, res: Response) {
 // POST /api/instructor/courses/:courseId/exams - Create a course exam
 export function createCourseExam(req: Request, res: Response) {
   const { courseId } = req.params;
-  const { title, description, is_published } = req.body;
+  const { title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes } = req.body;
   const user = (req as any).user;
 
   try {
@@ -422,11 +422,14 @@ export function createCourseExam(req: Request, res: Response) {
     }
 
     const publishedVal = (is_published === true || is_published === 1) ? 1 : 0;
+    const questionsToDisplayVal = Number(questions_to_display) || 5;
+    const passingScoreVal = Number(passing_score_percentage) || 70;
+    const durationMinutesVal = Number(duration_minutes) || 30;
 
     const result = db.prepare(`
-      INSERT INTO exams (course_id, title, description, is_published)
-      VALUES (?, ?, ?, ?)
-    `).run(courseId, title.trim(), (description || "").trim(), publishedVal);
+      INSERT INTO exams (course_id, title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(courseId, title.trim(), (description || "").trim(), publishedVal, questionsToDisplayVal, passingScoreVal, durationMinutesVal);
 
     return res.status(201).json({
       success: true,
@@ -436,6 +439,52 @@ export function createCourseExam(req: Request, res: Response) {
   } catch (err: any) {
     console.error("[CREATE EXAM ERR]", err);
     return res.status(500).json({ error: "Failed to create course exam: " + err.message });
+  }
+}
+
+// PUT /api/instructor/exams/:examId - Update course exam configurations
+export function updateCourseExam(req: Request, res: Response) {
+  const { examId } = req.params;
+  const { title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes } = req.body;
+  const user = (req as any).user;
+
+  try {
+    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+    if (!profile) {
+      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+    }
+
+    const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
+    if (!exam) {
+      return res.status(404).json({ error: "Exam not found." });
+    }
+
+    const association = db.prepare(`
+      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+    `).get(exam.course_id, profile.id);
+
+    if (!association) {
+      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+    }
+
+    const publishedVal = (is_published === true || is_published === 1) ? 1 : 0;
+    const questionsToDisplayVal = Number(questions_to_display) || 5;
+    const passingScoreVal = Number(passing_score_percentage) || 70;
+    const durationMinutesVal = Number(duration_minutes) || 30;
+
+    db.prepare(`
+      UPDATE exams
+      SET title = ?, description = ?, is_published = ?, questions_to_display = ?, passing_score_percentage = ?, duration_minutes = ?
+      WHERE id = ?
+    `).run(title.trim(), (description || "").trim(), publishedVal, questionsToDisplayVal, passingScoreVal, durationMinutesVal, examId);
+
+    return res.json({
+      success: true,
+      message: "Exam updated successfully."
+    });
+  } catch (err: any) {
+    console.error("[UPDATE EXAM CFG ERR]", err);
+    return res.status(500).json({ error: "Failed to update course exam: " + err.message });
   }
 }
 

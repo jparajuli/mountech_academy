@@ -8,8 +8,9 @@ import {
   Lock, Unlock, Trophy, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors } from '../api';
+import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams } from '../api';
 import InstructorCard from '../components/InstructorCard';
+import { StudentExamTaker } from '../components/StudentExamTaker';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
@@ -252,6 +253,26 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     }
   };
 
+  // SQLite Student Exams custom state loaders
+  const [dbStudentExams, setDbStudentExams] = useState<any[]>([]);
+  const [loadingDbStudentExams, setLoadingDbStudentExams] = useState<boolean>(false);
+  const [activeDbExam, setActiveDbExam] = useState<any | null>(null);
+
+  const loadDbStudentExams = async () => {
+    if (!hasEnrolledAccess) return;
+    setLoadingDbStudentExams(true);
+    try {
+      const res = await fetchStudentExams(course.id);
+      if (res.success) {
+        setDbStudentExams(res.exams || []);
+      }
+    } catch (err) {
+      console.error("Failed to load student exams list:", err);
+    } finally {
+      setLoadingDbStudentExams(false);
+    }
+  };
+
   const loadSessions = async () => {
     setLoadingSessions(true);
     try {
@@ -271,6 +292,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     loadInstructors();
     if (hasEnrolledAccess) {
       loadSessions();
+      loadDbStudentExams();
     }
     // Reset submission feedback states on course switch
     setSubmitSuccess('');
@@ -1490,225 +1512,321 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
               <div id="graduation-exam-panel" className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
-                      <Trophy className="w-6 h-6 animate-pulse" />
+                    <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100">
+                      <Trophy className="w-6 h-6" />
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-[#111827] tracking-tight flex items-center gap-2">
-                        Final Graduation Examination
+                        Course Assessment Portal
                       </h3>
                       <p className="text-xs text-gray-500">
-                        Autocorrected multiple choice academy test. 
+                        Secure course evaluations, randomized question banks, and server-side grading.
                       </p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-slate-100 border border-slate-200 px-2.5 py-1 rounded text-slate-600">
-                      PASSING GRADE: 80%
-                    </span>
                   </div>
                 </div>
 
-                {completionPercentage < 100 && !examPassed ? (
-                  /* LOCKED STATE */
-                  <div className="text-center py-10 px-4 flex flex-col items-center justify-center space-y-3 bg-gray-50/50 border border-dashed border-gray-200 rounded-xl">
-                    <div className="p-3 bg-gray-100 text-gray-400 rounded-full border border-gray-200">
-                      <Lock className="w-6 h-6" />
-                    </div>
-                    <div className="space-y-1.5 max-w-sm">
-                      <h4 className="text-sm font-bold text-gray-800">Examination Locked</h4>
-                      <p className="text-xs text-gray-550 leading-relaxed">
-                        To unlock the 5-question academic graduation test, please finish reviewing all syllabus chapters first.
-                      </p>
-                    </div>
-                    
-                    {/* Visual progress bar inside locked panel */}
-                    <div className="w-full max-w-xs space-y-1.5 pt-2">
-                      <div className="flex justify-between text-[10px] font-mono text-gray-500">
-                        <span>Syllabus units reviewed: {completedLessons.length}/{course.syllabus.length}</span>
-                        <span>{completionPercentage}%</span>
-                      </div>
-                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                          style={{ width: `${completionPercentage}%` }}
+                {/* If the instructor has designed SQLite Exams in this course */}
+                {dbStudentExams.length > 0 ? (
+                  <div className="space-y-6">
+                    {/* If there is an active exam being taken */}
+                    {activeDbExam ? (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-1">
+                        <StudentExamTaker
+                          courseId={course.id}
+                          exam={activeDbExam}
+                          onClose={async (completedAttempt) => {
+                            setActiveDbExam(null);
+                            await loadDbStudentExams();
+                            if (completedAttempt?.passed && onComplete && !isCompleted) {
+                              onComplete(course.id);
+                            }
+                          }}
                         />
                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* UNLOCKED & ACTIVE EXAM STATE */
-                  <div className="space-y-6">
-                    <div className="p-4 bg-teal-50 border border-teal-100 rounded-lg text-xs leading-relaxed text-teal-950 flex gap-2.5">
-                      <Sparkles className="w-4 h-4 text-teal-600 shrink-0 mt-0.5 animate-bounce" />
-                      <div>
-                        <span className="font-bold block text-teal-950">Examination Unlocked</span>
-                        All syllabus lessons completed! Review the questions below carefully. Correctly matching 4 or more answers (80%+) will activate your verified parchment record.
-                      </div>
-                    </div>
-
-                    <div className="space-y-6 divide-y divide-gray-100">
-                      {examQuestions.map((q, qIndex) => {
-                        const isCorrect = examAnswers[q.id] === q.correctIndex;
-                        const hasSelected = examAnswers[q.id] !== undefined;
-
-                        return (
-                          <div key={q.id} className={`pt-6 ${qIndex === 0 ? 'pt-0 border-t-0' : ''} space-y-3`}>
-                            <div className="font-medium text-sm text-[#111827] flex gap-2">
-                              <span className="font-mono font-bold text-[#0070f3]">Q{qIndex + 1}.</span>
-                              <span className="leading-relaxed text-slate-800">{q.question}</span>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-2 pl-6">
-                              {q.options.map((opt, oIdx) => {
-                                const isSelected = examAnswers[q.id] === oIdx;
-                                let optionStyle = "border-gray-200 hover:border-gray-300 bg-white text-gray-700";
-                                
-                                if (examSubmitted) {
-                                  if (oIdx === q.correctIndex) {
-                                    optionStyle = "border-emerald-500 bg-emerald-50 text-emerald-900 font-medium";
-                                  } else if (isSelected) {
-                                    optionStyle = "border-rose-500 bg-rose-50 text-rose-950";
-                                  } else {
-                                    optionStyle = "border-gray-150 bg-gray-55/50 text-gray-400 opacity-60";
-                                  }
-                                } else if (isSelected) {
-                                  optionStyle = "border-[#0070f3] bg-[#0070f3]/5 text-[#0070f3] font-medium shadow-3xs";
-                                }
-
-                                return (
-                                  <button
-                                    key={oIdx}
-                                    type="button"
-                                    disabled={examSubmitted}
-                                    onClick={() => handleSelectAnswer(q.id, oIdx)}
-                                    className={`w-full text-left p-3 rounded-lg border text-xs transition-all flex items-center justify-between ${
-                                      !examSubmitted ? 'cursor-pointer hover:bg-gray-50' : 'cursor-default'
-                                    } ${optionStyle}`}
-                                  >
-                                    <span className="flex-1 leading-normal pr-3">{opt}</span>
-                                    <div className="shrink-0 flex items-center justify-center">
-                                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                                        examSubmitted 
-                                          ? oIdx === q.correctIndex 
-                                            ? 'border-emerald-500 bg-emerald-500' 
-                                            : isSelected 
-                                              ? 'border-rose-500 bg-rose-500' 
-                                              : 'border-gray-300'
-                                          : isSelected 
-                                            ? 'border-[#0070f3] bg-[#0070f3]' 
-                                            : 'border-gray-300'
-                                      }`}>
-                                        {(isSelected || (examSubmitted && oIdx === q.correctIndex)) && (
-                                          <div className="w-1.5 h-1.5 rounded-full bg-white animate-scaleIn" />
-                                        )}
-                                      </div>
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-
-                            {/* EXPLANATION BOX */}
-                            {examSubmitted && (
-                              <div className="pl-6 pt-1.5">
-                                <div className={`p-3 rounded-lg border text-[11px] leading-relaxed flex gap-2 items-start ${
-                                  isCorrect 
-                                    ? 'bg-emerald-50/50 border-emerald-100 text-emerald-850' 
-                                    : 'bg-rose-50/50 border-rose-100 text-rose-850'
-                                }`}>
-                                  <HelpCircle className={`w-4 h-4 shrink-0 mt-0.5 ${isCorrect ? 'text-emerald-600' : 'text-rose-500'}`} />
-                                  <div>
-                                    <span className="font-bold block uppercase tracking-wider text-[9px] mb-0.5">
-                                      {isCorrect ? 'Correct Answer' : 'Explanation Feedback'}
-                                    </span>
-                                    <p>{q.explanation}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* ACTIONS BAR */}
-                    <div className="pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-                      {!examSubmitted ? (
-                        <>
-                          <div className="text-xs text-gray-500 font-mono">
-                            {Object.keys(examAnswers).length} of {examQuestions.length} answers submitted.
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleSubmitExam}
-                            className="px-5 py-2.5 bg-[#0070f3] hover:bg-[#0051b3] text-white font-mono font-bold rounded-lg text-xs uppercase tracking-wider select-none cursor-pointer transition-all shadow-sm"
-                          >
-                            Submit & Score Examination
-                          </button>
-                        </>
-                      ) : (
-                        <div className="w-full space-y-4">
-                          <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                            examPassed 
-                              ? 'bg-emerald-50 border-emerald-200' 
-                              : 'bg-rose-50 border-rose-200'
-                          }`}>
-                            <div className="flex items-center gap-3">
-                              {examPassed ? (
-                                <div className="p-2 bg-emerald-500 text-white rounded-full">
-                                  <Check className="w-6 h-6 shrink-0" />
-                                </div>
-                              ) : (
-                                <div className="p-2 bg-rose-500 text-white rounded-full">
-                                  <AlertCircle className="w-6 h-6 shrink-0" />
-                                </div>
-                              )}
-                              <div>
-                                <h4 className="font-bold text-sm text-slate-900">
-                                  {examPassed ? 'PASSED with Honors!' : 'Unsuccessful Attempt'}
-                                </h4>
-                                <p className="text-xs text-gray-600 leading-relaxed mt-0.5">
-                                  {examPassed 
-                                    ? `Institution Result: ${currentScore}% score recorded. You are fully eligible to lock completion & claim certification.` 
-                                    : `Institution Result: ${currentScore}% score recorded. 80% passing standard is required. Let's do a quick review and try again.`}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="text-right shrink-0">
-                              <span className="text-[10px] font-mono text-gray-500 block uppercase">GRADUATION SCORE</span>
-                              <span className={`text-2xl font-black ${examPassed ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                {currentScore}%
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex justify-end gap-3 text-xs w-full">
-                            <button
-                              type="button"
-                              onClick={handleResetExam}
-                              className="px-4 py-2 text-gray-600 hover:text-black border border-gray-300 hover:bg-gray-50 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
-                            >
-                              <RefreshCw className="w-3.5 h-3.5" />
-                              <span>Reset and Re-take Test</span>
-                            </button>
-
-                            {examPassed && !isCompleted && (
-                              <button
-                                type="button"
-                                onClick={() => onComplete && onComplete(course.id)}
-                                className="px-5 py-2 bg-emerald-650 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs select-none"
-                              >
-                                <Award className="w-4 h-4 text-white" />
-                                <span>Lock Completion & Claim Certificate</span>
-                              </button>
-                            )}
+                    ) : (
+                      /* List of available exams designed by instructors */
+                      <div className="space-y-6">
+                        <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-950 flex gap-2.5">
+                          <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold block">SQLite Examination Suite Enabled</span>
+                            The instructor has author-configured formal assessments for this course. Click **"Launch Assessment"** to begin your test attempt. Correctly resolving responses above the configured threshold will approve your graduation status!
                           </div>
                         </div>
-                      )}
-                    </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                          {dbStudentExams.map((exam) => {
+                            const hasPassedThis = exam.passed || (exam.bestAttempt && exam.bestAttempt.passed === 1);
+                            
+                            return (
+                              <div key={exam.id} className="bg-white border border-gray-150 rounded-xl p-5 hover:border-indigo-200 transition-all space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                  <div>
+                                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                                      <span>{exam.title}</span>
+                                      {hasPassedThis && (
+                                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-250 text-[9px] font-bold font-mono px-2 py-0.5 rounded-full uppercase">
+                                          Passed & Approved
+                                        </span>
+                                      )}
+                                    </h4>
+                                    <p className="text-xs text-gray-550 mt-1">{exam.description || <span className="italic text-gray-400">No descriptive requirements set.</span>}</p>
+                                  </div>
+
+                                  <div className="text-right shrink-0">
+                                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-indigo-50 border border-indigo-150 text-indigo-700 px-2 py-1 rounded">
+                                      Passing standard: {exam.passing_score_percentage || 70}%
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="border-t border-gray-100 pt-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-gray-500">
+                                  <span>Pool draw: {exam.questions_to_display || 5} random questions</span>
+                                  
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveDbExam(exam)}
+                                    className="inline-flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer select-none font-sans"
+                                  >
+                                    <span>Launch Assessment</span>
+                                    <ChevronRight className="w-3 h-3" />
+                                  </button>
+                                </div>
+
+                                {/* Previous attempts listing */}
+                                {exam.attempts && exam.attempts.length > 0 && (
+                                  <div className="bg-slate-50 rounded-lg p-3 space-y-2 mt-2">
+                                    <h5 className="text-[10px] font-bold font-mono text-gray-400 uppercase tracking-wider">Attempt history</h5>
+                                    <div className="space-y-1.5 divide-y divide-gray-150">
+                                      {exam.attempts.map((att: any) => (
+                                        <div key={att.id} className="pt-1.5 first:pt-0 flex items-center justify-between text-xs text-gray-650 font-sans">
+                                          <div className="flex items-center gap-2 animate-fade-in">
+                                            <span className="font-mono text-[10px] text-gray-400">ID #{att.id}</span>
+                                            <span>
+                                              Date: {att.completed_at ? new Date(att.completed_at).toLocaleDateString() : 'Incomplete'}
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center gap-3 font-mono">
+                                            <span className={`font-bold ${att.passed === 1 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                              {att.score}% {att.passed === 1 ? 'Passed' : 'Failed'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  /* LEGACY HARDCODED FALLBACK EXAM SYSTEM */
+                  completionPercentage < 100 && !examPassed ? (
+                    /* LOCKED STATE */
+                    <div className="text-center py-10 px-4 flex flex-col items-center justify-center space-y-3 bg-gray-50/50 border border-dashed border-gray-200 rounded-xl">
+                      <div className="p-3 bg-gray-100 text-gray-400 rounded-full border border-gray-200">
+                        <Lock className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1.5 max-w-sm">
+                        <h4 className="text-sm font-bold text-gray-800">Examination Locked</h4>
+                        <p className="text-xs text-gray-550 leading-relaxed">
+                          To unlock the 5-question academic graduation test, please finish reviewing all syllabus chapters first.
+                        </p>
+                      </div>
+                      
+                      {/* Visual progress bar inside locked panel */}
+                      <div className="w-full max-w-xs space-y-1.5 pt-2">
+                        <div className="flex justify-between text-[10px] font-mono text-gray-500">
+                          <span>Syllabus units reviewed: {completedLessons.length}/{course.syllabus.length}</span>
+                          <span>{completionPercentage}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                            style={{ width: `${completionPercentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* UNLOCKED & ACTIVE EXAM STATE */
+                    <div className="space-y-6">
+                      <div className="p-4 bg-teal-50 border border-teal-100 rounded-lg text-xs leading-relaxed text-teal-950 flex gap-2.5">
+                        <Sparkles className="w-4 h-4 text-teal-600 shrink-0 mt-0.5 animate-bounce" />
+                        <div>
+                          <span className="font-bold block text-teal-950">Examination Unlocked</span>
+                          All syllabus lessons completed! Review the questions below carefully. Correctly matching 4 or more answers (80%+) will activate your verified parchment record.
+                        </div>
+                      </div>
+
+                      <div className="space-y-6 divide-y divide-gray-100">
+                        {examQuestions.map((q, qIndex) => {
+                          const isCorrect = examAnswers[q.id] === q.correctIndex;
+                          const hasSelected = examAnswers[q.id] !== undefined;
+
+                          return (
+                            <div key={q.id} className={`pt-6 ${qIndex === 0 ? 'pt-0 border-t-0' : ''} space-y-3`}>
+                              <div className="font-medium text-sm text-[#111827] flex gap-2">
+                                <span className="font-mono font-bold text-[#0070f3]">Q{qIndex + 1}.</span>
+                                <span className="leading-relaxed text-slate-800">{q.question}</span>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-2 pl-6">
+                                {q.options.map((opt, oIdx) => {
+                                  const isSelected = examAnswers[q.id] === oIdx;
+                                  let optionStyle = "border-gray-200 hover:border-gray-300 bg-white text-gray-700";
+                                  
+                                  if (examSubmitted) {
+                                    if (oIdx === q.correctIndex) {
+                                      optionStyle = "border-emerald-500 bg-emerald-50 text-emerald-900 font-medium";
+                                    } else if (isSelected) {
+                                      optionStyle = "border-rose-500 bg-rose-50 text-rose-950";
+                                    } else {
+                                      optionStyle = "border-gray-150 bg-gray-55/50 text-gray-400 opacity-60";
+                                    }
+                                  } else if (isSelected) {
+                                    optionStyle = "border-[#0070f3] bg-[#0070f3]/5 text-[#0070f3] font-medium shadow-3xs";
+                                  }
+
+                                  return (
+                                    <button
+                                      key={oIdx}
+                                      type="button"
+                                      disabled={examSubmitted}
+                                      onClick={() => handleSelectAnswer(q.id, oIdx)}
+                                      className={`w-full text-left p-3 rounded-lg border text-xs transition-all flex items-center justify-between ${
+                                        !examSubmitted ? 'cursor-pointer hover:bg-gray-50' : 'cursor-default'
+                                      } ${optionStyle}`}
+                                    >
+                                      <span className="flex-1 leading-normal pr-3">{opt}</span>
+                                      <div className="shrink-0 flex items-center justify-center">
+                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                                          examSubmitted 
+                                            ? oIdx === q.correctIndex 
+                                              ? 'border-emerald-500 bg-emerald-500' 
+                                              : isSelected 
+                                                ? 'border-rose-500 bg-rose-500' 
+                                                : 'border-gray-300'
+                                            : isSelected 
+                                              ? 'border-[#0070f3] bg-[#0070f3]' 
+                                              : 'border-gray-300'
+                                        }`}>
+                                          {(isSelected || (examSubmitted && oIdx === q.correctIndex)) && (
+                                            <div className="w-1.5 h-1.5 rounded-full bg-white animate-scaleIn" />
+                                          )}
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* EXPLANATION BOX */}
+                              {examSubmitted && (
+                                <div className="pl-6 pt-1.5">
+                                  <div className={`p-3 rounded-lg border text-[11px] leading-relaxed flex gap-2 items-start ${
+                                    isCorrect 
+                                      ? 'bg-emerald-50/50 border-emerald-100 text-emerald-850' 
+                                      : 'bg-rose-50/50 border-rose-100 text-rose-850'
+                                  }`}>
+                                    <HelpCircle className={`w-4 h-4 shrink-0 mt-0.5 ${isCorrect ? 'text-emerald-600' : 'text-rose-500'}`} />
+                                    <div>
+                                      <span className="font-bold block uppercase tracking-wider text-[9px] mb-0.5">
+                                        {isCorrect ? 'Correct Answer' : 'Explanation Feedback'}
+                                      </span>
+                                      <p>{q.explanation}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* ACTIONS BAR */}
+                      <div className="pt-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        {!examSubmitted ? (
+                          <>
+                            <div className="text-xs text-gray-500 font-mono">
+                              {Object.keys(examAnswers).length} of {examQuestions.length} answers submitted.
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleSubmitExam}
+                              className="px-5 py-2.5 bg-[#0070f3] hover:bg-[#0051b3] text-white font-mono font-bold rounded-lg text-xs uppercase tracking-wider select-none cursor-pointer transition-all shadow-sm"
+                            >
+                              Submit & Score Examination
+                            </button>
+                          </>
+                        ) : (
+                          <div className="w-full space-y-4">
+                            <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                              examPassed 
+                                ? 'bg-emerald-50 border-emerald-200' 
+                                : 'bg-rose-50 border-rose-200'
+                            }`}>
+                              <div className="flex items-center gap-3">
+                                {examPassed ? (
+                                  <div className="p-2 bg-emerald-500 text-white rounded-full">
+                                    <Check className="w-6 h-6 shrink-0" />
+                                  </div>
+                                ) : (
+                                  <div className="p-2 bg-rose-500 text-white rounded-full">
+                                    <AlertCircle className="w-6 h-6 shrink-0" />
+                                  </div>
+                                )}
+                                <div>
+                                  <h4 className="font-bold text-sm text-slate-900">
+                                    {examPassed ? 'PASSED with Honors!' : 'Unsuccessful Attempt'}
+                                  </h4>
+                                  <p className="text-xs text-gray-650 leading-relaxed mt-0.5">
+                                    {examPassed 
+                                      ? `Institution Result: ${currentScore}% score recorded. You are fully eligible to lock completion & claim certification.` 
+                                      : `Institution Result: ${currentScore}% score recorded. 80% passing standard is required. Let's do a quick review and try again.`}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className="text-[10px] font-mono text-gray-500 block uppercase">GRADUATION SCORE</span>
+                                <span className={`text-2xl font-black ${examPassed ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {currentScore}%
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 text-xs w-full">
+                              <button
+                                type="button"
+                                onClick={handleResetExam}
+                                className="px-4 py-2 text-gray-650 hover:text-black border border-gray-300 hover:bg-gray-50 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span>Reset and Re-take Test</span>
+                              </button>
+
+                              {examPassed && !isCompleted && (
+                                <button
+                                  type="button"
+                                  onClick={() => onComplete && onComplete(course.id)}
+                                  className="px-5 py-2 bg-emerald-650 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs select-none"
+                                >
+                                  <Award className="w-4 h-4 text-white" />
+                                  <span>Lock Completion & Claim Certificate</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
                 )}
               </div>
             )}

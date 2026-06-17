@@ -87,6 +87,9 @@ export interface Exam {
   description?: string;
   is_published: boolean;
   questions?: ExamQuestion[];
+  questions_to_display?: number;
+  passing_score_percentage?: number;
+  duration_minutes?: number;
 }
 
 

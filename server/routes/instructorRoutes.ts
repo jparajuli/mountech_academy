@@ -19,6 +19,7 @@ import {
   createCourseMaterial,
   updateCourseSyllabus,
   createCourseExam,
+  updateCourseExam,
   listCourseExams,
   createExamQuestion,
   updateExamQuestion,
@@ -110,6 +111,15 @@ router.post(
   requireRole(["instructor"]),
   validateRequest(CreateExamSchema),
   createCourseExam
+);
+
+// Update Course Exam
+router.put(
+  "/instructor/exams/:examId",
+  requireAuth,
+  requireRole(["instructor"]),
+  validateRequest(CreateExamSchema),
+  updateCourseExam
 );
 
 // Delete Exam
