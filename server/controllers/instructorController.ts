@@ -161,30 +161,53 @@ export function getInstructorDashboard(req: Request, res: Response) {
   }
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.json({ success: true, courses: [] });
-    }
+    const isAdmin = user.role === "admin" || user.role === "developer";
+    let rows: any[] = [];
 
-    const rows = db.prepare(`
-      SELECT c.*,
-             json_group_array(
-               json_object(
-                 'id', ip.id,
-                 'name', ip.full_name,
-                 'title', ip.academic_title,
-                 'avatar', ip.avatar_url,
-                 'display_order', ci.display_order
-               )
-             ) AS instructors_json
-      FROM courses c
-      LEFT JOIN course_instructors ci ON c.id = ci.course_id
-      LEFT JOIN instructor_profiles ip ON ci.instructor_profile_id = ip.id
-      WHERE c.id IN (
-        SELECT course_id FROM course_instructors WHERE instructor_profile_id = ?
-      )
-      GROUP BY c.id
-    `).all(profile.id) as any[];
+    if (isAdmin) {
+      // Admins/developers see all courses
+      rows = db.prepare(`
+        SELECT c.*,
+               json_group_array(
+                 json_object(
+                   'id', ip.id,
+                   'name', ip.full_name,
+                   'title', ip.academic_title,
+                   'avatar', ip.avatar_url,
+                   'display_order', ci.display_order
+                 )
+               ) AS instructors_json
+        FROM courses c
+        LEFT JOIN course_instructors ci ON c.id = ci.course_id
+        LEFT JOIN instructor_profiles ip ON ci.instructor_profile_id = ip.id
+        GROUP BY c.id
+      `).all() as any[];
+    } else {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.json({ success: true, courses: [] });
+      }
+
+      rows = db.prepare(`
+        SELECT c.*,
+               json_group_array(
+                 json_object(
+                   'id', ip.id,
+                   'name', ip.full_name,
+                   'title', ip.academic_title,
+                   'avatar', ip.avatar_url,
+                   'display_order', ci.display_order
+                 )
+               ) AS instructors_json
+        FROM courses c
+        LEFT JOIN course_instructors ci ON c.id = ci.course_id
+        LEFT JOIN instructor_profiles ip ON ci.instructor_profile_id = ip.id
+        WHERE c.id IN (
+          SELECT course_id FROM course_instructors WHERE instructor_profile_id = ?
+        )
+        GROUP BY c.id
+      `).all(profile.id) as any[];
+    }
 
     const courses = rows.map((r: any) => {
       let instructors: any[] = [];
@@ -248,17 +271,20 @@ export function getCourseStudents(req: Request, res: Response) {
   }
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(courseId, profile.id);
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(courseId, profile.id);
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      }
     }
 
     const students = db.prepare(`
@@ -287,17 +313,20 @@ export function getCourseMaterials(req: Request, res: Response) {
   }
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(courseId, profile.id);
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(courseId, profile.id);
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      }
     }
 
     const materials = db.prepare(`
@@ -331,17 +360,20 @@ export function createCourseMaterial(req: Request, res: Response) {
   }
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(courseId, profile.id);
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(courseId, profile.id);
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      }
     }
 
     const result = db.prepare(`
@@ -373,17 +405,20 @@ export function updateCourseSyllabus(req: Request, res: Response) {
   const user = (req as any).user;
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(courseId, profile.id);
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(courseId, profile.id);
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      }
     }
 
     db.prepare(`
@@ -408,17 +443,20 @@ export function createCourseExam(req: Request, res: Response) {
   const user = (req as any).user;
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(courseId, profile.id);
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(courseId, profile.id);
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      }
     }
 
     const publishedVal = (is_published === true || is_published === 1) ? 1 : 0;
@@ -449,22 +487,25 @@ export function updateCourseExam(req: Request, res: Response) {
   const user = (req as any).user;
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
-    if (!exam) {
-      return res.status(404).json({ error: "Exam not found." });
-    }
+      const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
+      if (!exam) {
+        return res.status(404).json({ error: "Exam not found." });
+      }
 
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(exam.course_id, profile.id);
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(exam.course_id, profile.id);
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      }
     }
 
     const publishedVal = (is_published === true || is_published === 1) ? 1 : 0;
@@ -494,17 +535,20 @@ export function listCourseExams(req: Request, res: Response) {
   const user = (req as any).user;
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(courseId, profile.id);
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(courseId, profile.id);
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not assigned to instruct this course." });
+      }
     }
 
     const exams = db.prepare(`
@@ -544,24 +588,28 @@ export function createExamQuestion(req: Request, res: Response) {
   const user = (req as any).user;
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
-
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
+    
     // A. Fetch parent exam to verify ownership mapping
     const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
     if (!exam) {
       return res.status(404).json({ error: "Exam not found." });
     }
 
-    // B. Check course instructors association for parent course
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(exam.course_id, profile.id);
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not assigned to edit this exam course." });
+      // B. Check course instructors association for parent course
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(exam.course_id, profile.id);
+
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not assigned to edit this exam course." });
+      }
     }
 
     const optionsJson = JSON.stringify(options || []);
@@ -589,10 +637,7 @@ export function updateExamQuestion(req: Request, res: Response) {
   const user = (req as any).user;
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
 
     // A. Verify parent exam
     const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
@@ -600,13 +645,20 @@ export function updateExamQuestion(req: Request, res: Response) {
       return res.status(404).json({ error: "Exam not found." });
     }
 
-    // B. Verify course-ownership
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(exam.course_id, profile.id);
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not authorized for this exam course." });
+      // B. Verify course-ownership
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(exam.course_id, profile.id);
+
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not authorized for this exam course." });
+      }
     }
 
     // C. Verify question matches this exam
@@ -639,22 +691,26 @@ export function deleteCourseExam(req: Request, res: Response) {
   const user = (req as any).user;
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
 
     const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
     if (!exam) {
       return res.status(404).json({ error: "Exam not found." });
     }
 
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(exam.course_id, profile.id);
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not authorized for this exam course." });
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(exam.course_id, profile.id);
+
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not authorized for this exam course." });
+      }
     }
 
     db.prepare("DELETE FROM exams WHERE id = ?").run(examId);
@@ -675,22 +731,26 @@ export function deleteExamQuestion(req: Request, res: Response) {
   const user = (req as any).user;
 
   try {
-    const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
-    if (!profile) {
-      return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
-    }
+    const isAdmin = user && (user.role === "admin" || user.role === "developer");
 
     const exam = db.prepare("SELECT course_id FROM exams WHERE id = ?").get(examId) as { course_id: string } | undefined;
     if (!exam) {
       return res.status(404).json({ error: "Exam not found." });
     }
 
-    const association = db.prepare(`
-      SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
-    `).get(exam.course_id, profile.id);
+    if (!isAdmin) {
+      const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?").get(user.email.trim().toLowerCase()) as any;
+      if (!profile) {
+        return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
+      }
 
-    if (!association) {
-      return res.status(403).json({ error: "Access Denied: You are not authorized for this exam course." });
+      const association = db.prepare(`
+        SELECT 1 FROM course_instructors WHERE course_id = ? AND instructor_profile_id = ?
+      `).get(exam.course_id, profile.id);
+
+      if (!association) {
+        return res.status(403).json({ error: "Access Denied: You are not authorized for this exam course." });
+      }
     }
 
     db.prepare("DELETE FROM exam_questions WHERE id = ? AND exam_id = ?").run(questionId, examId);

@@ -30,7 +30,7 @@ export default function InstructorRoute({ user, children }: InstructorRouteProps
     );
   }
 
-  if (user.role !== 'instructor') {
+  if (user.role !== 'instructor' && user.role !== 'admin' && user.role !== 'developer') {
     return (
       <div className="min-h-screen bg-gray-55/5 flex flex-col items-center justify-center p-6 font-sans">
         <div className="bg-white p-8 rounded-xl shadow-sm max-w-md w-full border border-gray-100 text-center">
