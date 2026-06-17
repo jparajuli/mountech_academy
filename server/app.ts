@@ -5,6 +5,7 @@ import courseRoutes from "./routes/courseRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import developerRoutes from "./routes/developerRoutes.js";
 import instructorRoutes from "./routes/instructorRoutes.js";
+import { errorHandler } from "./middlewares/errorHandler.js";
 
 // Prefer IPv4 for local container stability
 dns.setDefaultResultOrder && dns.setDefaultResultOrder("ipv4first");
@@ -19,5 +20,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/developer", developerRoutes);
 app.use("/api", courseRoutes); // maps /api/enroll, /api/complete, /api/ratings, etc.
 app.use("/api", instructorRoutes); // maps /api/instructors, /api/instructors/:id, etc.
+
+// Global Error Handler Middleware
+app.use(errorHandler);
 
 export default app;
