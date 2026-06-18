@@ -641,7 +641,7 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
                         max={100}
                         required
                         value={points}
-                        onChange={(e) => setPoints(Number(e.target.value))}
+                        onChange={(e) => setPoints(Math.max(1, parseInt(e.target.value) || 1))}
                         className="w-full text-xs font-semibold border border-gray-200 rounded-lg p-2.5 focus:border-indigo-500 bg-white"
                       />
                     </div>
@@ -763,7 +763,7 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
                 <div className="p-12 text-center bg-white border border-gray-150 rounded-xl max-w-md mx-auto">
                   <Layers className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                   <p className="text-xs text-gray-500 font-semibold">No questions configured.</p>
-                  <p className="text-[10px] text-gray-400 mt-1">Select are MCQ or T/F in the left sidebar to add questions immediately.</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Select an MCQ or T/F in the left sidebar to add questions immediately.</p>
                 </div>
               ) : (
                 <div className="space-y-4">

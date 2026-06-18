@@ -3,7 +3,7 @@ import {
   BookOpen, FileText, Presentation, GitPullRequest, Link, ArrowRight, 
   Upload, Plus, Trash2, Search, ExternalLink, RefreshCw, Layers, 
   Database, Code, CheckCircle2, AlertCircle, Sparkles, FolderOpen,
-  HelpCircle, ChevronRight, FileCode, Check, Copy
+  HelpCircle, ChevronRight, FileCode, Check, Copy, Lock
 } from "lucide-react";
 import { Course } from "../types";
 
@@ -38,14 +38,146 @@ interface ResourcePortalProps {
   enrolledCourseIds?: string[];
 }
 
+// ---------------------------------------------------------------------------
+// STATIC PRESETS (Moved outside component to prevent memory reallocation)
+// ---------------------------------------------------------------------------
+const presetResources: Resource[] = [
+  {
+    id: "res-1",
+    title: "Lecture 1 Notebook: Essential Prompt Directives & Boundary Handlers",
+    category: "PDF Guide",
+    courseId: "chatgpt-prompt-engineering",
+    courseTitle: "ChatGPT Prompt Engineering for Developers",
+    fileSize: "1.8 MB",
+    uploadedAt: "2026-06-01T10:00:00.000Z",
+    source: "Institutional",
+    description: "Comprehensive notes covering the structural system prompts, delimiter rules (#, ```, ---), and methods to prevent jailbreaks."
+  },
+  {
+    id: "res-2",
+    title: "Lecture 1 Slides: The Anatomy of Large Language Modeling Systems",
+    category: "Lecture Slides",
+    courseId: "chatgpt-prompt-engineering",
+    courseTitle: "ChatGPT Prompt Engineering for Developers",
+    fileSize: "3.4 MB",
+    uploadedAt: "2026-05-28T14:30:00.000Z",
+    source: "Institutional",
+    description: "Visual slides presenting tokenization theory, prompt decoding, hyper-parameter temperature bounds, and the attention weight paradigm."
+  },
+  {
+    id: "res-3",
+    title: "Lecture 2 Guide: Conversational Multi-Agent Coordination Design",
+    category: "PDF Guide",
+    courseId: "ai-agentic-design-patterns",
+    courseTitle: "AI Agentic Design Patterns with AutoGen",
+    fileSize: "2.1 MB",
+    uploadedAt: "2026-06-05T09:15:00.000Z",
+    source: "Institutional",
+    description: "Detailed roadmap on splitting state managers between multiple agents, defining feedback interrupts, and configuring local environment runners."
+  },
+  {
+    id: "res-4",
+    title: "Lecture 2 Slides: Decomposing Goals into Standalone Tool Specialists",
+    category: "Lecture Slides",
+    courseId: "ai-agentic-design-patterns",
+    courseTitle: "AI Agentic Design Patterns with AutoGen",
+    fileSize: "4.8 MB",
+    uploadedAt: "2026-06-03T11:00:00.000Z",
+    source: "Institutional",
+    description: "Slides outlining task decomposition schemas, routing logic inside Microsoft AutoGen, and implementing human validation loops."
+  },
+  {
+    id: "res-5",
+    title: "Lecture 3 Matrix: Deep Feed-Forward Architecture Fundamentals",
+    category: "PDF Guide",
+    courseId: "deep-learning-specialization",
+    courseTitle: "Deep Learning Specialization",
+    fileSize: "2.7 MB",
+    uploadedAt: "2026-06-07T16:00:00.000Z",
+    source: "Institutional",
+    description: "Rigorous mathematical derivations for backpropagation pipelines, activation gradients (ReLU, Sigmoid, GeLU), and bias vectors."
+  },
+  {
+    id: "res-6",
+    title: "RAG Setup Sheet: Vector Chunking and Similarity Lookup Grids",
+    category: "Cheat Sheet",
+    courseId: "practical-rag-vector-databases",
+    courseTitle: "Practical RAG with Vector Databases",
+    fileSize: "920 KB",
+    uploadedAt: "2026-06-10T13:45:00.000Z",
+    source: "Institutional",
+    description: "A quick reference index showing optimized chunk sizes, overlap parameters, cosine distance formulas, and query expansion structures."
+  }
+];
+
+const sampleGitLabProjects = [
+  {
+    title: "Assignment A: LLM Prompter CLI Evaluation Suite",
+    courseId: "chatgpt-prompt-engineering",
+    desc: "Implement a python program that iterates across prompt system configurations, validates model output, and pushes logs into institutional sheets.",
+    gitlabRepo: "[https://gitlab.mountech.academy/coursework/prompt-engineering-cli.git](https://gitlab.mountech.academy/coursework/prompt-engineering-cli.git)",
+    filesExpected: ["app.py", "evals.json", "requirements.txt"]
+  },
+  {
+    title: "Assignment B: Autonomous Math Agentic Orchestrator",
+    courseId: "ai-agentic-design-patterns",
+    desc: "Develop a multi-agent system containing a coder agent, calculator executor, and verified reviewer. Ensure agent output contains zero hallucinations.",
+    gitlabRepo: "[https://gitlab.mountech.academy/coursework/autogen-math-agents.git](https://gitlab.mountech.academy/coursework/autogen-math-agents.git)",
+    filesExpected: ["agents.py", "config.yaml", "test_agents.py"]
+  },
+  {
+    title: "Assignment C: Neural Network Optimizer from Scratch",
+    courseId: "deep-learning-specialization",
+    desc: "Write a numpy-only neural net classifier with mini-batch RMSProp optimizer, Adam bounds, and cross-entropy evaluation. Train Centroid boundaries.",
+    gitlabRepo: "[https://gitlab.mountech.academy/coursework/neural-optimizer-scratch.git](https://gitlab.mountech.academy/coursework/neural-optimizer-scratch.git)",
+    filesExpected: ["nn_model.py", "optimizers.py", "dataset.csv"]
+  }
+];
+
 export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }: ResourcePortalProps) {
-  // --- STATE FOR LECTURE RESOURCES ---
-  const [resources, setResources] = useState<Resource[]>([]);
+  // ---------------------------------------------------------------------------
+  // STATE: LECTURE RESOURCES (Lazy Initialization for Zero-Flicker)
+  // ---------------------------------------------------------------------------
+  const [resources, setResources] = useState<Resource[]>(() => {
+    const saved = localStorage.getItem("mountech_portal_resources");
+    return saved ? JSON.parse(saved) : presetResources;
+  });
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedCourseId, setSelectedCourseId] = useState<string>("All");
 
-  // --- STATE FOR RESOURCE UPLOADER ---
+  // ---------------------------------------------------------------------------
+  // STATE: GITLAB INTEGRATION (Lazy Initialization)
+  // ---------------------------------------------------------------------------
+  const [linkedRepos, setLinkedRepos] = useState<GitLabLink[]>(() => {
+    const saved = localStorage.getItem("mountech_portal_gitlab_links");
+    if (saved) return JSON.parse(saved);
+    
+    return [{
+      id: "link-init",
+      assignmentId: "chatgpt-prompt-engineering",
+      assignmentName: "Assignment A: LLM Prompter CLI Evaluation Suite",
+      gitlabRepoUrl: `https://gitlab.com/${(user?.email || "student@mountech.academy").split("@")[0]}/prompt-engineering-cli`,
+      accessToken: "glpat-xxxx_SAMPLE_TOKEN_xxxx",
+      status: "Synced & Verified",
+      linkedAt: new Date().toISOString(),
+      grade: "100 / 100",
+      commitHash: "e4a2d8d8"
+    }];
+  });
+
+  const [selectedGitLabCourse, setSelectedGitLabCourse] = useState("");
+  const [gitlabUrlInput, setGitlabUrlInput] = useState("");
+  const [patInput, setPatInput] = useState("");
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkError, setLinkError] = useState("");
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [syncingRepoId, setSyncingRepoId] = useState<string | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // STATE: RESOURCE UPLOADER
+  // ---------------------------------------------------------------------------
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadTitle, setUploadTitle] = useState("");
   const [uploadCategory, setUploadCategory] = useState<Resource["category"]>("PDF Guide");
@@ -56,140 +188,13 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
   const [dragActive, setDragActive] = useState(false);
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState("");
 
-  // --- STATE FOR GITLAB INTEGRATION ---
-  const [linkedRepos, setLinkedRepos] = useState<GitLabLink[]>([]);
-  const [selectedGitLabCourse, setSelectedGitLabCourse] = useState("");
-  const [gitlabUrlInput, setGitlabUrlInput] = useState("");
-  const [patInput, setPatInput] = useState("");
-  const [isLinking, setIsLinking] = useState(false);
-  const [linkError, setLinkError] = useState("");
-  const [copiedWebhook, setCopiedWebhook] = useState(false);
-  const [syncingRepoId, setSyncingRepoId] = useState<string | null>(null);
-
-  // Default preset resources to seed initial state
-  const presetResources: Resource[] = [
-    {
-      id: "res-1",
-      title: "Lecture 1 Notebook: Essential Prompt Directives & Boundary Handlers",
-      category: "PDF Guide",
-      courseId: "chatgpt-prompt-engineering",
-      courseTitle: "ChatGPT Prompt Engineering for Developers",
-      fileSize: "1.8 MB",
-      uploadedAt: "2026-06-01T10:00:00.000Z",
-      source: "Institutional",
-      description: "Comprehensive notes covering the structural system prompts, delimiter rules (#, ```, ---), and methods to prevent jailbreaks."
-    },
-    {
-      id: "res-2",
-      title: "Lecture 1 Slides: The Anatomy of Large Language Modeling Systems",
-      category: "Lecture Slides",
-      courseId: "chatgpt-prompt-engineering",
-      courseTitle: "ChatGPT Prompt Engineering for Developers",
-      fileSize: "3.4 MB",
-      uploadedAt: "2026-05-28T14:30:00.000Z",
-      source: "Institutional",
-      description: "Visual slides presenting tokenization theory, prompt decoding, hyper-parameter temperature bounds, and the attention weight paradigm."
-    },
-    {
-      id: "res-3",
-      title: "Lecture 2 Guide: Conversational Multi-Agent Coordination Design",
-      category: "PDF Guide",
-      courseId: "ai-agentic-design-patterns",
-      courseTitle: "AI Agentic Design Patterns with AutoGen",
-      fileSize: "2.1 MB",
-      uploadedAt: "2026-06-05T09:15:00.000Z",
-      source: "Institutional",
-      description: "Detailed roadmap on splitting state managers between multiple agents, defining feedback interrupts, and configuring local environment runners."
-    },
-    {
-      id: "res-4",
-      title: "Lecture 2 Slides: Decomposing Goals into Standalone Tool Specialists",
-      category: "Lecture Slides",
-      courseId: "ai-agentic-design-patterns",
-      courseTitle: "AI Agentic Design Patterns with AutoGen",
-      fileSize: "4.8 MB",
-      uploadedAt: "2026-06-03T11:00:00.000Z",
-      source: "Institutional",
-      description: "Slides outlining task decomposition schemas, routing logic inside Microsoft AutoGen, and implementing human validation loops."
-    },
-    {
-      id: "res-5",
-      title: "Lecture 3 Matrix: Deep Feed-Forward Architecture Fundamentals",
-      category: "PDF Guide",
-      courseId: "deep-learning-specialization",
-      courseTitle: "Deep Learning Specialization",
-      fileSize: "2.7 MB",
-      uploadedAt: "2026-06-07T16:00:00.000Z",
-      source: "Institutional",
-      description: "Rigorous mathematical derivations for backpropagation pipelines, activation gradients (ReLU, Sigmoid, GeLU), and bias vectors."
-    },
-    {
-      id: "res-6",
-      title: "RAG Setup Sheet: Vector Chunking and Similarity Lookup Grids",
-      category: "Cheat Sheet",
-      courseId: "practical-rag-vector-databases",
-      courseTitle: "Practical RAG with Vector Databases",
-      fileSize: "920 KB",
-      uploadedAt: "2026-06-10T13:45:00.000Z",
-      source: "Institutional",
-      description: "A quick reference index showing optimized chunk sizes, overlap parameters, cosine distance formulas, and query expansion structures."
-    }
-  ];
-
-  // Default preset GitLab Projects that scholars can work on
-  const sampleGitLabProjects = [
-    {
-      title: "Assignment A: LLM Prompter CLI Evaluation Suite",
-      courseId: "chatgpt-prompt-engineering",
-      desc: "Implement a python program that iterates across prompt system configurations, validates model output, and pushes logs into institutional sheets.",
-      gitlabRepo: "https://gitlab.mountech.academy/coursework/prompt-engineering-cli.git",
-      filesExpected: ["app.py", "evals.json", "requirements.txt"]
-    },
-    {
-      title: "Assignment B: Autonomous Math Agentic Orchestrator",
-      courseId: "ai-agentic-design-patterns",
-      desc: "Develop a multi-agent system containing a coder agent, calculator executor, and verified reviewer. Ensure agent output contains zero hallucinations.",
-      gitlabRepo: "https://gitlab.mountech.academy/coursework/autogen-math-agents.git",
-      filesExpected: ["agents.py", "config.yaml", "test_agents.py"]
-    },
-    {
-      title: "Assignment C: Neural Network Optimizer from Scratch",
-      courseId: "deep-learning-specialization",
-      desc: "Write a numpy-only neural net classifier with mini-batch RMSProp optimizer, Adam bounds, and cross-entropy evaluation. Train Centroid boundaries.",
-      gitlabRepo: "https://gitlab.mountech.academy/coursework/neural-optimizer-scratch.git",
-      filesExpected: ["nn_model.py", "optimizers.py", "dataset.csv"]
-    }
-  ];
-
-  // Load and seed Resources & Linked Repos from LocalStorage
+  // Initialize storage defaults and default select states
   useEffect(() => {
-    const savedResources = localStorage.getItem("mountech_portal_resources");
-    if (savedResources) {
-      setResources(JSON.parse(savedResources));
-    } else {
-      setResources(presetResources);
+    if (!localStorage.getItem("mountech_portal_resources")) {
       localStorage.setItem("mountech_portal_resources", JSON.stringify(presetResources));
     }
-
-    const savedLinks = localStorage.getItem("mountech_portal_gitlab_links");
-    if (savedLinks) {
-      setLinkedRepos(JSON.parse(savedLinks));
-    } else {
-      const initialLinks: GitLabLink[] = [
-        {
-          id: "link-init",
-          assignmentId: "chatgpt-prompt-engineering",
-          assignmentName: "Assignment A: LLM Prompter CLI Evaluation Suite",
-          gitlabRepoUrl: `https://gitlab.com/${(user?.email || "student@mountech.academy").split("@")[0]}/prompt-engineering-cli`,
-          accessToken: "glpat-xxxx_SAMPLE_TOKEN_xxxx",
-          status: "Synced & Verified",
-          linkedAt: "2026-06-12T15:20:00.000Z",
-          grade: "100 / 100",
-          commitHash: "e4a2d8d8"
-        }
-      ];
-      setLinkedRepos(initialLinks);
-      localStorage.setItem("mountech_portal_gitlab_links", JSON.stringify(initialLinks));
+    if (!localStorage.getItem("mountech_portal_gitlab_links")) {
+      localStorage.setItem("mountech_portal_gitlab_links", JSON.stringify(linkedRepos));
     }
 
     const enrolledCourses = courses.filter(c => enrolledCourseIds.includes(c.id));
@@ -200,7 +205,7 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
       setSelectedGitLabCourse("");
       setUploadCourseId("");
     }
-  }, [courses, enrolledCourseIds]);
+  }, [courses, enrolledCourseIds, linkedRepos]);
 
   // Sync Resource List back to LocalStorage when changed
   const saveResourcesToStorage = (updatedResources: Resource[]) => {
@@ -212,6 +217,16 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
   const saveGitLabLinksToStorage = (updatedLinks: GitLabLink[]) => {
     setLinkedRepos(updatedLinks);
     localStorage.setItem("mountech_portal_gitlab_links", JSON.stringify(updatedLinks));
+  };
+
+  // Dedicated Reset Handler for the Upload Modal
+  const handleCloseModal = () => {
+    setShowUploadModal(false);
+    setUploadTitle("");
+    setUploadDesc("");
+    setUploadUrl("");
+    setUploadFile(null);
+    setUploadCategory("PDF Guide");
   };
 
   // Drag and drop handlers
@@ -271,15 +286,11 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
     const updated = [newResource, ...resources];
     saveResourcesToStorage(updated);
 
-    // Clear and close
-    setUploadTitle("");
-    setUploadDesc("");
-    setUploadUrl("");
-    setUploadFile(null);
-    setUploadSuccessMsg(`"Successfully added '${newResource.title}' to the Academic Resource Hub!`);
+    setUploadSuccessMsg(`Successfully added '${newResource.title}' to the Academic Resource Hub!`);
+    
     setTimeout(() => {
       setUploadSuccessMsg("");
-      setShowUploadModal(false);
+      handleCloseModal(); // Use the safe closer
     }, 1800);
   };
 
@@ -306,7 +317,7 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
     // Validate GitLab URL matches standard formats
     const isGitLabUrl = gitlabUrlInput.includes("gitlab.com") || gitlabUrlInput.includes("gitlab.");
     if (!isGitLabUrl) {
-      setLinkError("The repository URL must be a valid GitLab path (e.g. https://gitlab.com/username/project).");
+      setLinkError("The repository URL must be a valid GitLab path (e.g. [https://gitlab.com/username/project](https://gitlab.com/username/project)).");
       return;
     }
 
@@ -336,12 +347,11 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
       setGitlabUrlInput("");
       setPatInput("");
 
-      // Simulate build pipeline running!
+      // Simulate build pipeline running
       setTimeout(() => {
         const pipelineSuccessIndex = currentLinks.findIndex(l => l.id === newLink.id);
         if (pipelineSuccessIndex !== -1) {
           const finalLinks = [...currentLinks];
-          // Generous grades!
           const passGrades = ["92 / 100", "96 / 100", "100 / 100", "98 / 100"];
           finalLinks[pipelineSuccessIndex] = {
             ...finalLinks[pipelineSuccessIndex],
@@ -413,7 +423,7 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
       {/* SECTION 1: TWO MAIN COLUMNS - PORTAL INTRODUCTION & REPOSITORY INTEGRATION */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
         
-        {/* Intro Control Card (Light background, premium border) */}
+        {/* Intro Control Card */}
         <div className="lg:col-span-4 bg-gradient-to-br from-[#f8fafc] to-[#f1f5f9] border border-gray-200/80 rounded-2xl p-6 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-3">
@@ -461,7 +471,7 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
           </div>
         </div>
 
-        {/* GitLab Assignment Classroom Instructions (Modern code look) */}
+        {/* GitLab Assignment Classroom Instructions */}
         <div className="lg:col-span-8 bg-gray-900 border border-gray-800 rounded-2xl p-6 md:p-8 text-white flex flex-col justify-between">
           <div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-800 pb-5 mb-5">
@@ -481,9 +491,7 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
               </span>
             </div>
 
-            {/* Steps Timeline Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 bg-orange-500/10 text-orange-400 border border-orange-500/20 font-mono font-bold text-[10px] rounded-full flex items-center justify-center shrink-0">1</span>
@@ -513,11 +521,9 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
                   Fill the Link Repository form by providing your Personal Access Token. Our portal will execute testing suites and stream marks to the sheet database.
                 </p>
               </div>
-
             </div>
           </div>
 
-          {/* Webhook details container */}
           <div className="mt-6 p-4 bg-gray-950 border border-gray-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
             <div className="space-y-1">
               <span className="text-[10px] font-mono text-gray-400 block tracking-wider uppercase">PORTAL WEBHOOK GATEWAY URL</span>
@@ -543,7 +549,6 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
               )}
             </button>
           </div>
-
         </div>
 
       </div>
@@ -617,10 +622,9 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
         )}
       </div>
 
-      {/* SECTION 3: REPOS LINKING CONSOLE (Interactive Form + Active Links) */}
+      {/* SECTION 3: REPOS LINKING CONSOLE */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Repository Linking Form */}
         <div className="lg:col-span-5 bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
             <span className="p-1.5 bg-orange-100 text-orange-600 rounded-lg">
@@ -661,7 +665,7 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
                 required
                 value={gitlabUrlInput}
                 onChange={(e) => setGitlabUrlInput(e.target.value)}
-                placeholder="https://gitlab.com/your-username/my-prompt-cli"
+                placeholder="[https://gitlab.com/your-username/my-prompt-cli](https://gitlab.com/your-username/my-prompt-cli)"
                 className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
               />
               <span className="text-[10px] text-gray-400 block leading-normal mt-1">
@@ -707,7 +711,6 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
           </form>
         </div>
 
-        {/* Linked Repositories List Container */}
         <div className="lg:col-span-7 bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
@@ -767,7 +770,6 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
                       </div>
                     </div>
 
-                    {/* Operational row */}
                     <div className="flex gap-2 justify-end pt-1">
                       <button
                         onClick={() => handleSyncRepo(link.id)}
@@ -801,10 +803,9 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
 
       </div>
 
-      {/* SECTION 4: LECTURE MATERIALS VAULT (The central PDF, Slides, Assignment briefs portal) */}
+      {/* SECTION 4: LECTURE MATERIALS VAULT */}
       <div className="space-y-6 pt-4">
         
-        {/* Header with quick categorization */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
           <div>
             <div className="flex items-center gap-1.5">
@@ -825,7 +826,6 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
           </button>
         </div>
 
-        {/* Filtering Grid Controls */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 bg-gray-50 p-4 border border-gray-200 rounded-xl">
           <div className="relative flex-grow">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
@@ -875,7 +875,6 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
           </div>
         </div>
 
-        {/* Resources Cards Grid */}
         {filteredResources.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredResources.map((res) => {
@@ -992,7 +991,7 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
                 <span>Submit Supplemental Academy Resource</span>
               </h4>
               <button 
-                onClick={() => setShowUploadModal(false)}
+                onClick={handleCloseModal}
                 className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-800 flex items-center justify-center font-bold font-sans cursor-pointer text-xs"
               >
                 ✕
@@ -1009,7 +1008,6 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
             ) : (
               <form onSubmit={handleUploadSubmit} className="space-y-4">
                 
-                {/* Drag Drop Area */}
                 <div 
                   onDragEnter={handleDrag}
                   onDragOver={handleDrag}
@@ -1049,9 +1047,10 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-gray-700 font-semibold block">Format / Category</label>
+                    {/* FIXED STRICT TYPESCRIPT CASTING */}
                     <select
                       value={uploadCategory}
-                      onChange={(e) => setUploadCategory(e.target.value as any)}
+                      onChange={(e) => setUploadCategory(e.target.value as Resource["category"])}
                       className="w-full border border-gray-300 rounded-lg p-2 bg-white text-gray-900 focus:outline-none"
                     >
                       <option value="PDF Guide">PDF Guide</option>
@@ -1096,7 +1095,7 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
                     type="url"
                     value={uploadUrl}
                     onChange={(e) => setUploadUrl(e.target.value)}
-                    placeholder="https://gitlab.com/... or google drive sharing link..."
+                    placeholder="[https://gitlab.com/](https://gitlab.com/)... or google drive sharing link..."
                     className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                   />
                 </div>
@@ -1115,7 +1114,7 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
                 <div className="pt-2 flex gap-3 justify-end text-xs">
                   <button
                     type="button"
-                    onClick={() => setShowUploadModal(false)}
+                    onClick={handleCloseModal}
                     className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold cursor-pointer"
                   >
                     Cancel
