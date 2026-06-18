@@ -24,6 +24,7 @@ import {
   submitStudentExamResponse,
   updateSharedSyllabus,
 } from "../controllers/courseController.js";
+import { handleGitLabWebhook } from "../../src/controllers/gitlabController.js";
 
 const router = Router();
 
@@ -51,5 +52,8 @@ router.get("/sessions/:sessionId/join", requireAuth, joinLiveSession);
 router.get("/courses/:courseId/student-exams", requireAuth, getCourseExamsForStudent);
 router.post("/courses/:courseId/exams/:examId/start", requireAuth, startStudentExam);
 router.post("/attempts/:attemptId/submit", requireAuth, submitStudentExamResponse);
+
+// GitLab Webhook Integration Phase 4 route
+router.post("/gitlab/webhook", handleGitLabWebhook);
 
 export default router;

@@ -260,6 +260,18 @@ try {
   `);
 } catch (_) {}
 
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS gitlab_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      gitlabRepoUrl TEXT NOT NULL UNIQUE,
+      status TEXT,
+      grade TEXT,
+      commitHash TEXT
+    );
+  `);
+} catch (_) {}
+
 // Dynamic baseline database seeding for integrated professional sandbox courses
 try {
   const countObj = db.prepare("SELECT count(*) as count FROM courses").get() as any;
