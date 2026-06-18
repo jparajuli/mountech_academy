@@ -86,6 +86,7 @@ export interface ExamQuestion {
 export interface Exam {
   id?: number;
   course_id: string;
+  chapter_id?: string;
   title: string;
   description?: string;
   is_published: boolean;

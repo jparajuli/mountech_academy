@@ -188,6 +188,7 @@ try {
     CREATE TABLE IF NOT EXISTS exams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       course_id TEXT NOT NULL,
+      chapter_id TEXT,
       title TEXT NOT NULL,
       description TEXT,
       is_published INTEGER NOT NULL DEFAULT 0,
@@ -223,6 +224,10 @@ try {
 
 try {
   db.exec("ALTER TABLE exams ADD COLUMN duration_minutes INTEGER NOT NULL DEFAULT 30;");
+} catch (_) {}
+
+try {
+  db.exec("ALTER TABLE exams ADD COLUMN chapter_id TEXT;");
 } catch (_) {}
 
 try {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { courses } from '../courses';
 import { 
   fetchCourseExams, 
   createCourseExam, 
@@ -34,6 +35,9 @@ interface InstructorExamBuilderProps {
 }
 
 export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ courseId }) => {
+  const courseObj = courses.find((c) => c.id === courseId);
+  const courseSyllabus = courseObj?.syllabus || [];
+
   const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +50,7 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
   const [examQuestionsToDisplay, setExamQuestionsToDisplay] = useState<number>(5);
   const [examPassingScorePercentage, setExamPassingScorePercentage] = useState<number>(70);
   const [examDurationMinutes, setExamDurationMinutes] = useState<number>(30);
+  const [examChapterId, setExamChapterId] = useState<string>('');
   const [submittingExam, setSubmittingExam] = useState<boolean>(false);
 
   // Selected Exam for builder interaction
@@ -108,7 +113,8 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
         questions_to_display: Number(examQuestionsToDisplay) || 5,
         passing_score_percentage: Number(examPassingScorePercentage) || 70,
         duration_minutes: Number(examDurationMinutes) || 30,
-      } as any);
+        chapter_id: examChapterId ? examChapterId : null,
+      });
 
       if (res.success) {
         setExamTitle('');
@@ -117,6 +123,7 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
         setExamQuestionsToDisplay(5);
         setExamPassingScorePercentage(70);
         setExamDurationMinutes(30);
+        setExamChapterId('');
         setShowCreateExam(false);
         await loadExams();
       } else {
@@ -365,20 +372,36 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
                     />
                   </div>
 
-                  <div className="flex items-center gap-3 pt-6">
-                    <button
-                      type="button"
-                      onClick={() => setExamIsPublished(!examIsPublished)}
-                      className="text-gray-600 flex items-center gap-2 text-xs font-semibold select-none bg-white border border-gray-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50"
+                  <div>
+                    <label className="block text-[10px] font-bold font-mono text-gray-500 uppercase tracking-wider mb-1">Evaluation Scope (Pre-requisites Apply)</label>
+                    <select
+                      value={examChapterId}
+                      onChange={(e) => setExamChapterId(e.target.value)}
+                      className="w-full text-xs border border-gray-250 rounded-lg p-2.5 focus:border-indigo-505 bg-white font-mono"
                     >
-                      {examIsPublished ? (
-                        <ToggleRight className="w-6 h-6 text-emerald-500" />
-                      ) : (
-                        <ToggleLeft className="w-6 h-6 text-gray-400" />
-                      )}
-                      <span>Published to Students</span>
-                    </button>
+                      <option value="">Course Final / Universal (All preceding units required)</option>
+                      {courseSyllabus.map((slice, idx) => (
+                        <option key={idx} value={slice.chapter}>
+                          {slice.chapter}: {slice.title}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setExamIsPublished(!examIsPublished)}
+                    className="text-gray-600 flex items-center gap-2 text-xs font-semibold select-none bg-white border border-gray-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50"
+                  >
+                    {examIsPublished ? (
+                      <ToggleRight className="w-6 h-6 text-emerald-500" />
+                    ) : (
+                      <ToggleLeft className="w-6 h-6 text-gray-400" />
+                    )}
+                    <span>Published to Students</span>
+                  </button>
                 </div>
 
                 <div>
@@ -490,7 +513,18 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
                 >
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-3">
-                      <h4 className="font-bold text-gray-900 text-sm leading-tight">{exam.title}</h4>
+                      <div className="space-y-1 bg-transparent p-0 border-0 flex-1">
+                        <h4 className="font-bold text-gray-900 text-sm leading-tight">{exam.title}</h4>
+                        {exam.chapter_id ? (
+                          <span className="inline-block text-[9px] font-mono font-bold text-indigo-650 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded">
+                            Scope: {exam.chapter_id}
+                          </span>
+                        ) : (
+                          <span className="inline-block text-[9px] font-mono font-bold text-gray-650 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
+                            Universal Course Final
+                          </span>
+                        )}
+                      </div>
                       <span className={`px-2 py-0.5 text-[9px] font-bold font-mono rounded-full uppercase shrink-0 select-none ${exam.is_published ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                         {exam.is_published ? 'Published' : 'Draft'}
                       </span>

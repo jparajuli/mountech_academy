@@ -1535,6 +1535,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                         <StudentExamTaker
                           courseId={course.id}
                           exam={activeDbExam}
+                          completedLessons={completedLessons}
                           onClose={async (completedAttempt) => {
                             setActiveDbExam(null);
                             await loadDbStudentExams();

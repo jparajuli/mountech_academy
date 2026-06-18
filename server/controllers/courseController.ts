@@ -1096,7 +1096,7 @@ export function startStudentExam(req: Request, res: Response) {
 
     // 2. Fetch exam and verify it exists & is published
     const exam = db.prepare(`
-      SELECT id, title, description, questions_to_display, passing_score_percentage, is_published, duration_minutes
+      SELECT id, title, description, questions_to_display, passing_score_percentage, is_published, duration_minutes, chapter_id
       FROM exams
       WHERE id = ? AND course_id = ?
     `).get(examId, courseId) as any;
@@ -1107,6 +1107,68 @@ export function startStudentExam(req: Request, res: Response) {
 
     if (exam.is_published !== 1 && user.role !== "admin" && user.role !== "developer") {
       return res.status(403).json({ error: "Access Denied: This exam is not currently published." });
+    }
+
+    // A. 3-Hour Cooldown restriction for course final exams/generic exams (where chapter_id is null, empty string or 'final')
+    const isFinalExam = !exam.chapter_id || exam.chapter_id === 'final' || exam.chapter_id === '';
+    if (isFinalExam && user.role !== "admin" && user.role !== "developer") {
+      const lastAttempt = db.prepare(`
+        SELECT started_at, completed_at 
+        FROM exam_attempts 
+        WHERE exam_id = ? AND user_id = ? 
+        ORDER BY id DESC LIMIT 1
+      `).get(Number(examId), email) as any;
+
+      if (lastAttempt) {
+        const lastTimeStr = lastAttempt.completed_at || lastAttempt.started_at;
+        const lastTime = new Date(lastTimeStr).getTime();
+        const now = Date.now();
+        const cooldownMs = 3 * 60 * 60 * 1000;
+        if (now - lastTime < cooldownMs) {
+          const remainingMs = cooldownMs - (now - lastTime);
+          const remainingHours = Math.floor(remainingMs / (1000 * 60 * 60));
+          const remainingMinutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+          const remainingSeconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+          return res.status(403).json({
+            error: `Final Exam Cooldown active. Please wait ${remainingHours}h ${remainingMinutes}m ${remainingSeconds}s before starting your next retake node.`
+          });
+        }
+      }
+    }
+
+    // B. Requisite Checks for syllabus chapters completed
+    const course = db.prepare("SELECT syllabus FROM courses WHERE id = ?").get(courseId) as any;
+    if (course) {
+      try {
+        const syllabus = JSON.parse(course.syllabus || "[]") as { chapter: string; title: string }[];
+        let targetIndex = syllabus.length;
+        if (!isFinalExam) {
+          const matchIndex = syllabus.findIndex(
+            item => item.chapter && item.chapter.trim().toLowerCase() === exam.chapter_id.trim().toLowerCase()
+          );
+          if (matchIndex !== -1) {
+            targetIndex = matchIndex;
+          }
+        }
+
+        if (targetIndex > 0) {
+          const completedIndices = req.body.completedLessons || [];
+          const missingChapters = [];
+          for (let i = 0; i < targetIndex; i++) {
+            if (!completedIndices.includes(i)) {
+              missingChapters.push(syllabus[i].chapter || `Unit ${i + 1}`);
+            }
+          }
+
+          if (missingChapters.length > 0 && user.role !== "admin" && user.role !== "developer") {
+            return res.status(403).json({
+              error: `Prerequisite Locked: In order to take this chapter assessment, you must first review and mark all preceding modules as completed. Missing: ${missingChapters.join(', ')}`
+            });
+          }
+        }
+      } catch (syllabusError) {
+        console.error("Syllabus parse error:", syllabusError);
+      }
     }
 
     // 3. Create exam attempt in database

@@ -21,9 +21,10 @@ interface StudentExamTakerProps {
   courseId: string;
   exam: Exam;
   onClose: (completedAttempt?: any) => void;
+  completedLessons?: number[];
 }
 
-export const StudentExamTaker: React.FC<StudentExamTakerProps> = ({ courseId, exam, onClose }) => {
+export const StudentExamTaker: React.FC<StudentExamTakerProps> = ({ courseId, exam, onClose, completedLessons }) => {
   const [step, setStep] = useState<'pre' | 'active' | 'post'>('pre');
   const [attemptId, setAttemptId] = useState<number | null>(null);
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
@@ -142,7 +143,7 @@ export const StudentExamTaker: React.FC<StudentExamTakerProps> = ({ courseId, ex
     setLoading(true);
     setError(null);
     try {
-      const res = await startStudentExam(courseId, exam.id!);
+      const res = await startStudentExam(courseId, exam.id!, completedLessons);
       if (res.success && res.attemptId) {
         setAttemptId(res.attemptId);
         setQuestions(res.questions || []);
