@@ -6,6 +6,7 @@ import FilterBar from '../components/FilterBar';
 import ResourcePortal from '../components/ResourcePortal';
 import ManageInstructors from '../components/ManageInstructors';
 import MyProfileSettings from '../components/MyProfileSettings';
+import { StudentGradingDashboard } from '../components/StudentGradingDashboard';
 import { AdminAuditLogs } from '../components/AdminAuditLogs';
 import { SyllabusEditor } from '../components/Shared/SyllabusEditor';
 import { 
@@ -30,7 +31,7 @@ interface CoursesProps {
 }
 
 export default function Courses({ user, onSignOut, onSelectCourse, enrolledCourseIds }: CoursesProps) {
-  const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin' | 'instructor-profile'>('catalog');
+  const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin' | 'instructor-profile' | 'grades'>('catalog');
   const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors' | 'audit'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
@@ -730,6 +731,12 @@ function doPost(e) {
                   <span className="text-[9px] bg-gray-100 border border-gray-200 text-gray-400 px-1 py-0.2 rounded font-mono font-bold uppercase scale-90">Locked</span>
                 </button>
               )}
+              <button
+                onClick={() => { setCurrentMenuTab('grades'); setSearchQuery(''); }}
+                className={`transition-colors cursor-pointer select-none py-1 border-b-2 ${currentMenuTab === 'grades' ? 'text-[#0070f3] border-[#0070f3]' : 'text-[#4b5563] border-transparent hover:text-[#0070f3]'}`}
+              >
+                My Grades & Credentials
+              </button>
               {(user.role === 'admin' || user.role === 'developer') && (
                 <button
                   onClick={() => setCurrentMenuTab('admin')}
@@ -839,6 +846,12 @@ function doPost(e) {
             <span className="text-[8px] bg-gray-100 border border-gray-150 text-gray-400 px-1 rounded font-mono scale-90">🔒</span>
           </button>
         )}
+        <button 
+          onClick={() => { setCurrentMenuTab('grades'); setSearchQuery(''); }} 
+          className={`pb-1 transition-all cursor-pointer ${currentMenuTab === 'grades' ? 'text-[#0070f3] border-b-2 border-[#0070f3]' : 'text-[#4b5563] border-transparent'}`}
+        >
+          Grades
+        </button>
         {(user.role === 'admin' || user.role === 'developer') && (
           <button 
             onClick={() => setCurrentMenuTab('admin')} 
@@ -899,6 +912,13 @@ function doPost(e) {
           <MyProfileSettings user={user} />
         ) : currentMenuTab === 'resources' ? (
           <ResourcePortal courses={coursesList} user={user} enrolledCourseIds={enrolledCourseIds} />
+        ) : currentMenuTab === 'grades' ? (
+          <StudentGradingDashboard
+            enrolledCourseIds={enrolledCourseIds}
+            user={user}
+            coursesList={coursesList}
+            onSelectCourse={onSelectCourse}
+          />
         ) : currentMenuTab === 'admin' ? (
           <div id="rbac-admin-panel" className="space-y-8 animate-fade-in">
             {/* Header section with clean metadata */}

@@ -205,7 +205,7 @@ export async function certificateDownload(req: Request, res: Response) {
     return res.status(401).send("<h1>Unauthorized</h1><p>Invalid or missing authentication credentials.</p>");
   }
 
-  const courseId = req.query.courseId as string;
+  const courseId = (req.params.courseId || req.query.courseId) as string;
   if (!courseId) {
     return res.status(400).send("<h1>Bad Request</h1><p>Missing required courseId query parameter.</p>");
   }

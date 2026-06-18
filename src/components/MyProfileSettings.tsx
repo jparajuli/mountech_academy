@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Save, User, Linkedin, RefreshCw, AlertTriangle, CheckCircle, GraduationCap, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Save, User, Linkedin, RefreshCw, AlertTriangle, CheckCircle, GraduationCap } from 'lucide-react';
 import { User as UserType, InstructorProfile } from '../types';
 import { fetchInstructorByEmail, updateInstructorProfileApi } from '../api';
 
@@ -20,9 +20,6 @@ export const MyProfileSettings: React.FC<MyProfileSettingsProps> = ({ user }) =>
   const [shortBio, setShortBio] = useState<string>('');
   const [linkedinUrl, setLinkedinUrl] = useState<string>('');
   const [avatarUrl, setAvatarUrl] = useState<string>('');
-
-  // Reference to manage timeout cleanup safely
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadProfile = async () => {
     setLoading(true);
@@ -50,11 +47,6 @@ export const MyProfileSettings: React.FC<MyProfileSettingsProps> = ({ user }) =>
 
   useEffect(() => {
     loadProfile();
-
-    // Cleanup timeout when component unmounts
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
   }, [user.email]);
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -88,21 +80,17 @@ export const MyProfileSettings: React.FC<MyProfileSettingsProps> = ({ user }) =>
         avatar_url: avatarUrl.trim() || undefined,
       });
 
-      // FIX: Handle explicit API or business logic rejections
       if (res && res.success) {
         setSuccessMsg("Your professional faculty profile has been securely saved!");
         setProfile(res.profile);
+        // Sync local variables if updated in response
         setFullName(res.profile.full_name);
         setAcademicTitle(res.profile.academic_title);
         setShortBio(res.profile.short_bio);
         setLinkedinUrl(res.profile.linkedin_url || '');
         setAvatarUrl(res.profile.avatar_url || '');
         
-        // Safe timeout execution
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => setSuccessMsg(''), 5000);
-      } else {
-        throw new Error(res?.message || "The core registrar failed to index modifications.");
+        setTimeout(() => setSuccessMsg(''), 5000);
       }
     } catch (err: any) {
       setErrorInput(err?.message || "An unresolved error occurred while saving modifications.");
@@ -132,7 +120,7 @@ export const MyProfileSettings: React.FC<MyProfileSettingsProps> = ({ user }) =>
         </p>
         <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl text-left text-[11px] leading-relaxed text-slate-600 space-y-1.5">
           <div className="font-bold text-slate-800">What to do next:</div>
-          <p>Please contact an Academic Board Admin member to create and assign your official instructor profile linked to your email address: <code className="bg-white px-1.5 py-0.5 rounded font-bold border border-gray-250 font-mono text-rose-600 text-[10px]">{user.email}</code></p>
+          <p>Please contact an Academic Board Admin member to create and assign your official instructor profile linked to your email address: <code className="bg-white px-1.5 py-0.5 rounded font-bold border border-gray-250 font-mono text-rose-600 font-xs">{user.email}</code></p>
         </div>
       </div>
     );
@@ -201,13 +189,13 @@ export const MyProfileSettings: React.FC<MyProfileSettingsProps> = ({ user }) =>
               required
               value={academicTitle}
               onChange={(e) => setAcademicTitle(e.target.value)}
-              placeholder="e.g. Lead DevSecOps Fellow"
+              placeholder="e.g. Lead DevSecOps Fellow & Sandbox Instructor"
               className="w-full px-3.5 py-2.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
         </div>
 
-        {/* Links & Avatar Row with Live Preview */}
+        {/* Links row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
             <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5 flex items-center gap-1">
@@ -227,30 +215,13 @@ export const MyProfileSettings: React.FC<MyProfileSettingsProps> = ({ user }) =>
             <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
               Avatar Image Public URL
             </label>
-            <div className="flex items-center gap-3">
-              {/* ENHANCEMENT: Live Avatar Preview Panel */}
-              <div className="w-10 h-10 rounded-lg border border-gray-200 bg-gray-50 shrink-0 overflow-hidden flex items-center justify-center shadow-3xs">
-                {avatarUrl.trim() && (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) ? (
-                  <img 
-                    src={avatarUrl} 
-                    alt="Preview" 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <ImageIcon className="w-4 h-4 text-gray-300" />
-                )}
-              </div>
-              <input
-                type="url"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="e.g. https://images.com/avatar.jpg"
-                className="flex-1 px-3.5 py-2.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
+            <input
+              type="url"
+              value={avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+              placeholder="e.g. https://avatars.githubusercontent.com/u/123456"
+              className="w-full px-3.5 py-2.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+            />
           </div>
         </div>
 

@@ -38,6 +38,7 @@ router.get("/enrollments", requireAuth, getEnrollments);
 router.post("/enroll", requireAuth, validateRequest(EnrollSchema), enroll);
 router.post("/complete", requireAuth, validateRequest(CompleteSchema), complete);
 router.get("/certificate/download", certificateDownload);
+router.get("/courses/:courseId/certificate", certificateDownload);
 router.get("/ratings/:courseId", getRatings);
 router.post("/ratings", requireAuth, validateRequest(RatingSchema), submitRating);
 
