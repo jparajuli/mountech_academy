@@ -6,7 +6,7 @@ import { getUsers, getEnrollments, updateRole, getAuditLogs } from "../controlle
 
 const router = Router();
 
-router.get("/users", requireAuth, requireRole(["admin", "developer"]), getUsers);
+router.get("/users", requireAuth, requireRole(["admin"]), getUsers);
 router.get("/enrollments", requireAuth, requireRole(["admin"]), getEnrollments);
 router.get("/audit-logs", requireAuth, requireRole(["admin"]), getAuditLogs);
 router.put("/users/role", requireAuth, requireRole(["admin"]), validateRequest(UpdateRoleSchema), updateRole);

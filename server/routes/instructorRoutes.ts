@@ -40,7 +40,7 @@ router.get("/instructors/email/:email", requireAuth, getInstructorByEmail);
 router.post(
   "/admin/instructors",
   requireAuth,
-  requireRole(["admin", "developer"]),
+  requireRole(["admin"]),
   validateRequest(CreateInstructorProfileSchema),
   createInstructorProfile
 );
@@ -58,7 +58,7 @@ router.put(
 router.get(
   "/instructor/dashboard",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   getInstructorDashboard
 );
 
@@ -66,7 +66,7 @@ router.get(
 router.get(
   "/instructor/courses/:courseId/students",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   getCourseStudents
 );
@@ -75,7 +75,7 @@ router.get(
 router.get(
   "/instructor/courses/:courseId/materials",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   getCourseMaterials
 );
@@ -84,7 +84,7 @@ router.get(
 router.post(
   "/instructor/courses/:courseId/materials",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   createCourseMaterial
 );
@@ -95,7 +95,7 @@ router.post(
 router.put(
   "/instructor/courses/:courseId/syllabus",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   validateRequest(UpdateSyllabusSchema),
   updateCourseSyllabus
@@ -105,7 +105,7 @@ router.put(
 router.get(
   "/instructor/courses/:courseId/exams",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   listCourseExams
 );
@@ -114,7 +114,7 @@ router.get(
 router.post(
   "/instructor/courses/:courseId/exams",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   validateRequest(CreateExamSchema),
   createCourseExam
@@ -124,7 +124,7 @@ router.post(
 router.put(
   "/instructor/exams/:examId",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   validateRequest(CreateExamSchema),
   updateCourseExam
@@ -134,7 +134,7 @@ router.put(
 router.delete(
   "/instructor/exams/:examId",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   deleteCourseExam
 );
@@ -143,7 +143,7 @@ router.delete(
 router.post(
   "/instructor/exams/:examId/questions",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   validateRequest(CreateQuestionSchema),
   createExamQuestion
@@ -153,7 +153,7 @@ router.post(
 router.put(
   "/instructor/exams/:examId/questions/:questionId",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   validateRequest(CreateQuestionSchema),
   updateExamQuestion
@@ -163,7 +163,7 @@ router.put(
 router.delete(
   "/instructor/exams/:examId/questions/:questionId",
   requireAuth,
-  requireRole(["instructor", "admin", "developer"]),
+  requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   deleteExamQuestion
 );

@@ -28,10 +28,10 @@ import {
 const router = Router();
 
 router.get("/courses", listCourses);
-router.get("/admin/courses", requireAuth, requireRole(["admin", "developer"]), listAdminCourses);
-router.post("/courses", requireAuth, requireRole(["admin", "developer"]), createCourse);
-router.put("/admin/courses/:id", requireAuth, requireRole(["admin", "developer"]), validateRequest(AdminCourseSchema), updateCourse);
-router.patch("/admin/courses/:id/lock", requireAuth, requireRole(["admin", "developer"]), toggleCourseLock);
+router.get("/admin/courses", requireAuth, requireRole(["admin"]), listAdminCourses);
+router.post("/courses", requireAuth, requireRole(["admin"]), createCourse);
+router.put("/admin/courses/:id", requireAuth, requireRole(["admin"]), validateRequest(AdminCourseSchema), updateCourse);
+router.patch("/admin/courses/:id/lock", requireAuth, requireRole(["admin"]), toggleCourseLock);
 router.get("/download/syllabus", getSyllabus);
 router.put("/courses/:courseId/syllabus", requireAuth, requireSyllabusEditAuth, validateRequest(UpdateSyllabusSchema), updateSharedSyllabus);
 router.get("/enrollments", requireAuth, getEnrollments);
@@ -43,7 +43,7 @@ router.get("/ratings/:courseId", getRatings);
 router.post("/ratings", requireAuth, validateRequest(RatingSchema), submitRating);
 
 // Live Sessions Phase 2 routes
-router.post("/admin/courses/:courseId/sessions", requireAuth, requireRole(["admin", "developer"]), validateRequest(LiveSessionSchema), createLiveSession);
+router.post("/admin/courses/:courseId/sessions", requireAuth, requireRole(["admin"]), validateRequest(LiveSessionSchema), createLiveSession);
 router.get("/courses/:courseId/sessions", listLiveSessions);
 router.get("/sessions/:sessionId/join", requireAuth, joinLiveSession);
 

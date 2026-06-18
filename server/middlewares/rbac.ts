@@ -11,7 +11,7 @@ export function requireCourseOwnership(
     return res.status(401).json({ error: "Unauthorized access." });
   }
 
-  const isAdmin = user.role === "admin" || user.role === "developer";
+  const isAdmin = user.role === "admin";
   if (isAdmin) {
     return next();
   }

@@ -51,7 +51,7 @@ export interface Course {
 export interface User {
   email: string;
   name: string;
-  role: 'admin' | 'instructor' | 'student' | 'developer';
+  role: 'admin' | 'instructor' | 'student';
 }
 
 export interface LiveSession {

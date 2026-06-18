@@ -265,7 +265,7 @@ export async function submitCourseRating(courseId: string, rating: number, revie
 export interface ManagedUser {
   email: string;
   name: string;
-  role: 'admin' | 'instructor' | 'student' | 'developer';
+  role: 'admin' | 'instructor' | 'student';
   isVerified: boolean;
 }
 

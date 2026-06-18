@@ -7,7 +7,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "mountech_academy_secret_token_key_
 export interface UserPayload {
   email: string;
   name: string;
-  role?: "admin" | "instructor" | "student" | "developer";
+  role?: "admin" | "instructor" | "student";
 }
 
 export function createToken(payload: UserPayload): string {
@@ -51,7 +51,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
       } else if (email === "instructor@mountech.academy") {
         role = "instructor";
       } else if (email === "developer@mountech.academy") {
-        role = "developer";
+        role = "admin";
       }
     }
 
@@ -89,8 +89,8 @@ export function requireSyllabusEditAuth(req: Request, res: Response, next: NextF
     return res.status(401).json({ error: "Authentication required." });
   }
 
-  // Admin and Developer roles have global access
-  if (user.role === "admin" || user.role === "developer") {
+  // Admin role has global access
+  if (user.role === "admin") {
     return next();
   }
 

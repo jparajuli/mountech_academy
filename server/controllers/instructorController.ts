@@ -105,7 +105,7 @@ export function updateInstructorProfile(req: Request, res: Response) {
     }
 
     // 2. Custom authorization logic checks
-    const isAdmin = user.role === "admin" || user.role === "developer";
+    const isAdmin = user.role === "admin";
     const isMatchingInstructor = user.role === "instructor" && user.email.trim().toLowerCase() === profile.user_email.toLowerCase();
 
     if (!isAdmin && !isMatchingInstructor) {
@@ -161,11 +161,11 @@ export function getInstructorDashboard(req: Request, res: Response) {
   }
 
   try {
-    const isAdmin = user.role === "admin" || user.role === "developer";
+    const isAdmin = user.role === "admin";
     let rows: any[] = [];
 
     if (isAdmin) {
-      // Admins/developers see all courses
+      // Admins see all courses
       rows = db.prepare(`
         SELECT c.*,
                json_group_array(

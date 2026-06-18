@@ -981,7 +981,7 @@ export function joinLiveSession(req: Request, res: Response) {
       return res.status(404).json({ error: "Scheduled live session not found." });
     }
 
-    if (user.role !== "admin" && user.role !== "developer") {
+    if (user.role !== "admin") {
       const isEnrolled = db.prepare(`
         SELECT 1 FROM enrollments WHERE email = ? AND courseId = ?
       `).get(normalizedEmail, session.course_id);
@@ -1034,7 +1034,7 @@ export function getCourseExamsForStudent(req: Request, res: Response) {
       SELECT 1 FROM enrollments WHERE email = ? AND courseId = ?
     `).get(email, courseId);
 
-    if (!enrollment && user.role !== "admin" && user.role !== "developer") {
+    if (!enrollment && user.role !== "admin") {
       return res.status(403).json({ error: "Access Denied: You must be enrolled in this course to view exams." });
     }
 
@@ -1090,7 +1090,7 @@ export function startStudentExam(req: Request, res: Response) {
       SELECT 1 FROM enrollments WHERE email = ? AND courseId = ?
     `).get(email, courseId);
 
-    if (!enrollment && user.role !== "admin" && user.role !== "developer") {
+    if (!enrollment && user.role !== "admin") {
       return res.status(403).json({ error: "Access Denied: You must be enrolled in this course to take this exam." });
     }
 
@@ -1105,13 +1105,13 @@ export function startStudentExam(req: Request, res: Response) {
       return res.status(404).json({ error: "Exam not found or does not belong to this course." });
     }
 
-    if (exam.is_published !== 1 && user.role !== "admin" && user.role !== "developer") {
+    if (exam.is_published !== 1 && user.role !== "admin") {
       return res.status(403).json({ error: "Access Denied: This exam is not currently published." });
     }
 
     // A. 3-Hour Cooldown restriction for course final exams/generic exams (where chapter_id is null, empty string or 'final')
     const isFinalExam = !exam.chapter_id || exam.chapter_id === 'final' || exam.chapter_id === '';
-    if (isFinalExam && user.role !== "admin" && user.role !== "developer") {
+    if (isFinalExam && user.role !== "admin") {
       const lastAttempt = db.prepare(`
         SELECT started_at, completed_at 
         FROM exam_attempts 
@@ -1160,7 +1160,7 @@ export function startStudentExam(req: Request, res: Response) {
             }
           }
 
-          if (missingChapters.length > 0 && user.role !== "admin" && user.role !== "developer") {
+          if (missingChapters.length > 0 && user.role !== "admin") {
             return res.status(403).json({
               error: `Prerequisite Locked: In order to take this chapter assessment, you must first review and mark all preceding modules as completed. Missing: ${missingChapters.join(', ')}`
             });
@@ -1243,7 +1243,7 @@ export function submitStudentExamResponse(req: Request, res: Response) {
       return res.status(404).json({ error: "Exam attempt not found." });
     }
 
-    if (attempt.user_id.toLowerCase() !== email && user.role !== "admin" && user.role !== "developer") {
+    if (attempt.user_id.toLowerCase() !== email && user.role !== "admin") {
       return res.status(403).json({ error: "Access Denied: You do not own this exam attempt." });
     }
 

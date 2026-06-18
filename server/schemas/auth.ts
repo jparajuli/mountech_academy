@@ -40,8 +40,8 @@ export const UpdateRoleSchema = z.object({
     .trim()
     .min(1, { message: "Email parameter is mandatory" })
     .email({ message: "Invalid email format" }),
-  role: z.enum(["student", "instructor", "admin", "developer"], {
-    message: "Invalid role parameter. Permitted values: student, instructor, admin, developer"
+  role: z.enum(["student", "instructor", "admin"], {
+    message: "Invalid role parameter. Permitted values: student, instructor, admin"
   }),
 });
 

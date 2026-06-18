@@ -7,15 +7,13 @@ const ENROLLMENTS_FILE = path.join(process.cwd(), "enrollments.json");
 const LOGINS_FILE = path.join(process.cwd(), "logins.json");
 const RATINGS_FILE = path.join(process.cwd(), "ratings.json");
 
-function getUserRole(userObj: any): "admin" | "instructor" | "student" | "developer" {
-  if (userObj.role) return userObj.role;
+function getUserRole(userObj: any): "admin" | "instructor" | "student" {
+  if (userObj.role && userObj.role !== "developer") return userObj.role;
   const email = (userObj.email || "").trim().toLowerCase();
-  if (email === "jhanak.parajuli@gmail.com" || email === "admin@mountech.academy") {
+  if (email === "jhanak.parajuli@gmail.com" || email === "admin@mountech.academy" || email === "developer@mountech.academy") {
     return "admin";
   } else if (email === "instructor@mountech.academy") {
     return "instructor";
-  } else if (email === "developer@mountech.academy") {
-    return "developer";
   }
   return "student";
 }

@@ -1,9 +1,11 @@
 import React from 'react';
 import { User } from '../types';
 
+export type Role = 'admin' | 'instructor' | 'student';
+
 interface AccessControlProps {
   user: User | null;
-  allowedRoles: ('admin' | 'instructor' | 'student' | 'developer')[];
+  allowedRoles: Role[];
   fallback?: React.ReactNode;
   children: React.ReactNode;
 }
@@ -12,7 +14,8 @@ interface AccessControlProps {
 export function useRBAC(user: User | null) {
   const role = user?.role || 'student';
   
-  const hasRole = (allowed: ('admin' | 'instructor' | 'student' | 'developer') | ('admin' | 'instructor' | 'student' | 'developer')[]) => {
+  const hasRole = (allowed: Role | Role[]) => {
+    if (role === 'admin') return true;
     if (Array.isArray(allowed)) {
       return allowed.includes(role);
     }
@@ -24,7 +27,6 @@ export function useRBAC(user: User | null) {
     hasRole,
     isAdmin: role === 'admin',
     isInstructor: role === 'instructor',
-    isDeveloper: role === 'developer',
     isStudent: role === 'student',
   };
 }
@@ -43,7 +45,7 @@ export function AccessControl({ user, allowedRoles, fallback = null, children }:
 // 3. Higher-Order Component (HOC) for protecting full views
 export function withAccessControl<P extends { user: User | null }>(
   WrappedComponent: React.ComponentType<P>,
-  allowedRoles: ('admin' | 'instructor' | 'student' | 'developer')[]
+  allowedRoles: Role[]
 ) {
   return function ProtectedComponent(props: P) {
     const { hasRole } = useRBAC(props.user);
