@@ -452,7 +452,7 @@ export function listAdminCourses(req: Request, res: Response) {
 // PUT /api/courses/:courseId/syllabus - Shared Syllabus editing controller
 export function updateSharedSyllabus(req: Request, res: Response) {
   const { courseId } = req.params;
-  const { syllabus_content, clientLastUpdatedAt } = req.body;
+  const { syllabus_content, syllabus, clientLastUpdatedAt } = req.body;
   const user = (req as any).user;
 
   if (!user) {
@@ -486,13 +486,24 @@ export function updateSharedSyllabus(req: Request, res: Response) {
 
     const lastUpdatedInstant = new Date().toISOString();
 
-    db.prepare(`
-      UPDATE courses 
-      SET syllabus_content = ?, 
-          syllabus_last_updated_at = ?, 
-          syllabus_last_updated_by = ? 
-      WHERE id = ?
-    `).run(syllabus_content || "", lastUpdatedInstant, userId, courseId);
+    if (syllabus && Array.isArray(syllabus)) {
+      db.prepare(`
+        UPDATE courses 
+        SET syllabus_content = ?, 
+            syllabus = ?,
+            syllabus_last_updated_at = ?, 
+            syllabus_last_updated_by = ? 
+        WHERE id = ?
+      `).run(syllabus_content || "", JSON.stringify(syllabus), lastUpdatedInstant, userId, courseId);
+    } else {
+      db.prepare(`
+        UPDATE courses 
+        SET syllabus_content = ?, 
+            syllabus_last_updated_at = ?, 
+            syllabus_last_updated_by = ? 
+        WHERE id = ?
+      `).run(syllabus_content || "", lastUpdatedInstant, userId, courseId);
+    }
 
     // Retrieve the user name of the updater to render in the client directly
     const updaterName = user.name || "Unknown Author";
@@ -1147,7 +1158,7 @@ export function startStudentExam(req: Request, res: Response) {
             item => item.chapter && item.chapter.trim().toLowerCase() === exam.chapter_id.trim().toLowerCase()
           );
           if (matchIndex !== -1) {
-            targetIndex = matchIndex;
+            targetIndex = matchIndex + 1;
           }
         }
 

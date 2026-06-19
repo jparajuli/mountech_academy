@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Course, User, LiveSession, InstructorProfile } from '../types';
 import { 
   ArrowLeft, Clock, BookOpen, Star, CheckCircle, HelpCircle, 
-  Award, Play, ChevronRight, Terminal, Sparkles, AlertCircle, 
+  Award, Play, ChevronRight, Terminal, Sparkles, AlertCircle, AlertTriangle, 
   Video, Code, FileText, Check, Globe, Shield, ShieldCheck, CreditCard, 
   Send, Users, MessageSquare, ChevronLeft, Tv2, Smartphone,
   Lock, Unlock, Trophy, RefreshCw
@@ -1411,7 +1411,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                     
                     <div className="mt-5">
                       <button
-                        onClick={() => onEnroll(course.id)}
+                        onClick={handleEnrollClick}
                         className="px-5 py-2.5 bg-[#111827] hover:bg-[#1f2937] text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                       >
                         <CheckCircle className="w-4 h-4 text-emerald-400" />
@@ -1443,20 +1443,30 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                 <div className={!hasEnrolledAccess ? "opacity-35 select-none pointer-events-none filter blur-[3px] space-y-4" : "space-y-4"}>
                   {course.syllabus.map((slice, index) => {
                     const isLesCompleted = completedLessons.includes(index);
+                    const isLesLocked = index > 0 && !completedLessons.includes(index - 1);
                     return (
                       <div
                         key={index}
                         id={`syllabus-item-${index}`}
-                        className="bg-white rounded-xl border border-gray-200 p-5 hover:border-[#0070f3] hover:shadow-xs transition-all duration-200"
+                        className={`bg-white rounded-xl border p-5 transition-all duration-200 ${
+                          isLesLocked
+                            ? 'border-gray-150 bg-gray-50/20 opacity-65'
+                            : 'border-gray-200 hover:border-[#0070f3] hover:shadow-xs'
+                        }`}
                       >
                         <div className="flex flex-col sm:flex-row gap-4 items-start justify-between">
                           <div className="space-y-1.5 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-[9px] tracking-wider text-gray-450 font-bold uppercase block">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-[9px] tracking-wider text-gray-455 font-bold uppercase block">
                                 {slice.chapter}
                               </span>
                               {isLesCompleted && (
                                 <span className="text-[9px] font-mono font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded uppercase">COMPLETED</span>
+                              )}
+                              {isLesLocked && (
+                                <span className="text-[9px] font-mono font-bold bg-amber-50 text-amber-700 px-1.5 py-0.2 rounded uppercase inline-flex items-center gap-1">
+                                  <Lock className="w-2.5 h-2.5" /> CHAPTER LOCKED
+                                </span>
                               )}
                             </div>
                             <h4 className="text-sm md:text-base font-bold text-[#111827]">
@@ -1470,33 +1480,53 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                           {/* Interactive Buttons for Enrolled Scholars */}
                           {hasEnrolledAccess && (
                             <div className="flex sm:flex-col items-stretch gap-2 shrink-0 w-full sm:w-auto">
-                              <button
-                                id={`chapter-interactive-trigger-${index}`}
-                                onClick={() => {
-                                  setClassroomMode(true);
-                                  setClassroomTab('sandbox');
-                                  setActiveLessonIndex(index);
-                                  markLessonCompleted(index);
-                                  setTerminalOutput([`Successfully loaded classroom context for lesson: "${slice.title}"`]);
-                                }}
-                                className="text-xs px-3 py-1.5 bg-[#111827] text-white hover:bg-[#0070f3] transition-all rounded-lg font-semibold flex items-center justify-center gap-1 cursor-pointer shadow-3xs"
-                              >
-                                <Play className="w-3 h-3 fill-current animate-pulse" />
-                                <span>Launch Sandbox</span>
-                              </button>
+                              {isLesLocked ? (
+                                <>
+                                  <button
+                                    disabled
+                                    className="text-xs px-3 py-1.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg font-semibold flex items-center justify-center gap-1 cursor-not-allowed font-sans select-none"
+                                  >
+                                    <Lock className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Locked</span>
+                                  </button>
+                                  <button
+                                    disabled
+                                    className="text-xs px-3 py-1.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg font-semibold flex items-center justify-center gap-1 cursor-not-allowed font-sans select-none"
+                                  >
+                                    <span>Locked</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    id={`chapter-interactive-trigger-${index}`}
+                                    onClick={() => {
+                                      setClassroomMode(true);
+                                      setClassroomTab('sandbox');
+                                      setActiveLessonIndex(index);
+                                      markLessonCompleted(index);
+                                      setTerminalOutput([`Successfully loaded classroom context for lesson: "${slice.title}"`]);
+                                    }}
+                                    className="text-xs px-3 py-1.5 bg-[#111827] text-white hover:bg-[#0070f3] transition-all rounded-lg font-semibold flex items-center justify-center gap-1 cursor-pointer shadow-3xs"
+                                  >
+                                    <Play className="w-3 h-3 fill-current animate-pulse" />
+                                    <span>Launch Sandbox</span>
+                                  </button>
 
-                              <button
-                                type="button"
-                                onClick={() => handleToggleLesson(index)}
-                                className={`text-xs px-3 py-1.5 rounded-lg font-mono font-bold flex items-center justify-center gap-1.5 cursor-pointer border transition-all ${
-                                  isLesCompleted
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                                    : 'bg-gray-50 text-gray-650 border-gray-200 hover:bg-gray-100 font-normal text-gray-500'
-                                }`}
-                              >
-                                <Check className={`w-3.5 h-3.5 ${isLesCompleted ? 'opacity-100 text-emerald-600 font-black' : 'opacity-30'}`} />
-                                <span>{isLesCompleted ? 'Completed' : 'Review Unit'}</span>
-                              </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleLesson(index)}
+                                    className={`text-xs px-3 py-1.5 rounded-lg font-mono font-bold flex items-center justify-center gap-1.5 cursor-pointer border transition-all ${
+                                      isLesCompleted
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                        : 'bg-gray-50 text-gray-650 border-gray-200 hover:bg-gray-100 font-normal text-gray-500'
+                                    }`}
+                                  >
+                                    <Check className={`w-3.5 h-3.5 ${isLesCompleted ? 'opacity-100 text-emerald-600 font-black' : 'opacity-30'}`} />
+                                    <span>{isLesCompleted ? 'Completed' : 'Review Unit'}</span>
+                                  </button>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1560,19 +1590,73 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                           {dbStudentExams.map((exam) => {
                             const hasPassedThis = exam.passed || (exam.bestAttempt && exam.bestAttempt.passed === 1);
                             
+                            // Client-side exam unlock check mirroring backend rules
+                            const isExamFinal = !exam.chapter_id || exam.chapter_id === 'final' || exam.chapter_id === '';
+                            let isExamLocked = false;
+                            let examRequiredChapters: string[] = [];
+
+                            if (course.syllabus) {
+                              let targetIndex = course.syllabus.length;
+                              if (!isExamFinal) {
+                                const matchIndex = course.syllabus.findIndex(
+                                  (item: any) => item.chapter && item.chapter.trim().toLowerCase() === exam.chapter_id.trim().toLowerCase()
+                                );
+                                if (matchIndex !== -1) {
+                                  targetIndex = matchIndex + 1; // Require current chapter completed
+                                } else {
+                                  targetIndex = 0; // Unknown chapter is unlocked
+                                }
+                              }
+
+                              // Find missing chapters
+                              for (let i = 0; i < targetIndex; i++) {
+                                if (!completedLessons.includes(i)) {
+                                  isExamLocked = true;
+                                  examRequiredChapters.push(course.syllabus[i].chapter || `Lesson ${i + 1}`);
+                                }
+                              }
+                            }
+
                             return (
-                              <div key={exam.id} className="bg-white border border-gray-150 rounded-xl p-5 hover:border-indigo-200 transition-all space-y-4">
+                              <div key={exam.id} className={`bg-white border rounded-xl p-5 transition-all space-y-4 ${
+                                isExamLocked ? 'border-gray-250 bg-gray-50/40 opacity-85' : 'border-gray-150 hover:border-indigo-200'
+                              }`}>
                                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                                   <div>
-                                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                                    <h4 className="font-bold text-gray-900 text-sm flex flex-wrap items-center gap-2">
                                       <span>{exam.title}</span>
                                       {hasPassedThis && (
                                         <span className="bg-emerald-50 text-emerald-700 border border-emerald-250 text-[9px] font-bold font-mono px-2 py-0.5 rounded-full uppercase">
                                           Passed & Approved
                                         </span>
                                       )}
+                                      {isExamLocked && (
+                                        <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 text-[9px] font-bold font-mono px-2 py-0.5 rounded-full uppercase">
+                                          <Lock className="w-2.5 h-2.5 shrink-0" />
+                                          Locked Check
+                                        </span>
+                                      )}
+                                      {!isExamLocked && !hasPassedThis && (
+                                        <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200 text-[9px] font-bold font-mono px-2 py-0.5 rounded-full uppercase">
+                                          <Unlock className="w-2.5 h-2.5 shrink-0" />
+                                          Ready
+                                        </span>
+                                      )}
                                     </h4>
                                     <p className="text-xs text-gray-550 mt-1">{exam.description || <span className="italic text-gray-400">No descriptive requirements set.</span>}</p>
+
+                                    {isExamLocked && (
+                                      <div className="mt-2.5 p-2.5 bg-red-50/60 border border-red-100 rounded-lg text-[11px] text-red-800 flex items-center gap-1.5 font-sans">
+                                        <AlertTriangle className="w-3.5 h-3.5 text-red-650 shrink-0" />
+                                        <span>
+                                          <strong>Prerequisite Required:</strong> Complete {
+                                            isExamFinal 
+                                              ? 'all syllabus lessons to unlock the Final Exam.' 
+                                              : `lessons: ${examRequiredChapters.join(', ')}`
+                                          }
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
 
                                   <div className="text-right shrink-0">
@@ -1585,14 +1669,25 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                                 <div className="border-t border-gray-100 pt-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-gray-500">
                                   <span>Pool draw: {exam.questions_to_display || 5} random questions</span>
                                   
-                                  <button
-                                    type="button"
-                                    onClick={() => setActiveDbExam(exam)}
-                                    className="inline-flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer select-none font-sans"
-                                  >
-                                    <span>Launch Assessment</span>
-                                    <ChevronRight className="w-3 h-3" />
-                                  </button>
+                                  {isExamLocked ? (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 border border-gray-200 text-gray-400 font-semibold text-xs rounded-lg cursor-not-allowed font-sans select-none"
+                                    >
+                                      <Lock className="w-3.5 h-3.5" />
+                                      <span>Locked</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveDbExam(exam)}
+                                      className="inline-flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer select-none font-sans"
+                                    >
+                                      <span>Launch Assessment</span>
+                                      <ChevronRight className="w-3 h-3" />
+                                    </button>
+                                  )}
                                 </div>
 
                                 {/* Previous attempts listing */}

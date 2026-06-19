@@ -352,7 +352,8 @@ export async function adminListAuditLogs(limit = 100, offset = 0): Promise<{ log
 export async function updateCourseSyllabus(
   courseId: string, 
   syllabus_content: string, 
-  clientLastUpdatedAt?: string
+  clientLastUpdatedAt?: string,
+  syllabus?: any[]
 ): Promise<{ 
   success: boolean; 
   message: string; 
@@ -363,7 +364,7 @@ export async function updateCourseSyllabus(
 }> {
   return apiFetch(`/api/courses/${courseId}/syllabus`, {
     method: 'PUT',
-    body: JSON.stringify({ syllabus_content, clientLastUpdatedAt }),
+    body: JSON.stringify({ syllabus_content, clientLastUpdatedAt, syllabus }),
   });
 }
 

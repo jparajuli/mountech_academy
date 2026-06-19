@@ -344,12 +344,18 @@ export function createCourseMaterial(req: Request, res: Response) {
 // PUT /api/instructor/courses/:courseId/syllabus - Update Syllabus Markdown
 export function updateCourseSyllabus(req: Request, res: Response) {
   const { courseId } = req.params;
-  const { syllabus_content } = req.body;
+  const { syllabus_content, syllabus } = req.body;
 
   try {
-    db.prepare(`
-      UPDATE courses SET syllabus_content = ? WHERE id = ?
-    `).run(syllabus_content || "", courseId);
+    if (syllabus && Array.isArray(syllabus)) {
+      db.prepare(`
+        UPDATE courses SET syllabus_content = ?, syllabus = ? WHERE id = ?
+      `).run(syllabus_content || "", JSON.stringify(syllabus), courseId);
+    } else {
+      db.prepare(`
+        UPDATE courses SET syllabus_content = ? WHERE id = ?
+      `).run(syllabus_content || "", courseId);
+    }
 
     return res.json({
       success: true,
