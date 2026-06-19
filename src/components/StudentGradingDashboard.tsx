@@ -421,13 +421,21 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
                                 <div className="flex flex-wrap items-center gap-2">
                                   <h4 className="font-extrabold text-slate-950 text-sm leading-snug">{exam.title}</h4>
                                   
-                                  {exam.chapter_id ? (
-                                    <span className="text-[9px] font-bold font-mono text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded">
-                                      {exam.chapter_id}
+                                  {exam.exam_type === 'lesson' ? (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold font-mono text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded uppercase">
+                                      <BookOpen className="w-2.5 h-2.5" />
+                                      {exam.lesson_reference || "Lesson Quiz"}
                                     </span>
                                   ) : (
-                                    <span className="text-[9px] font-bold font-mono text-slate-600 bg-slate-50 border border-gray-200 px-2 py-0.5 rounded">
-                                      Universal Course Final
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold font-mono text-emerald-700 bg-emerald-50 border border-emerald-150 px-2 py-0.5 rounded uppercase">
+                                      <Award className="w-2.5 h-2.5" />
+                                      Final Exam
+                                    </span>
+                                  )}
+
+                                  {exam.chapter_id && (
+                                    <span className="text-[9px] font-bold font-mono text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded">
+                                      {exam.chapter_id}
                                     </span>
                                   )}
 
