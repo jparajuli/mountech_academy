@@ -2,6 +2,69 @@ import { Course } from './types';
 
 export const courses: Course[] = [
   {
+    id: 'build-train-llm-jax',
+    title: 'Build and Train an LLM with JAX',
+    type: 'Short Course',
+    difficulty: 'Advanced',
+    topic: 'JAX LLM',
+    description: 'Build and train a 20M-parameter LLM from scratch using JAX and Flax, leveraging the exact high-performance computing principles behind Gemini.',
+    fullDescription: 'In Build and Train an LLM with JAX, created in partnership with Google, you will learn the core high-performance numerical computing foundations of JAX. You will build and compile a 20-million parameter Decoder-only transformer model from scratch using Flax Linen, implement a stateful optimization training loop with Optax, and scale your training across multi-node GPU/TPU accelerators using JAX\'s distributed parallel model systems.',
+    instructorName: 'Chris Achard',
+    instructorTitle: 'Core Systems & Machine Learning Educator',
+    duration: '1.5 hours',
+    lessonCount: '6 lessons',
+    rating: 4.9,
+    enrolledCount: '95,000+ students',
+    partnerName: 'Google',
+    skillsAcquired: [
+      'JAX Functional Programming',
+      'Just-In-Time (JIT) Compilation',
+      'Flax Linen Architectures',
+      'Optax Stateful Optimizers',
+      'Hardware TPU/GPU Sharding'
+    ],
+    requirements: [
+      'Strong familiarity with deep learning foundations (Neural Networks, Transformers)',
+      'Proficient programming capabilities in Python and NumPy matrix operations'
+    ],
+    thumbnailBg: 'bg-indigo-950 text-indigo-400',
+    thumbnailIconCode: 'jax',
+    isPaid: true,
+    price: 39,
+    syllabus: [
+      {
+        chapter: 'Lesson 1',
+        title: 'High-Performance Computing with JAX',
+        description: 'Discover the design principles of JAX. Learn about functional purity, Accelerated Linear Algebra (XLA), and standard transformations like jit, grad, and vmap.'
+      },
+      {
+        chapter: 'Lesson 2',
+        title: 'XLA Compilation & Pure Transformations',
+        description: 'Master Just-In-Time (JIT) compilation optimization boundaries, static vs. dynamic tracer tracking, and vectorize custom operations with high execution speed.'
+      },
+      {
+        chapter: 'Lesson 3',
+        title: 'Defining the 20M Transformer with Flax Linen',
+        description: 'Construct custom modular neural blocks using Flax Linen. Build multi-head self-attention layers, rotary embeddings, feed-forward sub-networks, and the full Decoder layout.'
+      },
+      {
+        chapter: 'Lesson 4',
+        title: 'High-Throughput Tokenization & Data Pipelines',
+        description: 'Build streaming byte-pair tokenizers, structure highly concurrent CPU processing queues, and feed memory-aligned shards to the high-performance accelerator.'
+      },
+      {
+        chapter: 'Lesson 5',
+        title: 'Stateful Optimization and Training Loop',
+        description: 'Maintain state securely across JAX\'s stateless environment using Flax\'s TrainState container. Optimize weights with Optax schedules and execute value_and_grad passes.'
+      },
+      {
+        chapter: 'Lesson 6',
+        title: 'Distributed Scaling & Shard Parallelism',
+        description: 'Navigate multi-device training grids (GPUs and TPUs). Map model parameters across clusters using pmap, and formulate multi-dimensional array sharding meshes.'
+      }
+    ]
+  },
+  {
     id: 'chatgpt-prompt-engineering',
     title: 'ChatGPT Prompt Engineering for Developers',
     type: 'Short Course',

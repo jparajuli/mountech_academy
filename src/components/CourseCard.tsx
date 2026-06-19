@@ -123,6 +123,32 @@ export default function CourseCard({ course, onClick }: CourseCardProps) {
             <path d="M 148 90 Q 195 80 240 90" stroke="#0070f3" strokeWidth="1.5" strokeDasharray="2,2" fill="none" />
           </svg>
         );
+      case 'jax':
+        return (
+          <svg viewBox="0 0 400 200" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg" id={`svg-jax-${course.id}`}>
+            <rect width="400" height="200" fill="currentColor" opacity="0.04" />
+            {/* Matrices with compile flows */}
+            <rect x="60" y="60" width="55" height="80" rx="4" fill="#0f172a" stroke="#0070f3" strokeWidth="1.5" />
+            <text x="73" y="105" fontSize="11" className="font-mono font-bold" fill="#0070f3">JAX</text>
+            
+            {/* JIT compile fast acceleration arrow with dynamic dots */}
+            <path d="M 135 100 L 250 100" stroke="#38bdf8" strokeWidth="2" strokeDasharray="5,5" />
+            <polygon points="250,96 258,100 250,104" fill="#38bdf8" />
+            <text x="165" y="85" fontSize="8" className="font-mono font-bold uppercase tracking-wider" fill="#38bdf8">@jit (XLA)</text>
+            
+            {/* Scaling Multi-GPU Node grid */}
+            <g transform="translate(280, 60)">
+              <rect x="0" y="0" width="30" height="30" rx="3" fill="#0f172a" stroke="#818cf8" strokeWidth="1.5" />
+              <rect x="40" y="0" width="30" height="30" rx="3" fill="#0f172a" stroke="#818cf8" strokeWidth="1.5" />
+              <rect x="0" y="40" width="30" height="30" rx="3" fill="#0f172a" stroke="#818cf8" strokeWidth="1.5" />
+              <rect x="40" y="40" width="30" height="30" rx="3" fill="#0f172a" stroke="#818cf8" strokeWidth="1.5" />
+              <text x="8" y="18" fontSize="8" className="font-mono" fill="#818cf8">GPU</text>
+              <text x="48" y="18" fontSize="8" className="font-mono" fill="#818cf8">GPU</text>
+              <text x="8" y="58" fontSize="8" className="font-mono" fill="#818cf8">GPU</text>
+              <text x="48" y="58" fontSize="8" className="font-mono" fill="#818cf8">GPU</text>
+            </g>
+          </svg>
+        );
       default: // genai
         return (
           <svg viewBox="0 0 400 200" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg" id={`svg-genai-${course.id}`}>

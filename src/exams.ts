@@ -440,5 +440,67 @@ export const EXAM_DATABASE: Record<string, ExamQuestion[]> = {
       correctIndex: 1,
       explanation: "Self-attention determines the relational importance between all words in an input block. This allows the model to connect related concepts across long sentences."
     }
+  ],
+  'build-train-llm-jax': [
+    {
+      id: 1,
+      question: "In JAX, what holds true for Just-In-Time compilation compiled using @jit?",
+      options: [
+        "It allows standard in-place array mutation (like x[0] = 5) natively inside the block",
+        "It requires compilation on every single function call, which increases GPU cluster latency",
+        "It compiles pure functional paths using XLA, tracing functions on the first invocation with abstract tracer representations",
+        "It disables all automatic differentiation tools inside subsequent JAX steps"
+      ],
+      correctIndex: 2,
+      explanation: "On the first invocation of a JIT compiled function, JAX passes Abstract Tracer representations to compile the hardware execution graph securely via the XLA compiler."
+    },
+    {
+      id: 2,
+      question: "In JAX programming, if you require to take the derivative of an output with respect to inputs, which transformation standard is designed for this?",
+      options: [
+        "jax.vmap (Vectorized Map)",
+        "jax.jit code transformation",
+        "jax.grad (Automatic Gradient)",
+        "jax.pmap device scaling"
+      ],
+      correctIndex: 2,
+      explanation: "jax.grad applies automatic reverse-mode differentiation to compute gradients of scalar-valued mathematical operations."
+    },
+    {
+      id: 3,
+      question: "How does Optax integrate with Flax-based neural structures during training?",
+      options: [
+        "It compiles visual HTML canvas graphics to explore active token parameters",
+        "It is an independent library that manages stateless parameter optimization updates and learning rate schedulers in JAX",
+        "It saves model parameters to cloud database servers in real-time on every pass",
+        "It enforces causal attention inside Linen layers"
+      ],
+      correctIndex: 1,
+      explanation: "Optax provides optimization algorithms (like Adam, SGD, Warmups) as pure, stateless transformations that accept gradients and output updates."
+    },
+    {
+      id: 4,
+      question: "What is a 'Tracer' in JAX, and when are Tracers generated?",
+      options: [
+        "A logger tool that saves model files on local host servers",
+        "An abstract placeholder object passed through JAX code during compilation to map execution steps into an XLA Jaxpr graph",
+        "An API variable that converts Python floats to database strings",
+        "A custom debugger extension designed for Microsoft AutoGen"
+      ],
+      correctIndex: 1,
+      explanation: "When a jit-compiled function is called, JAX runs it once with Tracer variables to capture the mathematical operations into a static representation."
+    },
+    {
+      id: 5,
+      question: "What mechanism should you use to vectorize a function in JAX along a new dimension without writing a manual Python loop?",
+      options: [
+        "jax.grad gradient extraction",
+        "jax.vmap (Vectorized Map)",
+        "jax.jit code compilation",
+        "jax.random.split keys layout"
+      ],
+      correctIndex: 1,
+      explanation: "jax.vmap automatically vectorizes a function over batch dimensions, compiling faster native execution blocks on modern accelerators."
+    }
   ]
 };

@@ -7,7 +7,6 @@ import ResourcePortal from '../components/ResourcePortal';
 import ManageInstructors from '../components/ManageInstructors';
 import MyProfileSettings from '../components/MyProfileSettings';
 import { StudentGradingDashboard } from '../components/StudentGradingDashboard';
-import { AdminAuditLogs } from '../components/AdminAuditLogs';
 import { SyllabusEditor } from '../components/Shared/SyllabusEditor';
 import { 
   LogOut, GraduationCap, ArrowUpRight, HelpCircle, 
@@ -32,7 +31,7 @@ interface CoursesProps {
 
 export default function Courses({ user, onSignOut, onSelectCourse, enrolledCourseIds }: CoursesProps) {
   const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin' | 'instructor-profile' | 'grades'>('catalog');
-  const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors' | 'audit'>('users');
+  const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState('All');
@@ -789,28 +788,15 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
                 className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
                   adminSubTab === 'instructors'
                     ? 'border-indigo-600 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    : 'border-transparent text-gray-555 hover:text-gray-700'
                 }`}
               >
                 Manage Instructor Profiles
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdminSubTab('audit')}
-                className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-                  adminSubTab === 'audit'
-                    ? 'border-emerald-600 text-emerald-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                Authentication Audit Logs
               </button>
             </div>
 
             {adminSubTab === 'instructors' ? (
               <ManageInstructors />
-            ) : adminSubTab === 'audit' ? (
-              <AdminAuditLogs />
             ) : (
               <>
                 {/* Alert Logs messages */}
