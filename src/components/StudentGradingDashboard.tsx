@@ -37,6 +37,8 @@ interface HydratedExam {
   attempts: ExamAttempt[];
   passed: boolean;
   bestAttempt: ExamAttempt | null;
+  exam_type?: 'lesson' | 'final';
+  lesson_reference?: string | null;
 }
 
 interface CourseProgress {
@@ -109,15 +111,19 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
             });
             const averageScore = examsTakenCount > 0 ? Math.round(scoreSum / examsTakenCount) : 0;
 
+            const finalExams = exams.filter(e => !e.exam_type || e.exam_type === 'final');
+            const hasFinalExam = finalExams.length > 0;
+            const passedAllFinalExams = hasFinalExam && finalExams.every(e => e.passed);
+
             // Course level status
             let status: 'Completed' | 'In Progress' | 'No Assigned Exams' = 'In Progress';
             if (totalCount === 0) {
               status = 'No Assigned Exams';
-            } else if (passedCount === totalCount) {
+            } else if (passedAllFinalExams) {
               status = 'Completed';
             }
 
-            const certificateEarned = totalCount > 0 && passedCount === totalCount;
+            const certificateEarned = passedAllFinalExams;
 
             results.push({
               courseId,

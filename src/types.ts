@@ -94,6 +94,8 @@ export interface Exam {
   questions_to_display?: number;
   passing_score_percentage?: number;
   duration_minutes?: number;
+  exam_type?: 'lesson' | 'final';
+  lesson_reference?: string | null;
 }
 
 

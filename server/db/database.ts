@@ -231,6 +231,14 @@ try {
 } catch (_) {}
 
 try {
+  db.exec("ALTER TABLE exams ADD COLUMN exam_type TEXT NOT NULL DEFAULT 'final';");
+} catch (_) {}
+
+try {
+  db.exec("ALTER TABLE exams ADD COLUMN lesson_reference TEXT;");
+} catch (_) {}
+
+try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS exam_attempts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

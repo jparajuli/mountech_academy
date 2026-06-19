@@ -210,6 +210,24 @@ export async function certificateDownload(req: Request, res: Response) {
     return res.status(400).send("<h1>Bad Request</h1><p>Missing required courseId query parameter.</p>");
   }
 
+  // Certificate Security: Verify the student has successfully passed an exam of type 'final' for this course
+  try {
+    const passedFinal = db.prepare(`
+      SELECT 1 
+      FROM exam_attempts ea
+      JOIN exams e ON ea.exam_id = e.id
+      WHERE e.course_id = ? AND e.exam_type = 'final' AND ea.passed = 1 AND LOWER(ea.user_id) = ?
+      LIMIT 1
+    `).get(courseId, payload.email.trim().toLowerCase());
+
+    if (!passedFinal) {
+      return res.status(403).send("<h1>403 Forbidden</h1><p>Final Exam not passed.</p>");
+    }
+  } catch (err: any) {
+    console.error("Certificate gate verification error:", err.message);
+    return res.status(403).send("<h1>403 Forbidden</h1><p>Final Exam not passed.</p>");
+  }
+
   const courseTitle = getCourseTitle(courseId);
   const dateStr = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -1050,7 +1068,7 @@ export function getCourseExamsForStudent(req: Request, res: Response) {
     }
 
     const exams = db.prepare(`
-      SELECT id, course_id, title, description, questions_to_display, passing_score_percentage, duration_minutes 
+      SELECT id, course_id, title, description, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference 
       FROM exams 
       WHERE course_id = ? AND is_published = 1
     `).all(courseId) as any[];

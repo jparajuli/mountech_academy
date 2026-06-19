@@ -374,7 +374,17 @@ export async function fetchCourseExams(courseId: string): Promise<{ success: boo
 }
 
 // Create Course Exam
-export async function createCourseExam(courseId: string, examData: { title: string; description: string; is_published: boolean; questions_to_display?: number; passing_score_percentage?: number; duration_minutes?: number; chapter_id?: string | null }): Promise<{ success: boolean; message: string; examId: number }> {
+export async function createCourseExam(courseId: string, examData: { 
+  title: string; 
+  description: string; 
+  is_published: boolean; 
+  questions_to_display?: number; 
+  passing_score_percentage?: number; 
+  duration_minutes?: number; 
+  chapter_id?: string | null;
+  exam_type?: "lesson" | "final";
+  lesson_reference?: string | null;
+}): Promise<{ success: boolean; message: string; examId: number }> {
   return apiFetch(`/api/instructor/courses/${courseId}/exams`, {
     method: 'POST',
     body: JSON.stringify(examData),
@@ -412,7 +422,17 @@ export async function deleteExamQuestion(examId: number, questionId: number): Pr
 }
 
 // Update Course Exam Configuration
-export async function updateCourseExamDetails(examId: number, examData: { title: string; description: string; is_published: boolean; questions_to_display?: number; passing_score_percentage?: number; duration_minutes?: number; chapter_id?: string | null }): Promise<{ success: boolean; message: string }> {
+export async function updateCourseExamDetails(examId: number, examData: { 
+  title: string; 
+  description: string; 
+  is_published: boolean; 
+  questions_to_display?: number; 
+  passing_score_percentage?: number; 
+  duration_minutes?: number; 
+  chapter_id?: string | null;
+  exam_type?: "lesson" | "final";
+  lesson_reference?: string | null;
+}): Promise<{ success: boolean; message: string }> {
   return apiFetch(`/api/instructor/exams/${examId}`, {
     method: 'PUT',
     body: JSON.stringify(examData),

@@ -27,7 +27,9 @@ import {
   Layers,
   ChevronRight,
   Sparkle,
-  Loader2
+  Loader2,
+  Award,
+  BookOpen
 } from 'lucide-react';
 
 interface InstructorExamBuilderProps {
@@ -51,6 +53,8 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
   const [examPassingScorePercentage, setExamPassingScorePercentage] = useState<number>(70);
   const [examDurationMinutes, setExamDurationMinutes] = useState<number>(30);
   const [examChapterId, setExamChapterId] = useState<string>('');
+  const [examType, setExamType] = useState<'lesson' | 'final'>('final');
+  const [lessonReference, setLessonReference] = useState<string>('');
   const [submittingExam, setSubmittingExam] = useState<boolean>(false);
 
   // Selected Exam for builder interaction
@@ -114,6 +118,8 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
         passing_score_percentage: Number(examPassingScorePercentage) || 70,
         duration_minutes: Number(examDurationMinutes) || 30,
         chapter_id: examChapterId ? examChapterId : null,
+        exam_type: examType,
+        lesson_reference: examType === 'lesson' ? lessonReference : null,
       });
 
       if (res.success) {
@@ -124,6 +130,8 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
         setExamPassingScorePercentage(70);
         setExamDurationMinutes(30);
         setExamChapterId('');
+        setExamType('final');
+        setLessonReference('');
         setShowCreateExam(false);
         await loadExams();
       } else {
@@ -389,6 +397,54 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold font-mono text-gray-500 uppercase tracking-wider mb-1">Exam Type</label>
+                    <select
+                      value={examType}
+                      onChange={(e) => {
+                        const val = e.target.value as 'lesson' | 'final';
+                        setExamType(val);
+                        if (val === 'lesson' && courseSyllabus.length > 0 && !lessonReference) {
+                          setLessonReference(courseSyllabus[0].chapter || 'Lesson 1');
+                        }
+                      }}
+                      className="w-full text-xs border border-gray-250 rounded-lg p-2.5 focus:border-indigo-500 bg-white"
+                    >
+                      <option value="final">Final Exam (Core Graduation Gate)</option>
+                      <option value="lesson">Lesson Quiz (Chapter Practice Module)</option>
+                    </select>
+                  </div>
+
+                  {examType === 'lesson' ? (
+                    <div>
+                      <label className="block text-[10px] font-bold font-mono text-gray-505 uppercase tracking-wider mb-1">Target Lesson/Chapter Name</label>
+                      <select
+                        required
+                        value={lessonReference}
+                        onChange={(e) => setLessonReference(e.target.value)}
+                        className="w-full text-xs border border-gray-250 rounded-lg p-2.5 focus:border-indigo-500 bg-white"
+                      >
+                        {courseSyllabus.map((slice, idx) => (
+                          <option key={idx} value={slice.chapter}>
+                            {slice.chapter}: {slice.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-[10px] font-bold font-mono text-gray-400 uppercase tracking-wider mb-1">Target Lesson (Not Applicable)</label>
+                      <input
+                        type="text"
+                        disabled
+                        value="Universal / Course Final"
+                        className="w-full text-xs border border-gray-200 rounded-lg p-2.5 bg-gray-50 text-gray-400 select-none cursor-not-allowed"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
@@ -515,15 +571,29 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1 bg-transparent p-0 border-0 flex-1">
                         <h4 className="font-bold text-gray-900 text-sm leading-tight">{exam.title}</h4>
-                        {exam.chapter_id ? (
-                          <span className="inline-block text-[9px] font-mono font-bold text-indigo-650 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded">
-                            Scope: {exam.chapter_id}
-                          </span>
-                        ) : (
-                          <span className="inline-block text-[9px] font-mono font-bold text-gray-650 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
-                            Universal Course Final
-                          </span>
-                        )}
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {exam.exam_type === "lesson" ? (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded uppercase">
+                              <BookOpen className="w-2.5 h-2.5" />
+                              {exam.lesson_reference || "Lesson Quiz"}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded uppercase">
+                              <Award className="w-2.5 h-2.5" />
+                              Final Exam
+                            </span>
+                          )}
+
+                          {exam.chapter_id ? (
+                            <span className="inline-block text-[9px] font-mono font-bold text-indigo-650 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded">
+                              Syllabus Scope: {exam.chapter_id}
+                            </span>
+                          ) : (
+                            <span className="inline-block text-[9px] font-mono font-bold text-gray-650 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
+                              Universal Scope
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <span className={`px-2 py-0.5 text-[9px] font-bold font-mono rounded-full uppercase shrink-0 select-none ${exam.is_published ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                         {exam.is_published ? 'Published' : 'Draft'}

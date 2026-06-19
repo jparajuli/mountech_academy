@@ -369,6 +369,12 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     }
   });
 
+  const hasExamsDesigned = dbStudentExams.length > 0;
+  const dbFinalExams = dbStudentExams.filter(e => !e.exam_type || e.exam_type === 'final');
+  const hasDbFinalExams = dbFinalExams.length > 0;
+  const dbFinalPassed = hasDbFinalExams && dbFinalExams.every(exam => exam.passed || (exam.bestAttempt && exam.bestAttempt.passed === 1));
+  const isExamRequirementPassed = hasExamsDesigned ? dbFinalPassed : examPassed;
+
   // Helper helper to flag lesson as finished
   const markLessonCompleted = (idx: number) => {
     if (!completedLessons.includes(idx)) {
@@ -911,7 +917,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                     <Award className="w-3.5 h-3.5 animate-bounce" />
                     <span>Download Cert</span>
                   </a>
-                ) : examPassed ? (
+                ) : isExamRequirementPassed ? (
                   <button
                     onClick={() => onComplete && onComplete(course.id)}
                     className="text-[11px] px-3 py-1.5 bg-[#10b981] border border-emerald-500 rounded-md text-white hover:bg-[#059669] font-mono font-bold flex items-center gap-1 cursor-pointer transition-all select-none"
@@ -1567,9 +1573,10 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                           exam={activeDbExam}
                           completedLessons={completedLessons}
                           onClose={async (completedAttempt) => {
+                            const isFinal = !activeDbExam?.exam_type || activeDbExam?.exam_type === 'final';
                             setActiveDbExam(null);
                             await loadDbStudentExams();
-                            if (completedAttempt?.passed && onComplete && !isCompleted) {
+                            if (completedAttempt?.passed && isFinal && onComplete && !isCompleted) {
                               onComplete(course.id);
                             }
                           }}
@@ -1591,13 +1598,15 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                             const hasPassedThis = exam.passed || (exam.bestAttempt && exam.bestAttempt.passed === 1);
                             
                             // Client-side exam unlock check mirroring backend rules
-                            const isExamFinal = !exam.chapter_id || exam.chapter_id === 'final' || exam.chapter_id === '';
+                            const isExamFinal = !exam.exam_type || exam.exam_type === 'final';
                             let isExamLocked = false;
                             let examRequiredChapters: string[] = [];
 
-                            if (course.syllabus) {
+                            if (exam.exam_type === 'lesson') {
+                              isExamLocked = false;
+                            } else if (course.syllabus) {
                               let targetIndex = course.syllabus.length;
-                              if (!isExamFinal) {
+                              if (exam.chapter_id) {
                                 const matchIndex = course.syllabus.findIndex(
                                   (item: any) => item.chapter && item.chapter.trim().toLowerCase() === exam.chapter_id.trim().toLowerCase()
                                 );
@@ -1643,6 +1652,20 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                                         </span>
                                       )}
                                     </h4>
+
+                                    <div className="flex flex-wrap gap-1.5 mt-1.5 mb-2">
+                                      {exam.exam_type === 'lesson' ? (
+                                        <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                                          <BookOpen className="w-2.5 h-2.5" />
+                                          Lesson Quiz • {exam.lesson_reference || "Lesson Level"}
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-150 px-2 py-0.5 rounded">
+                                          <Award className="w-2.5 h-2.5" />
+                                          Final Exam
+                                        </span>
+                                      )}
+                                    </div>
                                     <p className="text-xs text-gray-550 mt-1">{exam.description || <span className="italic text-gray-400">No descriptive requirements set.</span>}</p>
 
                                     {isExamLocked && (
@@ -2279,7 +2302,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                         <span>Download PDF Certificate</span>
                       </a>
                     </div>
-                  ) : examPassed ? (
+                  ) : isExamRequirementPassed ? (
                     <button
                       id="complete-course-action-btn"
                       onClick={() => onComplete && onComplete(course.id)}
