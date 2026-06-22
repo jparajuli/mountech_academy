@@ -5,6 +5,7 @@ import CourseCard from '../components/CourseCard';
 import FilterBar from '../components/FilterBar';
 import ResourcePortal from '../components/ResourcePortal';
 import ManageInstructors from '../components/ManageInstructors';
+import AdminPaymentsPortal from '../components/AdminPaymentsPortal';
 import MyProfileSettings from '../components/MyProfileSettings';
 import { StudentGradingDashboard } from '../components/StudentGradingDashboard';
 import { SyllabusEditor } from '../components/Shared/SyllabusEditor';
@@ -31,7 +32,7 @@ interface CoursesProps {
 
 export default function Courses({ user, onSignOut, onSelectCourse, enrolledCourseIds }: CoursesProps) {
   const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin' | 'instructor-profile' | 'grades'>('catalog');
-  const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors'>('users');
+  const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors' | 'payments'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState('All');
@@ -788,15 +789,29 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
                 className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
                   adminSubTab === 'instructors'
                     ? 'border-indigo-600 text-indigo-600'
-                    : 'border-transparent text-gray-555 hover:text-gray-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
                 Manage Instructor Profiles
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminSubTab('payments')}
+                className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  adminSubTab === 'payments'
+                    ? 'border-emerald-600 text-emerald-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+                id="btn-admin-tab-payments"
+              >
+                Validate Bank Transfers
               </button>
             </div>
 
             {adminSubTab === 'instructors' ? (
               <ManageInstructors />
+            ) : adminSubTab === 'payments' ? (
+              <AdminPaymentsPortal />
             ) : (
               <>
                 {/* Alert Logs messages */}

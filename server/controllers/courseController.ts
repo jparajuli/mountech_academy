@@ -81,7 +81,7 @@ export async function getEnrollments(req: Request, res: Response) {
   const normalizedEmail = user.email.trim().toLowerCase();
 
   try {
-    const localEnrollments = db.prepare("SELECT * FROM enrollments WHERE email = ?").all(normalizedEmail) as any[];
+    const localEnrollments = db.prepare("SELECT * FROM enrollments WHERE email = ? AND (payment_status IS NULL OR payment_status != 'pending')").all(normalizedEmail) as any[];
     const userLocalIDs = localEnrollments.map((e) => e.courseId);
     const userCompletedLocalIDs = localEnrollments.filter((e) => e.status === "Completed").map((e) => e.courseId);
 
@@ -1012,7 +1012,7 @@ export function joinLiveSession(req: Request, res: Response) {
 
     if (user.role !== "admin") {
       const isEnrolled = db.prepare(`
-        SELECT 1 FROM enrollments WHERE email = ? AND courseId = ?
+        SELECT 1 FROM enrollments WHERE email = ? AND courseId = ? AND (payment_status IS NULL OR payment_status != 'pending')
       `).get(normalizedEmail, session.course_id);
 
       if (!isEnrolled) {
@@ -1060,7 +1060,7 @@ export function getCourseExamsForStudent(req: Request, res: Response) {
   try {
     // Check enrollment
     const enrollment = db.prepare(`
-      SELECT 1 FROM enrollments WHERE email = ? AND courseId = ?
+      SELECT 1 FROM enrollments WHERE email = ? AND courseId = ? AND (payment_status IS NULL OR payment_status != 'pending')
     `).get(email, courseId);
 
     if (!enrollment && user.role !== "admin") {
@@ -1116,7 +1116,7 @@ export function startStudentExam(req: Request, res: Response) {
   try {
     // 1. Verify enrollment
     const enrollment = db.prepare(`
-      SELECT 1 FROM enrollments WHERE email = ? AND courseId = ?
+      SELECT 1 FROM enrollments WHERE email = ? AND courseId = ? AND (payment_status IS NULL OR payment_status != 'pending')
     `).get(email, courseId);
 
     if (!enrollment && user.role !== "admin") {

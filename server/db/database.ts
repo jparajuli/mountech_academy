@@ -30,6 +30,9 @@ db.exec(`
     courseTitle TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Enrolled',
     timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    payment_method TEXT DEFAULT 'stripe',
+    payment_status TEXT DEFAULT 'completed',
+    payment_reference TEXT,
     FOREIGN KEY(email) REFERENCES users(email) ON DELETE CASCADE
   );
 
@@ -134,6 +137,15 @@ try {
 } catch (_) {}
 try {
   db.exec("ALTER TABLE users ADD COLUMN resetTokenExpires TEXT;");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE enrollments ADD COLUMN payment_method TEXT DEFAULT 'stripe';");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE enrollments ADD COLUMN payment_status TEXT DEFAULT 'completed';");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE enrollments ADD COLUMN payment_reference TEXT;");
 } catch (_) {}
 try {
   db.exec("ALTER TABLE courses ADD COLUMN is_locked INTEGER NOT NULL DEFAULT 0;");

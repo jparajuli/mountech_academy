@@ -24,6 +24,7 @@ import {
   submitStudentExamResponse,
   updateSharedSyllabus,
 } from "../controllers/courseController.js";
+import { createManualCheckout } from "../controllers/paymentController.js";
 import { handleGitLabWebhook } from "../../src/controllers/gitlabController.js";
 
 const router = Router();
@@ -37,6 +38,7 @@ router.get("/download/syllabus", getSyllabus);
 router.put("/courses/:courseId/syllabus", requireAuth, requireSyllabusEditAuth, validateRequest(UpdateSyllabusSchema), updateSharedSyllabus);
 router.get("/enrollments", requireAuth, getEnrollments);
 router.post("/enroll", requireAuth, validateRequest(EnrollSchema), enroll);
+router.post("/checkout/manual", requireAuth, createManualCheckout);
 router.post("/complete", requireAuth, validateRequest(CompleteSchema), complete);
 router.get("/certificate/download", certificateDownload);
 router.get("/courses/:courseId/certificate", certificateDownload);

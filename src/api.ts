@@ -286,6 +286,49 @@ export async function adminListEnrollments(): Promise<{ enrollments: AdminEnroll
   return apiFetch('/api/admin/enrollments');
 }
 
+export interface ManualCheckoutResponse {
+  success: boolean;
+  payment_reference: string;
+  bankDetails: {
+    iban: string;
+    swift: string;
+    accountName: string;
+    bankName: string;
+    routingNumber: string;
+    amount: number;
+  };
+}
+
+export interface PendingPayment {
+  id: number;
+  email: string;
+  name: string;
+  courseId: string;
+  courseTitle: string;
+  timestamp: string;
+  payment_method: string;
+  payment_status: string;
+  payment_reference: string;
+  price: number;
+}
+
+export async function checkoutManual(courseId: string, courseTitle: string): Promise<ManualCheckoutResponse> {
+  return apiFetch('/api/checkout/manual', {
+    method: 'POST',
+    body: JSON.stringify({ courseId, courseTitle }),
+  });
+}
+
+export async function adminGetPendingPayments(): Promise<{ success: boolean; payments: PendingPayment[] }> {
+  return apiFetch('/api/admin/payments/pending');
+}
+
+export async function adminApprovePayment(enrollmentId: number): Promise<{ success: boolean; message: string }> {
+  return apiFetch(`/api/admin/payments/approve/${enrollmentId}`, {
+    method: 'POST',
+  });
+}
+
 export async function adminUpdateUserRole(email: string, role: string): Promise<{ success: boolean; message: string }> {
   return apiFetch('/api/admin/users/role', {
     method: 'PUT',
