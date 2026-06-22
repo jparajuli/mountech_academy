@@ -5,7 +5,8 @@ import CourseCard from '../components/CourseCard';
 import FilterBar from '../components/FilterBar';
 import ResourcePortal from '../components/ResourcePortal';
 import ManageInstructors from '../components/ManageInstructors';
-import AdminPaymentsPortal from '../components/AdminPaymentsPortal';
+import AdminPaymentApproval from '../components/AdminPaymentApproval';
+import AdminStudentMatrix from '../components/AdminStudentMatrix';
 import MyProfileSettings from '../components/MyProfileSettings';
 import { StudentGradingDashboard } from '../components/StudentGradingDashboard';
 import { SyllabusEditor } from '../components/Shared/SyllabusEditor';
@@ -32,7 +33,7 @@ interface CoursesProps {
 
 export default function Courses({ user, onSignOut, onSelectCourse, enrolledCourseIds }: CoursesProps) {
   const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin' | 'instructor-profile' | 'grades'>('catalog');
-  const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors' | 'payments'>('users');
+  const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors' | 'payments' | 'matrix'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState('All');
@@ -806,12 +807,26 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
               >
                 Validate Bank Transfers
               </button>
+              <button
+                type="button"
+                onClick={() => setAdminSubTab('matrix')}
+                className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  adminSubTab === 'matrix'
+                    ? 'border-[#0070f3] text-[#0070f3]'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+                id="btn-admin-tab-matrix"
+              >
+                Academic Matrix
+              </button>
             </div>
 
             {adminSubTab === 'instructors' ? (
               <ManageInstructors />
             ) : adminSubTab === 'payments' ? (
-              <AdminPaymentsPortal />
+              <AdminPaymentApproval />
+            ) : adminSubTab === 'matrix' ? (
+              <AdminStudentMatrix />
             ) : (
               <>
                 {/* Alert Logs messages */}

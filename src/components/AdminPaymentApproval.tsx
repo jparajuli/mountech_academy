@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { adminGetPendingPayments, adminApprovePayment, PendingPayment } from '../api';
 import { Clock, ShieldCheck, AlertCircle, RefreshCw, Check, Info } from 'lucide-react';
 
-export default function AdminPaymentsPortal() {
+export default function AdminPaymentApproval() {
   const [pendingPayments, setPendingPayments] = useState<PendingPayment[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
@@ -36,7 +36,6 @@ export default function AdminPaymentsPortal() {
       const res = await adminApprovePayment(id);
       if (res.success) {
         setSuccessMessage(`Approved payment successfully! Course access is now unlocked for ${email}.`);
-        // Refresh the local pending payment table
         await loadPayments();
       }
     } catch (err: any) {
@@ -47,16 +46,16 @@ export default function AdminPaymentsPortal() {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl shadow-xs p-6 overflow-hidden animate-fade-in" id="admin-payments-portal-main">
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-xs p-6 overflow-hidden animate-fade-in" id="admin-payment-approval-panel">
       {/* Portal Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 pb-4 border-b border-gray-100 gap-3">
         <div>
           <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
             <Clock className="w-4 h-4 text-rose-500 animate-pulse" />
-            <span>Pending Bank Transfers Verification</span>
+            <span>Validate Student Bank Deposits</span>
           </h2>
           <p className="text-[11px] text-[#6b7280] mt-0.5 leading-relaxed">
-            Validate manual bank deposits. Compare reference memos with your bank statement, then click Approve to unlock student classrooms.
+            Verify manual swift/bank deposits. Compare reference memos with your bank statement, then click Approve to unlock student classrooms.
           </p>
         </div>
 
@@ -67,20 +66,20 @@ export default function AdminPaymentsPortal() {
           className="px-3 py-1.5 text-[11px] font-semibold text-gray-700 bg-white border border-[#e5e7eb] hover:bg-gray-50 rounded-lg shadow-2xs cursor-pointer select-none flex items-center gap-1"
         >
           <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-          Refresh Registry
+          Refresh Queue
         </button>
       </div>
 
       {/* Notifications */}
       {successMessage && (
-        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-150 text-emerald-800 text-xs rounded-xl flex items-start gap-2.5 shadow-2xs" id="bank-approve-success">
+        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-150 text-emerald-800 text-xs rounded-xl flex items-start gap-2.5 shadow-2xs" id="bank-approve-success-notification">
           <ShieldCheck className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
           <span className="font-semibold leading-normal">{successMessage}</span>
         </div>
       )}
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-150 text-red-800 text-xs rounded-xl flex items-start gap-2.5 shadow-2xs" id="bank-approve-error">
+        <div className="mb-4 p-3 bg-red-50 border border-red-150 text-red-800 text-xs rounded-xl flex items-start gap-2.5 shadow-2xs" id="bank-approve-error-notification">
           <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
           <span className="font-semibold leading-normal">{error}</span>
         </div>
@@ -104,20 +103,20 @@ export default function AdminPaymentsPortal() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-150">
-          <table className="min-w-full divide-y divide-gray-150 text-xs">
+          <table className="min-w-full divide-y divide-gray-150 text-xs text-left">
             <thead>
               <tr className="bg-gray-50 text-[10px] font-bold text-gray-500 font-mono text-left uppercase tracking-wider border-b border-gray-200">
-                <th className="px-4 py-3 text-left">Student Info</th>
-                <th className="px-4 py-3 text-left">Course Details</th>
-                <th className="px-4 py-3 text-center">Memo Reference</th>
-                <th className="px-4 py-3 text-right">Amount (Tuition)</th>
-                <th className="px-4 py-3 text-center">Date Requested</th>
+                <th className="px-4 py-3">Student Info</th>
+                <th className="px-4 py-3">Course Name</th>
+                <th className="px-4 py-3 text-center">Reference Code</th>
+                <th className="px-4 py-3 text-right">Amount (NPR/USD)</th>
+                <th className="px-4 py-3 text-center">Date</th>
                 <th className="px-4 py-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 font-sans text-xs bg-white">
               {pendingPayments.map((pay) => (
-                <tr key={pay.id} className="hover:bg-gray-50/50 transition-all" id={`pay-row-${pay.id}`}>
+                <tr key={pay.id} className="hover:bg-gray-50/50 transition-all font-sans" id={`pay-approval-row-${pay.id}`}>
                   {/* Student info */}
                   <td className="px-4 py-3.5">
                     <div className="font-bold text-gray-900 leading-tight">{pay.name}</div>
@@ -127,23 +126,22 @@ export default function AdminPaymentsPortal() {
                   {/* Course info */}
                   <td className="px-4 py-3.5 font-medium text-gray-850">
                     <div className="line-clamp-1">{pay.courseTitle}</div>
-                    <div className="text-[9px] text-gray-400 font-mono mt-0.5 uppercase tracking-wider">Access Block ID: {pay.courseId}</div>
                   </td>
 
-                  {/* Alphanumeric Memo Reference */}
+                  {/* Reference code */}
                   <td className="px-4 py-3.5 text-center">
                     <span className="inline-block px-2.5 py-1 rounded bg-indigo-50 border border-indigo-150 font-bold font-mono text-indigo-700 text-xs select-all">
                       {pay.payment_reference}
                     </span>
                   </td>
 
-                  {/* Bill Amount */}
+                  {/* Price info */}
                   <td className="px-4 py-3.5 text-right font-semibold">
-                    <div className="text-gray-900 font-mono text-[11px] font-bold">NPR {((pay.price || 49) * 133).toLocaleString()}</div>
-                    <div className="text-[10px] text-gray-400 font-mono mt-0.5">USD ${pay.price || 49}</div>
+                    <div className="text-gray-900 font-mono text-[11px]">NPR {((pay.price || 49) * 133).toLocaleString()}</div>
+                    <div className="text-[10px] text-gray-400 font-mono mt-0.5">${pay.price || 49}</div>
                   </td>
 
-                  {/* Date requested */}
+                  {/* Date */}
                   <td className="px-4 py-3.5 text-center text-gray-500 font-mono text-[10px]">
                     {new Date(pay.timestamp).toLocaleDateString(undefined, {
                       month: 'short',
@@ -153,7 +151,7 @@ export default function AdminPaymentsPortal() {
                     })}
                   </td>
 
-                  {/* Approve button */}
+                  {/* Actions */}
                   <td className="px-4 py-3.5 text-center">
                     <button
                       type="button"
@@ -166,7 +164,7 @@ export default function AdminPaymentsPortal() {
                       ) : (
                         <Check className="w-3 h-3" />
                       )}
-                      Approve
+                      Approve & Unlock Course
                     </button>
                   </td>
                 </tr>
@@ -176,12 +174,12 @@ export default function AdminPaymentsPortal() {
         </div>
       )}
 
-      {/* Verification instructions panel */}
+      {/* Verification protocol panel */}
       <div className="mt-5 p-4 bg-gray-50 border border-gray-200 rounded-xl flex items-start gap-3">
         <Info className="w-5 h-5 text-[#0070f3] mt-0.5 shrink-0" />
         <div className="space-y-1 text-[11px] leading-relaxed text-gray-600">
-          <strong className="block text-gray-900 font-semibold uppercase font-sans text-[10px] tracking-wider">🔒 Standard Operating Verification Protocol</strong>
-          <span>Ensure that the customer's submitted <strong>Unique Reference Code</strong> matches exactly with your clearing bank statement notes. Double check value currency equivalence conversions before click approvals to release certification courses securely.</span>
+          <strong className="block text-gray-900 font-semibold uppercase font-sans text-[10px] tracking-wider">🔒 Standard Operating Protocol</strong>
+          <span>Ensure that the customer's submitted <strong>Reference Code</strong> matches exactly with your clearing bank statement notes. Double check value currency equivalence conversions before click approvals to release certification courses securely.</span>
         </div>
       </div>
     </div>

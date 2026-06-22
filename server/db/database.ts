@@ -33,6 +33,8 @@ db.exec(`
     payment_method TEXT DEFAULT 'stripe',
     payment_status TEXT DEFAULT 'completed',
     payment_reference TEXT,
+    certificate_downloaded_at TEXT,
+    course_completed_at TEXT,
     FOREIGN KEY(email) REFERENCES users(email) ON DELETE CASCADE
   );
 
@@ -146,6 +148,12 @@ try {
 } catch (_) {}
 try {
   db.exec("ALTER TABLE enrollments ADD COLUMN payment_reference TEXT;");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE enrollments ADD COLUMN certificate_downloaded_at TEXT;");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE enrollments ADD COLUMN course_completed_at TEXT;");
 } catch (_) {}
 try {
   db.exec("ALTER TABLE courses ADD COLUMN is_locked INTEGER NOT NULL DEFAULT 0;");

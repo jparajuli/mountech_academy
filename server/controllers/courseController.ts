@@ -236,6 +236,17 @@ export async function certificateDownload(req: Request, res: Response) {
   });
 
   try {
+    // Interceptor: execute UPDATE to set certificate_downloaded_at = datetime('now')
+    try {
+      db.prepare(`
+        UPDATE enrollments 
+        SET certificate_downloaded_at = datetime('now')
+        WHERE LOWER(email) = ? AND courseId = ?
+      `).run(payload.email.trim().toLowerCase(), courseId);
+    } catch (eErr: any) {
+      console.error("Backend interceptor warning: Failed to save certificate download timestamp:", eErr.message);
+    }
+
     const certBuffer = await generateCertificatePDF(payload.name, courseTitle, dateStr);
     const safeFilename = `${courseId}_completion_certificate.pdf`;
 
@@ -1347,6 +1358,20 @@ export function submitStudentExamResponse(req: Request, res: Response) {
       SET score = ?, passed = ?, completed_at = datetime('now')
       WHERE id = ?
     `).run(percentage, passed, Number(attemptId));
+
+    // Update course_completed_at if passing final exam
+    const isFinalExam = !exam.chapter_id || exam.chapter_id === 'final' || exam.chapter_id === '' || exam.exam_type === 'final';
+    if (passed === 1 && isFinalExam) {
+      try {
+        db.prepare(`
+          UPDATE enrollments
+          SET course_completed_at = datetime('now')
+          WHERE LOWER(email) = ? AND courseId = ? AND course_completed_at IS NULL
+        `).run(attempt.user_id.trim().toLowerCase(), exam.course_id);
+      } catch (completionErr: any) {
+        console.error("Failed to mark course completion timestamp in DB:", completionErr.message);
+      }
+    }
 
     return res.json({
       success: true,

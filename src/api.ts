@@ -329,6 +329,49 @@ export async function adminApprovePayment(enrollmentId: number): Promise<{ succe
   });
 }
 
+export interface CourseEnrollmentDossier {
+  courseId: string;
+  courseTitle: string;
+  enrolledAt: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  paymentReference: string | null;
+  certificateDownloadedAt: string | null;
+  courseCompletedAt: string | null;
+  enrollmentStatus: 'Pending Verification' | 'Active' | 'Completed' | 'Certified';
+  totalExamsTaken: number;
+  averageScore: number;
+  finalExamStatus: 'Passed' | 'Failed' | 'Not Attempted';
+  attempts: {
+    id: number;
+    examId: number;
+    title: string;
+    type: string;
+    score: number;
+    passed: boolean;
+    date: string;
+  }[];
+}
+
+export interface StudentDossier {
+  email: string;
+  name: string;
+  role: string;
+  joinedDate: string;
+  enrollments: CourseEnrollmentDossier[];
+  overallStats: {
+    totalEnrollments: number;
+    totalExamsPassed: number;
+    averageScoreAll: number;
+    hasPendingPayment: boolean;
+    overallStatus: 'New Student' | 'Active Student' | 'High Achiever' | 'Graduate';
+  };
+}
+
+export async function adminGetStudentsOverview(): Promise<{ dossiers: StudentDossier[] }> {
+  return apiFetch('/api/admin/students/overview');
+}
+
 export async function adminUpdateUserRole(email: string, role: string): Promise<{ success: boolean; message: string }> {
   return apiFetch('/api/admin/users/role', {
     method: 'PUT',
