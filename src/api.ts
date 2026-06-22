@@ -1,4 +1,4 @@
-import { User, Course, LiveSession, InstructorProfile, Exam, ExamQuestion } from './types';
+import { User, Course, LiveSession, InstructorProfile, Exam, ExamQuestion, Lesson } from './types';
 
 // Read existing token from local storage
 export function getToken(): string | null {
@@ -471,6 +471,7 @@ export async function createCourseExam(courseId: string, examData: {
   chapter_id?: string | null;
   exam_type?: "lesson" | "final";
   lesson_reference?: string | null;
+  lesson_id?: number | null;
 }): Promise<{ success: boolean; message: string; examId: number }> {
   return apiFetch(`/api/instructor/courses/${courseId}/exams`, {
     method: 'POST',
@@ -519,11 +520,17 @@ export async function updateCourseExamDetails(examId: number, examData: {
   chapter_id?: string | null;
   exam_type?: "lesson" | "final";
   lesson_reference?: string | null;
+  lesson_id?: number | null;
 }): Promise<{ success: boolean; message: string }> {
   return apiFetch(`/api/instructor/exams/${examId}`, {
     method: 'PUT',
     body: JSON.stringify(examData),
   });
+}
+
+// Fetch Lessons for a course
+export async function fetchCourseLessons(courseId: string): Promise<{ success: boolean; lessons: Lesson[] }> {
+  return apiFetch(`/api/courses/${courseId}/lessons`);
 }
 
 // Student fetch course exams (published only)

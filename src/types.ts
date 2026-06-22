@@ -96,6 +96,18 @@ export interface Exam {
   duration_minutes?: number;
   exam_type?: 'lesson' | 'final';
   lesson_reference?: string | null;
+  lesson_id?: number | null;
+  isLocked?: boolean;
+}
+
+export interface Lesson {
+  id: number;
+  course_id: string;
+  chapter: string;
+  title: string;
+  description?: string;
+  order_index: number;
+  isLocked?: boolean;
 }
 
 

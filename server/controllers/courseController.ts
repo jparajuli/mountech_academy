@@ -1099,7 +1099,7 @@ export function getCourseExamsForStudent(req: Request, res: Response) {
     }
 
     const exams = db.prepare(`
-      SELECT id, course_id, title, description, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference 
+      SELECT id, course_id, title, description, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference, lesson_id 
       FROM exams 
       WHERE course_id = ? AND is_published = 1
     `).all(courseId) as any[];
@@ -1120,11 +1120,58 @@ export function getCourseExamsForStudent(req: Request, res: Response) {
         return (current.score || 0) > (best.score || 0) ? current : best;
       }, null as any);
 
+      // Determine isLocked progression logic
+      let isLocked = false;
+      if (exam.exam_type === 'final') {
+        // Final Exam is locked if there are ANY lesson-type exams in this course that is published and the student lacks a passing attempt (passed = 1)
+        const lessonExams = db.prepare(`
+          SELECT id FROM exams WHERE course_id = ? AND exam_type = 'lesson' AND is_published = 1
+        `).all(courseId) as { id: number }[];
+
+        for (const le of lessonExams) {
+          const passCheck = db.prepare(`
+            SELECT 1 FROM exam_attempts WHERE exam_id = ? AND LOWER(user_id) = ? AND passed = 1 LIMIT 1
+          `).get(le.id, email);
+          if (!passCheck) {
+            isLocked = true;
+            break;
+          }
+        }
+      } else if (exam.exam_type === 'lesson' && exam.lesson_id) {
+        // Sequentially lock lessons: if the developer has preceding lesson and the preceding lesson's quiz is not passed
+        const currentLesson = db.prepare(`
+          SELECT order_index FROM lessons WHERE id = ?
+        `).get(exam.lesson_id) as { order_index: number } | undefined;
+
+        if (currentLesson && currentLesson.order_index > 1) {
+          const prevLesson = db.prepare(`
+            SELECT id FROM lessons WHERE course_id = ? AND order_index = ?
+          `).get(courseId, currentLesson.order_index - 1) as { id: number } | undefined;
+
+          if (prevLesson) {
+            const prevLessonExams = db.prepare(`
+              SELECT id FROM exams WHERE course_id = ? AND exam_type = 'lesson' AND lesson_id = ? AND is_published = 1
+            `).all(courseId, prevLesson.id) as { id: number }[];
+
+            for (const prevEx of prevLessonExams) {
+              const passCheck = db.prepare(`
+                SELECT 1 FROM exam_attempts WHERE exam_id = ? AND LOWER(user_id) = ? AND passed = 1 LIMIT 1
+              `).get(prevEx.id, email);
+              if (!passCheck) {
+                isLocked = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
       return {
         ...exam,
         attempts,
         passed,
-        bestAttempt
+        bestAttempt,
+        isLocked
       };
     });
 
@@ -1135,6 +1182,71 @@ export function getCourseExamsForStudent(req: Request, res: Response) {
   } catch (err: any) {
     console.error("[GET STUDENT EXAMS ERR]", err);
     return res.status(500).json({ error: "Failed to retrieve student exams: " + err.message });
+  }
+}
+
+// GET /api/courses/:courseId/lessons - List lessons for a student with isLocked calculated
+export function getCourseLessonsForStudent(req: Request, res: Response) {
+  const { courseId } = req.params;
+  const user = (req as any).user;
+  const email = user.email.trim().toLowerCase();
+
+  try {
+    // Check enrollment
+    const enrollment = db.prepare(`
+      SELECT 1 FROM enrollments WHERE email = ? AND courseId = ? AND (payment_status IS NULL OR payment_status != 'pending')
+    `).get(email, courseId);
+
+    if (!enrollment && user.role !== "admin") {
+      return res.status(403).json({ error: "Access Denied: You must be enrolled in this course to view syllabus progression." });
+    }
+
+    const lessons = db.prepare(`
+      SELECT id, course_id, chapter, title, description, order_index
+      FROM lessons
+      WHERE course_id = ?
+      ORDER BY order_index ASC
+    `).all(courseId) as any[];
+
+    const lessonsWithStatus = lessons.map((lesson, idx) => {
+      if (idx === 0) {
+        return { ...lesson, isLocked: false };
+      }
+
+      const prevLesson = lessons[idx - 1];
+      const prevLessonExams = db.prepare(`
+        SELECT id FROM exams WHERE course_id = ? AND exam_type = 'lesson' AND lesson_id = ? AND is_published = 1
+      `).all(courseId, prevLesson.id) as any[];
+
+      let isLocked = false;
+      if (prevLessonExams.length > 0) {
+        for (const exam of prevLessonExams) {
+          const attempt = db.prepare(`
+            SELECT 1 FROM exam_attempts
+            WHERE exam_id = ? AND LOWER(user_id) = ? AND passed = 1
+            LIMIT 1
+          `).get(exam.id, email);
+
+          if (!attempt) {
+            isLocked = true;
+            break;
+          }
+        }
+      }
+
+      return {
+        ...lesson,
+        isLocked
+      };
+    });
+
+    return res.json({
+      success: true,
+      lessons: lessonsWithStatus
+    });
+  } catch (err: any) {
+    console.error("[GET SYLLABUS LESSONS ERR]", err);
+    return res.status(500).json({ error: "Failed to load syllabus lessons: " + err.message });
   }
 }
 

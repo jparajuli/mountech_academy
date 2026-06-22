@@ -6,9 +6,10 @@ import {
   deleteCourseExam, 
   createExamQuestion, 
   updateExamQuestion, 
-  deleteExamQuestion 
+  deleteExamQuestion,
+  fetchCourseLessons
 } from '../api';
-import { Exam, ExamQuestion } from '../types';
+import { Exam, ExamQuestion, Lesson } from '../types';
 import { 
   ClipboardList, 
   Plus, 
@@ -55,6 +56,8 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
   const [examChapterId, setExamChapterId] = useState<string>('');
   const [examType, setExamType] = useState<'lesson' | 'final'>('final');
   const [lessonReference, setLessonReference] = useState<string>('');
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [selectedLessonId, setSelectedLessonId] = useState<string>('');
   const [submittingExam, setSubmittingExam] = useState<boolean>(false);
 
   // Selected Exam for builder interaction
@@ -96,6 +99,20 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
 
   useEffect(() => {
     loadExams();
+    const loadLessons = async () => {
+      try {
+        const res = await fetchCourseLessons(courseId);
+        if (res.success && res.lessons) {
+          setLessons(res.lessons);
+          if (res.lessons.length > 0) {
+            setSelectedLessonId(String(res.lessons[0].id));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load lessons in builder:", err);
+      }
+    };
+    loadLessons();
   }, [courseId]);
 
   // Handle Exam Creation
@@ -120,6 +137,7 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
         chapter_id: examChapterId ? examChapterId : null,
         exam_type: examType,
         lesson_reference: examType === 'lesson' ? lessonReference : null,
+        lesson_id: examType === 'lesson' && selectedLessonId ? Number(selectedLessonId) : null,
       });
 
       if (res.success) {
@@ -132,6 +150,7 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
         setExamChapterId('');
         setExamType('final');
         setLessonReference('');
+        setSelectedLessonId(lessons.length > 0 ? String(lessons[0].id) : '');
         setShowCreateExam(false);
         await loadExams();
       } else {
@@ -417,21 +436,45 @@ export const InstructorExamBuilder: React.FC<InstructorExamBuilderProps> = ({ co
                   </div>
 
                   {examType === 'lesson' ? (
-                    <div>
-                      <label className="block text-[10px] font-bold font-mono text-gray-505 uppercase tracking-wider mb-1">Target Lesson/Chapter Name</label>
-                      <select
-                        required
-                        value={lessonReference}
-                        onChange={(e) => setLessonReference(e.target.value)}
-                        className="w-full text-xs border border-gray-250 rounded-lg p-2.5 focus:border-indigo-500 bg-white"
-                      >
-                        {courseSyllabus.map((slice, idx) => (
-                          <option key={idx} value={slice.chapter}>
-                            {slice.chapter}: {slice.title}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <React.Fragment>
+                      <div>
+                        <label className="block text-[10px] font-bold font-mono text-gray-500 uppercase tracking-wider mb-1">Target Lesson/Chapter Name</label>
+                        <select
+                          required
+                          value={lessonReference}
+                          onChange={(e) => setLessonReference(e.target.value)}
+                          className="w-full text-xs border border-gray-250 rounded-lg p-2.5 focus:border-indigo-500 bg-white"
+                        >
+                          {courseSyllabus.map((slice, idx) => (
+                            <option key={idx} value={slice.chapter}>
+                              {slice.chapter}: {slice.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label id="link-to-lesson-label" className="block text-[10px] font-bold font-mono text-gray-700 uppercase tracking-wider mb-1">Link to Lesson</label>
+                        <select
+                          id="link-to-lesson-select"
+                          required
+                          value={selectedLessonId}
+                          onChange={(e) => {
+                            setSelectedLessonId(e.target.value);
+                            const matched = lessons.find(l => String(l.id) === e.target.value);
+                            if (matched) {
+                              setLessonReference(matched.chapter);
+                            }
+                          }}
+                          className="w-full text-xs border border-gray-250 rounded-lg p-2.5 focus:border-indigo-500 bg-white border-dashed"
+                        >
+                          {lessons.map((lesson) => (
+                            <option key={lesson.id} value={lesson.id}>
+                              {lesson.chapter}: {lesson.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </React.Fragment>
                   ) : (
                     <div>
                       <label className="block text-[10px] font-bold font-mono text-gray-400 uppercase tracking-wider mb-1">Target Lesson (Not Applicable)</label>

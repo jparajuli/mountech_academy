@@ -261,6 +261,28 @@ try {
 
 try {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS lessons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      course_id TEXT NOT NULL,
+      chapter TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      order_index INTEGER NOT NULL,
+      FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+    );
+  `);
+  console.log("[DB SETUP] Dynamic lessons key table guaranteed.");
+} catch (e: any) {
+  console.error("Failed to create lessons table:", e.message);
+}
+
+try {
+  db.exec("ALTER TABLE exams ADD COLUMN lesson_id INTEGER REFERENCES lessons(id) ON DELETE SET NULL;");
+  console.log("[DB SETUP] Added lesson_id foreign key reference to exams.");
+} catch (_) {}
+
+try {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS exam_attempts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       exam_id INTEGER NOT NULL,
@@ -713,6 +735,44 @@ try {
     console.log("[DB SEEDER] Configured chapter assessments to be exam_type = 'lesson'.");
   } catch (err: any) {
     console.error("Failed to update JAX chapter exams type:", err.message);
+  }
+
+  // Sync existing baseline course syllabus elements with lessons table
+  try {
+    const allCourses = db.prepare("SELECT id, syllabus FROM courses").all() as { id: string; syllabus: string }[];
+    for (const course of allCourses) {
+      const existingLessonsCount = db.prepare("SELECT COUNT(*) as count FROM lessons WHERE course_id = ?").get(course.id) as { count: number };
+      if (existingLessonsCount.count === 0) {
+        console.log(`[DB SYNC] Populating lessons for Course: ${course.id}...`);
+        const syllabus = JSON.parse(course.syllabus || "[]") as { chapter: string; title: string; description?: string }[];
+        const insertLesson = db.prepare(`
+          INSERT INTO lessons (course_id, chapter, title, description, order_index)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+        syllabus.forEach((item, idx) => {
+          insertLesson.run(
+            course.id,
+            item.chapter || `Lesson ${idx + 1}`,
+            item.title || "",
+            item.description || "",
+            idx + 1 // 1-based order_index
+          );
+        });
+      }
+    }
+
+    // Connect pre-seeded JAX exams to their newly compiled lesson rows
+    const jaxLessons = db.prepare("SELECT id, chapter FROM lessons WHERE course_id = 'build-train-llm-jax'").all() as { id: number; chapter: string }[];
+    for (const lesson of jaxLessons) {
+      db.prepare(`
+        UPDATE exams 
+        SET lesson_id = ? 
+        WHERE course_id = 'build-train-llm-jax' AND LOWER(chapter_id) = LOWER(?)
+      `).run(lesson.id, lesson.chapter);
+    }
+    console.log("[DB SYNC] Successfully bound pre-seeded JAX exams to lesson IDs.");
+  } catch (syncErr: any) {
+    console.error("[DB SYNC ERROR] Failed to synchronize lessons table or map lesson IDs:", syncErr.message);
   }
 
 } catch (seedingError: any) {

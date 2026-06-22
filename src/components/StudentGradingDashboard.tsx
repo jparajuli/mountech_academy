@@ -457,11 +457,12 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
                         const bestScore = exam.bestAttempt ? exam.bestAttempt.score : null;
                         const isCleared = exam.passed;
                         const requiresPassing = exam.passing_score_percentage || 70;
+                        const isLocked = exam.isLocked === 1 || exam.isLocked === true;
 
                         return (
                           <div 
                             key={exam.id} 
-                            className={`border rounded-xl overflow-hidden transition-all ${isCleared ? 'border-emerald-100 bg-emerald-50/10' : bestScore !== null ? 'border-amber-100 bg-amber-50/5' : 'border-gray-150'}`}
+                            className={`border rounded-xl overflow-hidden transition-all ${isLocked ? 'border-gray-250 bg-gray-50/20 opacity-75' : isCleared ? 'border-emerald-100 bg-emerald-50/10' : bestScore !== null ? 'border-amber-100 bg-amber-50/5' : 'border-gray-155'}`}
                             id={`exam-node-${exam.id}`}
                           >
                             {/* Exam Row Header */}
@@ -469,6 +470,13 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
                               <div className="space-y-1 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <h4 className="font-extrabold text-slate-950 text-sm leading-snug">{exam.title}</h4>
+                                  
+                                  {isLocked && (
+                                    <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 text-[9px] font-bold font-mono px-2 py-0.5 rounded-full uppercase">
+                                      <Lock className="w-2.5 h-2.5 shrink-0" />
+                                      Locked
+                                    </span>
+                                  )}
                                   
                                   {exam.exam_type === 'lesson' ? (
                                     <span className="inline-flex items-center gap-1 text-[9px] font-bold font-mono text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded uppercase">
@@ -539,7 +547,15 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
                                   </button>
 
                                   {/* TAKE/RETAKE BUTTON COAX */}
-                                  {!isCleared ? (
+                                  {isLocked ? (
+                                    <button
+                                      disabled
+                                      className="px-4 py-2.5 bg-gray-150 border border-gray-250 text-gray-400 text-xs font-bold rounded-lg cursor-not-allowed inline-flex items-center gap-1 select-none font-sans"
+                                    >
+                                      <Lock className="w-3.5 h-3.5 text-gray-400" />
+                                      <span>Locked</span>
+                                    </button>
+                                  ) : !isCleared ? (
                                     <button
                                       onClick={() => onSelectCourse(courseProgress.originalCourse)}
                                       className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold rounded-lg shadow-sm transition-transform hover:scale-[1.02] cursor-pointer"
@@ -549,7 +565,7 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
                                   ) : (
                                     <button
                                       disabled
-                                      className="px-4 py-2 bg-emerald-50 text-emerald-805 border border-emerald-1.5 px-3 py-2.5 text-xs font-bold rounded-lg cursor-not-allowed inline-flex items-center gap-1"
+                                      className="px-4 py-2.5 bg-emerald-50 text-emerald-800 border border-emerald-150 text-xs font-bold rounded-lg cursor-not-allowed inline-flex items-center gap-1 font-sans"
                                     >
                                       <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
                                       <span>Complete</span>

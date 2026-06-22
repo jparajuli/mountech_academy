@@ -30,6 +30,8 @@ export const CreateExamSchema = z.object({
   questions_to_display: z.number().int().min(1).optional().default(5),
   passing_score_percentage: z.number().int().min(1).max(100).optional().default(70),
   duration_minutes: z.number().int().min(1).optional().default(30),
+  exam_type: z.enum(["lesson", "final"]).optional().default("final"),
+  lesson_id: z.number().int().optional().nullable(),
 });
 
 export const CreateQuestionSchema = z.object({

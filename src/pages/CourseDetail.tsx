@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Course, User, LiveSession, InstructorProfile } from '../types';
+import { Course, User, LiveSession, InstructorProfile, Lesson } from '../types';
 import { 
   ArrowLeft, Clock, BookOpen, Star, CheckCircle, HelpCircle, 
   Award, Play, ChevronRight, Terminal, Sparkles, AlertCircle, AlertTriangle, 
@@ -8,7 +8,7 @@ import {
   Lock, Unlock, Trophy, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams, checkoutManual } from '../api';
+import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams, checkoutManual, fetchCourseLessons } from '../api';
 import InstructorCard from '../components/InstructorCard';
 import { StudentExamTaker } from '../components/StudentExamTaker';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
@@ -334,6 +334,24 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   const [loadingDbStudentExams, setLoadingDbStudentExams] = useState<boolean>(false);
   const [activeDbExam, setActiveDbExam] = useState<any | null>(null);
 
+  const [dbLessons, setDbLessons] = useState<Lesson[]>([]);
+  const [loadingDbLessons, setLoadingDbLessons] = useState<boolean>(false);
+
+  const loadDbLessons = async () => {
+    if (!hasEnrolledAccess) return;
+    setLoadingDbLessons(true);
+    try {
+      const res = await fetchCourseLessons(course.id);
+      if (res.success) {
+        setDbLessons(res.lessons || []);
+      }
+    } catch (err) {
+      console.error("Failed to load student lessons list:", err);
+    } finally {
+      setLoadingDbLessons(false);
+    }
+  };
+
   const loadDbStudentExams = async () => {
     if (!hasEnrolledAccess) return;
     setLoadingDbStudentExams(true);
@@ -369,6 +387,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     if (hasEnrolledAccess) {
       loadSessions();
       loadDbStudentExams();
+      loadDbLessons();
     }
     // Reset submission feedback states on course switch
     setSubmitSuccess('');
@@ -1298,31 +1317,45 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                   <div className="space-y-1.5">
                     {course.syllabus.map((les, index) => {
                       const isLesCompleted = completedLessons.includes(index);
+                      const dbLes = dbLessons[index] || dbLessons.find(l => l.chapter === les.chapter);
+                      const isLesLockedCombined = dbLes ? dbLes.isLocked : (index > 0 && !completedLessons.includes(index - 1));
                       return (
                         <button
                           key={index}
                           id={`sandbox-lesson-btn-${index}`}
+                          disabled={isLesLockedCombined}
                           onClick={() => {
+                            if (isLesLockedCombined) return;
                             setActiveLessonIndex(index);
                             markLessonCompleted(index);
                             setTerminalOutput([`Loaded notebook for chapter: "${les.title}"`, `Double-click items to customize prompts. Run cell to evaluate.`]);
                           }}
-                          className={`w-full text-left p-3 rounded-lg border transition-all text-xs flex justify-between items-center cursor-pointer ${
-                            activeLessonIndex === index
-                              ? 'bg-slate-800 border-[#38bdf8] text-[#38bdf8]'
-                              : 'bg-slate-900/60 border-gray-800 hover:bg-slate-800 hover:text-white text-gray-300'
+                          className={`w-full text-left p-3 rounded-lg border transition-all text-xs flex justify-between items-center ${
+                            isLesLockedCombined
+                              ? 'bg-slate-900/45 border-gray-900/60 text-gray-500 opacity-40 cursor-not-allowed select-none'
+                              : activeLessonIndex === index
+                                ? 'bg-slate-800 border-[#38bdf8] text-[#38bdf8] cursor-pointer'
+                                : 'bg-slate-900/60 border-gray-800 hover:bg-slate-800 hover:text-white text-gray-300 cursor-pointer'
                           }`}
                         >
                           <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-[9px] text-gray-500 uppercase">{les.chapter}</span>
-                              {isLesCompleted && (
-                                <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1 py-0.2 rounded font-mono font-black uppercase">READ</span>
+                            <div className="flex items-center gap-1.5 font-sans">
+                              <span className="font-mono text-[9px] text-gray-550 uppercase">{les.chapter}</span>
+                              {isLesLockedCombined ? (
+                                <span className="text-[8px] bg-amber-500/10 text-amber-500 px-1 py-0.2 rounded font-mono font-black uppercase inline-flex items-center gap-0.5">
+                                  <Lock className="w-2 h-2" /> LOCKED
+                                </span>
+                              ) : (
+                                isLesCompleted && (
+                                  <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1 py-0.2 rounded font-mono font-black uppercase">READ</span>
+                                )
                               )}
                             </div>
                             <span className="font-medium line-clamp-1">{les.title}</span>
                           </div>
-                          {isLesCompleted ? (
+                          {isLesLockedCombined ? (
+                            <Lock className="w-3.5 h-3.5 text-amber-500/80 shrink-0" />
+                          ) : isLesCompleted ? (
                             <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                           ) : (
                             <ChevronRight className="w-4 h-4 opacity-50 shrink-0" />
@@ -1612,7 +1645,8 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                 <div className={!hasEnrolledAccess ? "opacity-35 select-none pointer-events-none filter blur-[3px] space-y-4" : "space-y-4"}>
                   {course.syllabus.map((slice, index) => {
                     const isLesCompleted = completedLessons.includes(index);
-                    const isLesLocked = index > 0 && !completedLessons.includes(index - 1);
+                    const dbLes = dbLessons[index] || dbLessons.find(l => l.chapter === slice.chapter);
+                    const isLesLocked = dbLes ? dbLes.isLocked : (index > 0 && !completedLessons.includes(index - 1));
                     return (
                       <div
                         key={index}
@@ -1739,6 +1773,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                             const isFinal = !activeDbExam?.exam_type || activeDbExam?.exam_type === 'final';
                             setActiveDbExam(null);
                             await loadDbStudentExams();
+                            await loadDbLessons();
                             if (completedAttempt?.passed && isFinal && onComplete && !isCompleted) {
                               onComplete(course.id);
                             }
@@ -1760,32 +1795,40 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                           {dbStudentExams.map((exam) => {
                             const hasPassedThis = exam.passed || (exam.bestAttempt && exam.bestAttempt.passed === 1);
                             
-                            // Client-side exam unlock check mirroring backend rules
+                            // Client-side & Server-side dual lock calculation
                             const isExamFinal = !exam.exam_type || exam.exam_type === 'final';
-                            let isExamLocked = false;
+                            let isExamLocked = exam.isLocked === 1 || exam.isLocked === true;
                             let examRequiredChapters: string[] = [];
 
-                            if (exam.exam_type === 'lesson') {
-                              isExamLocked = false;
-                            } else if (course.syllabus) {
-                              let targetIndex = course.syllabus.length;
-                              if (exam.chapter_id) {
-                                const matchIndex = course.syllabus.findIndex(
-                                  (item: any) => item.chapter && item.chapter.trim().toLowerCase() === exam.chapter_id.trim().toLowerCase()
-                                );
-                                if (matchIndex !== -1) {
-                                  targetIndex = matchIndex + 1; // Require current chapter completed
-                                } else {
-                                  targetIndex = 0; // Unknown chapter is unlocked
+                            if (!isExamLocked) {
+                              if (exam.exam_type === 'lesson') {
+                                isExamLocked = false;
+                              } else if (course.syllabus) {
+                                let targetIndex = course.syllabus.length;
+                                if (exam.chapter_id) {
+                                  const matchIndex = course.syllabus.findIndex(
+                                    (item: any) => item.chapter && item.chapter.trim().toLowerCase() === exam.chapter_id.trim().toLowerCase()
+                                  );
+                                  if (matchIndex !== -1) {
+                                    targetIndex = matchIndex + 1; // Require current chapter completed
+                                  } else {
+                                    targetIndex = 0; // Unknown chapter is unlocked
+                                  }
+                                }
+
+                                // Find missing chapters
+                                for (let i = 0; i < targetIndex; i++) {
+                                  if (!completedLessons.includes(i)) {
+                                    isExamLocked = true;
+                                    examRequiredChapters.push(course.syllabus[i].chapter || `Lesson ${i + 1}`);
+                                  }
                                 }
                               }
-
-                              // Find missing chapters
-                              for (let i = 0; i < targetIndex; i++) {
-                                if (!completedLessons.includes(i)) {
-                                  isExamLocked = true;
-                                  examRequiredChapters.push(course.syllabus[i].chapter || `Lesson ${i + 1}`);
-                                }
+                            } else {
+                              if (exam.exam_type === 'final') {
+                                examRequiredChapters = ['all lesson-level quizzes inside the syllabus'];
+                              } else {
+                                examRequiredChapters = [`the previous quiz (${exam.lesson_reference || 'prior lesson chapter'})`];
                               }
                             }
 

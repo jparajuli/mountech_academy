@@ -371,7 +371,7 @@ export function updateCourseSyllabus(req: Request, res: Response) {
 // POST /api/instructor/courses/:courseId/exams - Create a course exam
 export function createCourseExam(req: Request, res: Response) {
   const { courseId } = req.params;
-  const { title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference } = req.body;
+  const { title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference, lesson_id } = req.body;
 
   try {
     const publishedVal = (is_published === true || is_published === 1) ? 1 : 0;
@@ -380,11 +380,12 @@ export function createCourseExam(req: Request, res: Response) {
     const durationMinutesVal = Number(duration_minutes) || 30;
     const examTypeVal = (exam_type === "lesson" || exam_type === "final") ? exam_type : "final";
     const lessonRefVal = lesson_reference !== undefined ? (lesson_reference || null) : null;
+    const lessonIdVal = lesson_id !== undefined && lesson_id !== null && lesson_id !== "" ? Number(lesson_id) : null;
 
     const result = db.prepare(`
-      INSERT INTO exams (course_id, title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(courseId, title.trim(), (description || "").trim(), publishedVal, questionsToDisplayVal, passingScoreVal, durationMinutesVal, examTypeVal, lessonRefVal);
+      INSERT INTO exams (course_id, title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference, lesson_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(courseId, title.trim(), (description || "").trim(), publishedVal, questionsToDisplayVal, passingScoreVal, durationMinutesVal, examTypeVal, lessonRefVal, lessonIdVal);
 
     return res.status(201).json({
       success: true,
@@ -400,7 +401,7 @@ export function createCourseExam(req: Request, res: Response) {
 // PUT /api/instructor/exams/:examId - Update course exam configurations
 export function updateCourseExam(req: Request, res: Response) {
   const { examId } = req.params;
-  const { title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference } = req.body;
+  const { title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference, lesson_id } = req.body;
 
   try {
     const publishedVal = (is_published === true || is_published === 1) ? 1 : 0;
@@ -409,12 +410,13 @@ export function updateCourseExam(req: Request, res: Response) {
     const durationMinutesVal = Number(duration_minutes) || 30;
     const examTypeVal = (exam_type === "lesson" || exam_type === "final") ? exam_type : "final";
     const lessonRefVal = lesson_reference !== undefined ? (lesson_reference || null) : null;
+    const lessonIdVal = lesson_id !== undefined && lesson_id !== null && lesson_id !== "" ? Number(lesson_id) : null;
 
     db.prepare(`
       UPDATE exams
-      SET title = ?, description = ?, is_published = ?, questions_to_display = ?, passing_score_percentage = ?, duration_minutes = ?, exam_type = ?, lesson_reference = ?
+      SET title = ?, description = ?, is_published = ?, questions_to_display = ?, passing_score_percentage = ?, duration_minutes = ?, exam_type = ?, lesson_reference = ?, lesson_id = ?
       WHERE id = ?
-    `).run(title.trim(), (description || "").trim(), publishedVal, questionsToDisplayVal, passingScoreVal, durationMinutesVal, examTypeVal, lessonRefVal, examId);
+    `).run(title.trim(), (description || "").trim(), publishedVal, questionsToDisplayVal, passingScoreVal, durationMinutesVal, examTypeVal, lessonRefVal, lessonIdVal, examId);
 
     return res.json({
       success: true,
