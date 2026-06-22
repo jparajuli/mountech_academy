@@ -211,7 +211,7 @@ export async function certificateDownload(req: Request, res: Response) {
     return res.status(400).send("<h1>Bad Request</h1><p>Missing required courseId query parameter.</p>");
   }
 
-  // Certificate Security: Verify the student has successfully passed an exam of type 'final' for this course or has marked status as 'Completed'
+  // Certificate Security: Verify the student has successfully passed an exam of type 'final' for this course
   try {
     const passedFinal = db.prepare(`
       SELECT 1 
@@ -221,19 +221,12 @@ export async function certificateDownload(req: Request, res: Response) {
       LIMIT 1
     `).get(courseId, payload.email.trim().toLowerCase());
 
-    const isCompleted = db.prepare(`
-      SELECT 1 
-      FROM enrollments 
-      WHERE courseId = ? AND status = 'Completed' AND LOWER(email) = ?
-      LIMIT 1
-    `).get(courseId, payload.email.trim().toLowerCase());
-
-    if (!passedFinal && !isCompleted) {
-      return res.status(403).send("<h1>403 Forbidden</h1><p>Final Exam not passed.</p>");
+    if (!passedFinal) {
+      return res.status(403).json({ error: "Certificate locked. You must pass the Final Exam to earn this certificate." });
     }
   } catch (err: any) {
     console.error("Certificate gate verification error:", err.message);
-    return res.status(403).send("<h1>403 Forbidden</h1><p>Final Exam not passed.</p>");
+    return res.status(403).json({ error: "Certificate locked. You must pass the Final Exam to earn this certificate." });
   }
 
   const courseTitle = getCourseTitle(courseId);

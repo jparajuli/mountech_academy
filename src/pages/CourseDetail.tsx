@@ -446,10 +446,11 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   });
 
   const hasExamsDesigned = dbStudentExams.length > 0;
-  const dbFinalExams = dbStudentExams.filter(e => !e.exam_type || e.exam_type === 'final');
+  const dbFinalExams = dbStudentExams.filter(e => e.exam_type === 'final');
   const hasDbFinalExams = dbFinalExams.length > 0;
   const dbFinalPassed = hasDbFinalExams && dbFinalExams.every(exam => exam.passed || (exam.bestAttempt && exam.bestAttempt.passed === 1));
   const isExamRequirementPassed = hasExamsDesigned ? dbFinalPassed : examPassed;
+  const hasPassedFinalExam = isExamRequirementPassed;
 
   // Helper helper to flag lesson as finished
   const markLessonCompleted = (idx: number) => {
@@ -830,12 +831,17 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
           <div className="pt-4 border-t border-gray-200 max-w-xs w-full flex flex-col gap-3">
             <button
               onClick={() => handleDownloadCertificate()}
-              disabled={downloadingCert}
-              className="py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+              disabled={downloadingCert || !hasPassedFinalExam}
+              className="py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Award className="w-4 h-4" />
               <span>{downloadingCert ? 'Generating Certificate...' : 'Download Official Certificate'}</span>
             </button>
+            {!hasPassedFinalExam && (
+              <p className="text-[10px] text-red-500 font-semibold text-center mt-1">
+                🔒 Pass the Final Exam to unlock your certificate.
+              </p>
+            )}
             <button
               onClick={onBack}
               className="py-3 px-6 bg-white hover:bg-gray-50 border border-gray-250 text-gray-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
@@ -1059,14 +1065,21 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
 
               <div className="flex items-center gap-2 self-end sm:self-center">
                 {isCompleted ? (
-                  <button
-                    onClick={() => handleDownloadCertificate()}
-                    disabled={downloadingCert}
-                    className="text-[11px] px-3 py-1.5 bg-blue-600 border border-blue-500 rounded-md text-white hover:bg-blue-700 font-mono font-bold flex items-center gap-1 cursor-pointer transition-all select-none disabled:opacity-50"
-                  >
-                    <Award className="w-3.5 h-3.5 animate-bounce" />
-                    <span>{downloadingCert ? 'Downloading...' : 'Download Cert'}</span>
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <button
+                      onClick={() => handleDownloadCertificate()}
+                      disabled={downloadingCert || !hasPassedFinalExam}
+                      className="text-[11px] px-3 py-1.5 bg-blue-600 border border-blue-500 rounded-md text-white hover:bg-blue-700 font-mono font-bold flex items-center gap-1 cursor-pointer transition-all select-none disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Award className="w-3.5 h-3.5 animate-bounce" />
+                      <span>{downloadingCert ? 'Downloading...' : 'Download Cert'}</span>
+                    </button>
+                    {!hasPassedFinalExam && (
+                      <p className="text-[9px] text-red-500 font-mono font-semibold">
+                        🔒 Pass Final Exam to unlock
+                      </p>
+                    )}
+                  </div>
                 ) : isExamRequirementPassed ? (
                   <button
                     onClick={() => onComplete && onComplete(course.id)}
@@ -2444,12 +2457,17 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                       </div>
                       <button
                         onClick={() => handleDownloadCertificate()}
-                        disabled={downloadingCert}
-                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap px-4 select-none disabled:opacity-50"
+                        disabled={downloadingCert || !hasPassedFinalExam}
+                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap px-4 select-none disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Award className="w-4 h-4 text-white shrink-0" />
                         <span>{downloadingCert ? 'Generating...' : 'Download PDF Certificate'}</span>
                       </button>
+                      {!hasPassedFinalExam && (
+                        <p className="text-[10px] text-red-500 font-semibold text-center mt-1">
+                          🔒 Pass the Final Exam to unlock your certificate.
+                        </p>
+                      )}
                     </div>
                   ) : isExamRequirementPassed ? (
                     <button

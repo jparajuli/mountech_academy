@@ -14,7 +14,8 @@ import {
   Calendar, 
   Clock,
   ArrowRight,
-  AlertCircle
+  AlertCircle,
+  Lock
 } from 'lucide-react';
 
 interface ExamAttempt {
@@ -113,7 +114,7 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
             });
             const averageScore = examsTakenCount > 0 ? Math.round(scoreSum / examsTakenCount) : 0;
 
-            const finalExams = exams.filter(e => !e.exam_type || e.exam_type === 'final');
+            const finalExams = exams.filter(e => e.exam_type === 'final');
             const hasFinalExam = finalExams.length > 0;
             const passedAllFinalExams = hasFinalExam && finalExams.every(e => e.passed);
 
@@ -390,7 +391,7 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
                 </div>
 
                 {/* VISUAL CERTIFICATE INTERLOCK GATE */}
-                {courseProgress.certificateEarned && (
+                {courseProgress.certificateEarned ? (
                   <div className="bg-gradient-to-r from-emerald-50 via-[#f0fdf4] to-blue-50 border-b border-emerald-100 p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl mt-0.5">
@@ -412,6 +413,33 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
                       <Download className="w-4 h-4" />
                       <span>{downloadingCert[courseProgress.courseId] ? 'Signing Certificate...' : 'Download Official Certificate'}</span>
                     </button>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 border-b border-gray-200 p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2.5 bg-gray-100 text-gray-400 border border-gray-200 rounded-xl mt-0.5">
+                        <Lock className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-800 tracking-tight">Academic Completion Certificate Locked</h4>
+                        <p className="text-xs text-gray-500 mt-1 max-w-xl leading-relaxed">
+                          Earn this course's academic certificate of completion by sitting and passing the final high-stakes comprehensive exam.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 md:items-end w-full md:w-auto">
+                      <button
+                        disabled={true}
+                        className="w-full md:w-auto md:self-center bg-gray-100 text-gray-400 font-semibold text-xs py-3 px-5 rounded-xl border border-gray-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-2 select-none"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download Official Certificate</span>
+                      </button>
+                      <p className="text-[10px] text-red-500 font-semibold text-center md:text-right">
+                        🔒 Pass the Final Exam to unlock your certificate.
+                      </p>
+                    </div>
                   </div>
                 )}
 
