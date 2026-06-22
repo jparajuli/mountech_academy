@@ -125,3 +125,68 @@ export function requireSyllabusEditAuth(req: Request, res: Response, next: NextF
 
   return res.status(403).json({ error: "Access Denied: Insufficient permissions to edit curriculum." });
 }
+
+export function checkCourseSunset(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user;
+  if (!user) {
+    return next();
+  }
+
+  // Admins and instructors do not have access locks
+  if (user.role === "admin" || user.role === "instructor") {
+    return next();
+  }
+
+  let courseId = req.params.courseId || req.body.courseId || req.query.courseId;
+  const { attemptId, sessionId } = req.params;
+
+  try {
+    if (!courseId && attemptId) {
+      const attemptRow = db.prepare(`
+        SELECT e.course_id 
+        FROM exam_attempts ea
+        JOIN exams e ON ea.exam_id = e.id
+        WHERE ea.id = ?
+      `).get(attemptId) as { course_id: string } | undefined;
+      if (attemptRow) {
+        courseId = attemptRow.course_id;
+      }
+    } else if (!courseId && sessionId) {
+      const sessionRow = db.prepare(`
+        SELECT course_id FROM live_sessions WHERE id = ?
+      `).get(sessionId) as { course_id: string } | undefined;
+      if (sessionRow) {
+        courseId = sessionRow.course_id;
+      }
+    }
+
+    if (!courseId) {
+      return next();
+    }
+
+    const enrollment = db.prepare(`
+      SELECT certificate_downloaded_at 
+      FROM enrollments 
+      WHERE LOWER(email) = ? AND courseId = ?
+    `).get(user.email.trim().toLowerCase(), courseId) as { certificate_downloaded_at: string | null } | undefined;
+
+    if (enrollment && enrollment.certificate_downloaded_at) {
+      const downloadedAt = new Date(enrollment.certificate_downloaded_at);
+      const now = new Date();
+      const diffTime = now.getTime() - downloadedAt.getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+      if (diffDays > 15) {
+        return res.status(403).json({
+          error: "Course access expired",
+          message: "Your 15-day post-completion access has expired. Congratulations on finishing the course!"
+        });
+      }
+    }
+  } catch (err: any) {
+    console.error("Sunset middleware error:", err.message);
+  }
+
+  next();
+}
+

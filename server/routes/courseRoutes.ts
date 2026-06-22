@@ -2,7 +2,7 @@ import { Router } from "express";
 import { EnrollSchema, CompleteSchema, RatingSchema, AdminCourseSchema, LiveSessionSchema } from "../schemas/course.js";
 import { UpdateSyllabusSchema } from "../schemas/instructor.js";
 import { validateRequest } from "../middlewares/validate.js";
-import { requireAuth, requireRole, requireSyllabusEditAuth } from "../middlewares/auth.js";
+import { requireAuth, requireRole, requireSyllabusEditAuth, checkCourseSunset } from "../middlewares/auth.js";
 import {
   getSyllabus,
   getEnrollments,
@@ -47,13 +47,13 @@ router.post("/ratings", requireAuth, validateRequest(RatingSchema), submitRating
 
 // Live Sessions Phase 2 routes
 router.post("/admin/courses/:courseId/sessions", requireAuth, requireRole(["admin"]), validateRequest(LiveSessionSchema), createLiveSession);
-router.get("/courses/:courseId/sessions", listLiveSessions);
-router.get("/sessions/:sessionId/join", requireAuth, joinLiveSession);
+router.get("/courses/:courseId/sessions", requireAuth, checkCourseSunset, listLiveSessions);
+router.get("/sessions/:sessionId/join", requireAuth, checkCourseSunset, joinLiveSession);
 
 // Student Exams Phase 3 routes
-router.get("/courses/:courseId/student-exams", requireAuth, getCourseExamsForStudent);
-router.post("/courses/:courseId/exams/:examId/start", requireAuth, startStudentExam);
-router.post("/attempts/:attemptId/submit", requireAuth, submitStudentExamResponse);
+router.get("/courses/:courseId/student-exams", requireAuth, checkCourseSunset, getCourseExamsForStudent);
+router.post("/courses/:courseId/exams/:examId/start", requireAuth, checkCourseSunset, startStudentExam);
+router.post("/attempts/:attemptId/submit", requireAuth, checkCourseSunset, submitStudentExamResponse);
 
 // GitLab Webhook Integration Phase 4 route
 router.post("/gitlab/webhook", handleGitLabWebhook);

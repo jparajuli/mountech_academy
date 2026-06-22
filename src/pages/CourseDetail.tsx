@@ -24,6 +24,8 @@ interface CourseDetailProps {
   isCompleted?: boolean;
   onComplete?: (courseId: string) => void;
   syncStatus?: { sheetsSynced: boolean; message?: string } | null;
+  rawEnrollments?: any[];
+  onRefreshEnrollments?: () => Promise<void>;
 }
 
 // Map of custom course slides to give context-aware simulation to the online lecture theater
@@ -187,8 +189,82 @@ export function LiveSessionButton({ session }: { session: LiveSession }) {
   );
 }
 
-export default function CourseDetail({ course, user, onBack, isEnrolled, onEnroll, isCompleted = false, onComplete, syncStatus }: CourseDetailProps) {
+export default function CourseDetail({ course, user, onBack, isEnrolled, onEnroll, isCompleted = false, onComplete, syncStatus, rawEnrollments = [], onRefreshEnrollments }: CourseDetailProps) {
   const hasEnrolledAccess = isEnrolled || (user && user.role === 'admin');
+
+  // Course Sunset & Certificate Confirmation states
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [confirmDownloadedAt, setConfirmDownloadedAt] = useState<string>('');
+  const [downloadingCert, setDownloadingCert] = useState<boolean>(false);
+
+  // Find enrollment metadata for current course
+  const currentEnrollment = rawEnrollments.find(e => e.courseId === course.id);
+  const certDownloadedAt = currentEnrollment?.certificate_downloaded_at;
+
+  const getRemainingDays = () => {
+    if (!certDownloadedAt) return null;
+    const downloadedAt = new Date(certDownloadedAt);
+    const now = new Date();
+    const diffTime = now.getTime() - downloadedAt.getTime();
+    const diffDays = 15 - diffTime / (1000 * 60 * 60 * 24);
+    return diffDays;
+  };
+
+  const remainingDays = getRemainingDays();
+  const isStaff = user?.role === 'admin' || user?.role === 'instructor';
+  const isExpired = remainingDays !== null && remainingDays <= 0 && !isStaff;
+
+  const handleDownloadCertificate = async (confirm: boolean = false) => {
+    setDownloadingCert(true);
+    const token = getToken();
+
+    try {
+      if (!token) {
+        alert("Verification failure: Please sign in again.");
+        return;
+      }
+
+      let downloadUrl = `/api/courses/${course.id}/certificate?token=${encodeURIComponent(token)}`;
+      if (confirm) {
+        downloadUrl += `&confirm=true`;
+      }
+      
+      const response = await fetch(downloadUrl);
+      if (response.status === 409) {
+        const data = await response.json();
+        setConfirmDownloadedAt(data.downloadedAt);
+        setShowConfirmModal(true);
+        return;
+      }
+
+      if (!response.ok) {
+        const text = await response.text();
+        alert(`Error: ${text || response.statusText}`);
+        return;
+      }
+
+      // Blob conversion and trigger native download
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `${course.id}_mountech_certificate.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      // Refresh enrollments to start/update sunset countdown banner!
+      if (onRefreshEnrollments) {
+        await onRefreshEnrollments();
+      }
+    } catch (e) {
+      console.error("Certificate download error:", e);
+      alert("Failed to secure PDF payload. Contact administrator.");
+    } finally {
+      setDownloadingCert(false);
+    }
+  };
 
   // Database Ratings States
   const [ratings, setRatings] = useState<ReviewRating[]>([]);
@@ -737,9 +813,71 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
         </div>
       </header>
 
-      {/* Hero Banner Section (Clean Slate Theme) */}
-      <section id="course-detail-banner" className="bg-[#f9fafb] text-[#111827] py-12 md:py-16 border-b border-[#e5e7eb] relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 items-center">
+      {isExpired ? (
+        <div className="flex-grow flex flex-col items-center justify-center p-8 bg-[#f9fafb] text-center space-y-6 py-28 relative">
+          <div className="p-5 bg-red-50 text-red-650 border border-red-200 rounded-3xl shadow-xs">
+            <Lock className="w-12 h-12 stroke-[2.5]" />
+          </div>
+          <div className="max-w-md space-y-3">
+            <h2 className="text-2xl font-extrabold text-[#111827] tracking-tight">Post-Completion Access Expired</h2>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Your 15-day post-completion access for <strong>{course.title}</strong> has expired. Congratulations on finishing the course!
+            </p>
+            <p className="text-xs text-gray-400">
+              You can still generate and download your official academic completion certificate below.
+            </p>
+          </div>
+          <div className="pt-4 border-t border-gray-200 max-w-xs w-full flex flex-col gap-3">
+            <button
+              onClick={() => handleDownloadCertificate()}
+              disabled={downloadingCert}
+              className="py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+            >
+              <Award className="w-4 h-4" />
+              <span>{downloadingCert ? 'Generating Certificate...' : 'Download Official Certificate'}</span>
+            </button>
+            <button
+              onClick={onBack}
+              className="py-3 px-6 bg-white hover:bg-gray-50 border border-gray-250 text-gray-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+            >
+              Return to Catalog
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Hero Banner Section (Clean Slate Theme) */}
+          <section id="course-detail-banner" className="bg-[#f9fafb] text-[#111827] py-12 md:py-16 border-b border-[#e5e7eb] relative overflow-hidden">
+            
+            {/* Countdown Sunset Banner */}
+            {remainingDays !== null && (
+              <div className="bg-amber-50 border border-amber-200 px-6 py-3.5 mb-8 text-amber-955 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-w-7xl mx-auto rounded-xl shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-amber-100 text-amber-800 rounded-lg shrink-0">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-extrabold block text-amber-950">
+                      Course Completed!
+                    </span>
+                    <span className="text-amber-700">
+                      You have <strong className="text-amber-950 font-black">{Math.ceil(remainingDays)}</strong> days of access remaining to review these course materials and assignments.
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-2 self-start sm:self-center">
+                  <button
+                    onClick={() => handleDownloadCertificate()}
+                    disabled={downloadingCert}
+                    className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10px] uppercase font-mono tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {downloadingCert ? 'Reindexing...' : 'Refresh Certificate'}
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            <div className="max-w-7xl mx-auto px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 items-center">
           
           {/* Hero Left Content (8 columns) */}
           <div className="lg:col-span-8 space-y-5">
@@ -921,15 +1059,14 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
 
               <div className="flex items-center gap-2 self-end sm:self-center">
                 {isCompleted ? (
-                  <a
-                    href={`/api/certificate/download?courseId=${course.id}&token=${getToken() || ""}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] px-3 py-1.5 bg-blue-600 border border-blue-500 rounded-md text-white hover:bg-blue-700 font-mono font-bold flex items-center gap-1 cursor-pointer transition-all select-none"
+                  <button
+                    onClick={() => handleDownloadCertificate()}
+                    disabled={downloadingCert}
+                    className="text-[11px] px-3 py-1.5 bg-blue-600 border border-blue-500 rounded-md text-white hover:bg-blue-700 font-mono font-bold flex items-center gap-1 cursor-pointer transition-all select-none disabled:opacity-50"
                   >
                     <Award className="w-3.5 h-3.5 animate-bounce" />
-                    <span>Download Cert</span>
-                  </a>
+                    <span>{downloadingCert ? 'Downloading...' : 'Download Cert'}</span>
+                  </button>
                 ) : isExamRequirementPassed ? (
                   <button
                     onClick={() => onComplete && onComplete(course.id)}
@@ -2305,15 +2442,14 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                           <p className="text-gray-650 mt-0.5 leading-tight">Your formal graduation record has been logged in Google Sheets. Download your official PDF certificate below.</p>
                         </div>
                       </div>
-                      <a
-                        href={`/api/certificate/download?courseId=${course.id}&token=${getToken() || ""}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap px-4 select-none"
+                      <button
+                        onClick={() => handleDownloadCertificate()}
+                        disabled={downloadingCert}
+                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap px-4 select-none disabled:opacity-50"
                       >
                         <Award className="w-4 h-4 text-white shrink-0" />
-                        <span>Download PDF Certificate</span>
-                      </a>
+                        <span>{downloadingCert ? 'Generating...' : 'Download PDF Certificate'}</span>
+                      </button>
                     </div>
                   ) : isExamRequirementPassed ? (
                     <button
@@ -2907,6 +3043,8 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
           </div>
         )}
       </AnimatePresence>
+      </>
+      )}
 
       {/* Footer Bar */}
       <footer className="bg-[#f9fafb] text-gray-400 py-8 border-t border-[#e5e7eb]">
@@ -2920,6 +3058,52 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
           </div>
         </div>
       </footer>
+
+      {showConfirmModal && confirmDownloadedAt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in" id="expired-cert-confirm-modal-detail">
+          <div className="bg-white border border-gray-100 rounded-2xl max-w-md w-full shadow-2xl p-6 space-y-4 animate-scale-up">
+            <div className="flex items-start gap-4 text-left">
+              <div className="p-3 bg-amber-50 text-amber-600 border border-amber-100 rounded-xl">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-extrabold text-[#111827] tracking-tight">Certificate Already Issued</h3>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  You previously downloaded this official certificate on <strong className="text-gray-800">{new Date(confirmDownloadedAt).toLocaleString()}</strong>.
+                </p>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Would you like to generate and download a fresh copy? Note: This will not re-trigger or extend your 15-day sunset access countdown.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setConfirmDownloadedAt('');
+                }}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs cursor-pointer select-none transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowConfirmModal(false);
+                  setConfirmDownloadedAt('');
+                  await handleDownloadCertificate(true);
+                }}
+                className="px-4 py-2 bg-[#0070f3] hover:bg-blue-600 active:bg-blue-700 text-white font-bold rounded-lg text-xs cursor-pointer select-none transition-colors"
+                id="btn-confirm-download-again-detail"
+              >
+                Download Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

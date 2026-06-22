@@ -104,6 +104,7 @@ export async function getProfile(): Promise<{ user: User }> {
 export interface GetEnrollmentsResponse {
   enrollments: string[];
   completions: string[];
+  rawEnrollments?: any[];
   sheetsSynced: boolean;
   warning?: string;
 }

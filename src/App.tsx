@@ -13,6 +13,7 @@ export default function App() {
   const [view, setView] = useState<'catalog' | 'detail'>('catalog');
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
   const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
+  const [rawEnrollments, setRawEnrollments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<{ sheetsSynced: boolean; message?: string } | null>(null);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -41,6 +42,7 @@ export default function App() {
         const enrollmentsData = await getEnrollments();
         setEnrolledCourseIds(enrollmentsData.enrollments);
         setCompletedCourseIds(enrollmentsData.completions || []);
+        setRawEnrollments(enrollmentsData.rawEnrollments || []);
         setSyncStatus({ 
           sheetsSynced: enrollmentsData.sheetsSynced,
           message: enrollmentsData.warning 
@@ -68,6 +70,7 @@ export default function App() {
       const enrollmentsData = await getEnrollments();
       setEnrolledCourseIds(enrollmentsData.enrollments);
       setCompletedCourseIds(enrollmentsData.completions || []);
+      setRawEnrollments(enrollmentsData.rawEnrollments || []);
       setSyncStatus({ 
         sheetsSynced: enrollmentsData.sheetsSynced,
         message: enrollmentsData.warning 
@@ -87,6 +90,7 @@ export default function App() {
     setView('catalog');
     setEnrolledCourseIds([]);
     setCompletedCourseIds([]);
+    setRawEnrollments([]);
     setSyncStatus(null);
   };
 
@@ -108,6 +112,7 @@ export default function App() {
       const enrollmentsData = await getEnrollments();
       setEnrolledCourseIds(enrollmentsData.enrollments);
       setCompletedCourseIds(enrollmentsData.completions || []);
+      setRawEnrollments(enrollmentsData.rawEnrollments || []);
     } catch (e) {
       // Ignored quiet logs
     }
@@ -124,6 +129,7 @@ export default function App() {
       const enrollmentsData = await getEnrollments();
       setEnrolledCourseIds(enrollmentsData.enrollments);
       setCompletedCourseIds(enrollmentsData.completions || []);
+      setRawEnrollments(enrollmentsData.rawEnrollments || []);
       
       setSyncStatus({
         sheetsSynced: enrollResponse.sheetsSynced,
@@ -157,6 +163,7 @@ export default function App() {
       const enrollmentsData = await getEnrollments();
       setEnrolledCourseIds(enrollmentsData.enrollments);
       setCompletedCourseIds(enrollmentsData.completions || []);
+      setRawEnrollments(enrollmentsData.rawEnrollments || []);
 
       setSyncStatus({
         sheetsSynced: response.sheetsSynced,
@@ -214,6 +221,15 @@ export default function App() {
           isCompleted={completedCourseIds.includes(selectedCourse.id)}
           onComplete={handleCompleteCourse}
           syncStatus={syncStatus}
+          rawEnrollments={rawEnrollments}
+          onRefreshEnrollments={async () => {
+            try {
+              const enrollmentsData = await getEnrollments();
+              setEnrolledCourseIds(enrollmentsData.enrollments);
+              setCompletedCourseIds(enrollmentsData.completions || []);
+              setRawEnrollments(enrollmentsData.rawEnrollments || []);
+            } catch (e) {}
+          }}
         />
       ) : (
         <Courses

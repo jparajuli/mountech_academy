@@ -88,6 +88,7 @@ export async function getEnrollments(req: Request, res: Response) {
     return res.json({
       enrollments: Array.from(new Set(userLocalIDs)),
       completions: Array.from(new Set(userCompletedLocalIDs)),
+      rawEnrollments: localEnrollments,
       sheetsSynced: false
     });
   } catch (error: any) {
@@ -242,13 +243,32 @@ export async function certificateDownload(req: Request, res: Response) {
     day: "numeric"
   });
 
+  // Check the enrollments table for the certificate_downloaded_at timestamp
   try {
-    // Interceptor: execute UPDATE to set certificate_downloaded_at = datetime('now')
+    const enrollment = db.prepare(`
+      SELECT certificate_downloaded_at 
+      FROM enrollments 
+      WHERE LOWER(email) = ? AND courseId = ?
+    `).get(payload.email.trim().toLowerCase(), courseId) as { certificate_downloaded_at: string | null } | undefined;
+
+    if (enrollment && enrollment.certificate_downloaded_at && req.query.confirm !== "true") {
+      return res.status(409).json({
+        alreadyDownloaded: true,
+        downloadedAt: enrollment.certificate_downloaded_at,
+        message: "Certificate already downloaded."
+      });
+    }
+  } catch (dbErr: any) {
+    console.error("Failed to check pre-downloaded certificate timestamp:", dbErr.message);
+  }
+
+  try {
+    // Interceptor: execute UPDATE to set certificate_downloaded_at = datetime('now') ONLY if previously null
     try {
       db.prepare(`
         UPDATE enrollments 
         SET certificate_downloaded_at = datetime('now')
-        WHERE LOWER(email) = ? AND courseId = ?
+        WHERE LOWER(email) = ? AND courseId = ? AND certificate_downloaded_at IS NULL
       `).run(payload.email.trim().toLowerCase(), courseId);
     } catch (eErr: any) {
       console.error("Backend interceptor warning: Failed to save certificate download timestamp:", eErr.message);

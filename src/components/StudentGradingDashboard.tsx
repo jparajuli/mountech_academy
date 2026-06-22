@@ -73,6 +73,8 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
   const [error, setError] = useState<string | null>(null);
   const [expandedExams, setExpandedExams] = useState<Record<number, boolean>>({});
   const [downloadingCert, setDownloadingCert] = useState<Record<string, boolean>>({});
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [confirmModalData, setConfirmModalData] = useState<{ courseId: string; downloadedAt: string } | null>(null);
 
   useEffect(() => {
     async function loadAllCourseProgress() {
@@ -161,7 +163,7 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
   };
 
   // Securely trigger certificate download
-  const handleDownloadCertificate = async (courseId: string) => {
+  const handleDownloadCertificate = async (courseId: string, confirm: boolean = false) => {
     setDownloadingCert(prev => ({ ...prev, [courseId]: true }));
     const token = getToken();
 
@@ -172,16 +174,35 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
       }
 
       // Secure link building supporting fallback paths
-      const downloadUrl = `/api/courses/${courseId}/certificate?token=${encodeURIComponent(token)}`;
+      let downloadUrl = `/api/courses/${courseId}/certificate?token=${encodeURIComponent(token)}`;
+      if (confirm) {
+        downloadUrl += `&confirm=true`;
+      }
       
-      // Trigger native download
+      const response = await fetch(downloadUrl);
+      if (response.status === 409) {
+        const data = await response.json();
+        setConfirmModalData({ courseId, downloadedAt: data.downloadedAt });
+        setShowConfirmModal(true);
+        return;
+      }
+
+      if (!response.ok) {
+        const text = await response.text();
+        alert(`Error: ${text || response.statusText}`);
+        return;
+      }
+
+      // Blob conversion and trigger native download
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.target = "_blank";
+      link.href = blobUrl;
       link.download = `${courseId}_mountech_certificate.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
     } catch (e) {
       console.error("Certificate download error:", e);
       alert("Failed to secure PDF payload. Contact administrator.");
@@ -594,6 +615,53 @@ export const StudentGradingDashboard: React.FC<StudentGradingDashboardProps> = (
           <span className="hover:text-gray-700 cursor-pointer">Verification Registry</span>
         </div>
       </div>
+
+      {showConfirmModal && confirmModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in" id="expired-cert-confirm-modal">
+          <div className="bg-white border border-gray-100 rounded-2xl max-w-md w-full shadow-2xl p-6 space-y-4 animate-scale-up">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-amber-50 text-amber-600 border border-amber-100 rounded-xl">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-[#111827] tracking-tight">Certificate Already Issued</h3>
+                <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                  You previously downloaded this official certificate on <strong className="text-gray-800">{new Date(confirmModalData.downloadedAt).toLocaleString()}</strong>.
+                </p>
+                <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                  Would you like to generate and download a fresh copy? Note: This will not re-trigger or extend your 15-day sunset access countdown.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setConfirmModalData(null);
+                }}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-xs cursor-pointer select-none transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const targetCourseId = confirmModalData.courseId;
+                  setShowConfirmModal(false);
+                  setConfirmModalData(null);
+                  await handleDownloadCertificate(targetCourseId, true);
+                }}
+                className="px-4 py-2 bg-[#0070f3] hover:bg-blue-600 active:bg-blue-700 text-white font-bold rounded-lg text-xs cursor-pointer select-none transition-colors"
+                id="btn-confirm-download-again"
+              >
+                Download Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
