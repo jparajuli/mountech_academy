@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { courses } from "../../src/courses";
+import { EXAM_DATABASE } from "../../src/exams";
 
 const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "mountech.db");
 const db = new Database(dbPath);
@@ -653,6 +654,65 @@ try {
       }
     }
     console.log(`[DB SEEDER] Successfully seeded ${jaxExams.length} JAX exams with associated MCQ validations.`);
+  }
+
+  // Seeding final exams for other courses in the EXAM_DATABASE if they do not exist
+  try {
+    for (const courseIdKey of Object.keys(EXAM_DATABASE)) {
+      const examCheckAny = db.prepare("SELECT id FROM exams WHERE course_id = ? AND exam_type = 'final'").get(courseIdKey);
+      if (!examCheckAny) {
+        console.log(`[DB SEEDER] Seeding final exam for Course ID: ${courseIdKey}...`);
+        
+        const matchedCourse = courses.find(c => c.id === courseIdKey);
+        const courseTitle = matchedCourse ? matchedCourse.title : courseIdKey;
+        
+        const insertExam = db.prepare(`
+          INSERT INTO exams (course_id, chapter_id, title, description, is_published, duration_minutes, questions_to_display, passing_score_percentage, exam_type)
+          VALUES (?, NULL, ?, ?, 1, 25, 5, 80, 'final')
+        `);
+        
+        const examResult = insertExam.run(
+          courseIdKey,
+          `${courseTitle} Final Exam`,
+          `The final comprehensive certification exam for MountTech Academy's "${courseTitle}" curriculum.`
+        );
+        
+        const examId = examResult.lastInsertRowid;
+        const insertQuestion = db.prepare(`
+          INSERT INTO exam_questions (exam_id, question_text, question_type, options, correct_answer, points)
+          VALUES (?, ?, 'multiple_choice', ?, ?, 1)
+        `);
+        
+        const examQuestions = EXAM_DATABASE[courseIdKey];
+        for (const q of examQuestions) {
+          const correctText = q.options[q.correctIndex];
+          insertQuestion.run(
+            Number(examId),
+            q.question,
+            JSON.stringify(q.options),
+            correctText
+          );
+        }
+        console.log(`[DB SEEDER] Successfully seeded final exam for ${courseIdKey} with ${examQuestions.length} questions.`);
+      }
+    }
+  } catch (seedErr: any) {
+    console.error("[DB SEEDER ERROR] Failed to seed extra courses final exams:", seedErr.message);
+  }
+
+  // Adjust pre-existing JAX chapter exams' exam_type to be 'lesson' instead of 'final'
+  try {
+    db.exec(`
+      UPDATE exams 
+      SET exam_type = 'lesson' 
+      WHERE course_id = 'build-train-llm-jax' 
+        AND chapter_id IS NOT NULL 
+        AND chapter_id != '' 
+        AND chapter_id != 'final'
+    `);
+    console.log("[DB SEEDER] Configured chapter assessments to be exam_type = 'lesson'.");
+  } catch (err: any) {
+    console.error("Failed to update JAX chapter exams type:", err.message);
   }
 
 } catch (seedingError: any) {

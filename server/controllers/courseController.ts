@@ -210,7 +210,7 @@ export async function certificateDownload(req: Request, res: Response) {
     return res.status(400).send("<h1>Bad Request</h1><p>Missing required courseId query parameter.</p>");
   }
 
-  // Certificate Security: Verify the student has successfully passed an exam of type 'final' for this course
+  // Certificate Security: Verify the student has successfully passed an exam of type 'final' for this course or has marked status as 'Completed'
   try {
     const passedFinal = db.prepare(`
       SELECT 1 
@@ -220,7 +220,14 @@ export async function certificateDownload(req: Request, res: Response) {
       LIMIT 1
     `).get(courseId, payload.email.trim().toLowerCase());
 
-    if (!passedFinal) {
+    const isCompleted = db.prepare(`
+      SELECT 1 
+      FROM enrollments 
+      WHERE courseId = ? AND status = 'Completed' AND LOWER(email) = ?
+      LIMIT 1
+    `).get(courseId, payload.email.trim().toLowerCase());
+
+    if (!passedFinal && !isCompleted) {
       return res.status(403).send("<h1>403 Forbidden</h1><p>Final Exam not passed.</p>");
     }
   } catch (err: any) {
