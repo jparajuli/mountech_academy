@@ -5,7 +5,7 @@ import {
   Award, Play, ChevronRight, Terminal, Sparkles, AlertCircle, AlertTriangle, 
   Video, Code, FileText, Check, Globe, Shield, ShieldCheck, CreditCard, 
   Send, Users, MessageSquare, ChevronLeft, Tv2, Smartphone,
-  Lock, Unlock, Trophy, RefreshCw, Radio
+  Lock, Unlock, Trophy, RefreshCw, Radio, Pin, Download, Plus, Trash2, Copy, Bookmark, CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams, checkoutManual, fetchCourseLessons } from '../api';
@@ -595,6 +595,166 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   ]);
   const [myQuestion, setMyQuestion] = useState('');
   const [qaSubmitting, setQaSubmitting] = useState(false);
+
+  // Downloadable Lecture Study Summary States
+  const [lectureSideTab, setLectureSideTab] = useState<'chat' | 'summary'>('chat');
+  const [pinnedQAs, setPinnedQAs] = useState<{ id: number; question: string; answer: string; author: string }[]>([
+    {
+      id: 1,
+      question: "What does JAX compiles numerical grids mean?",
+      answer: "JAX compiles standard Python + NumPy code into highly optimized XLA machine code that can target GPUs and TPUs for rapid parallel processing.",
+      author: "Dr. Evelyn Carter"
+    },
+    {
+      id: 2,
+      question: "Is pyodide actually running Python locally?",
+      answer: "Yes! Pyodide loads the fully operational Python interpreter inside WebAssembly, ensuring assertions and evaluations happen directly inside your secure browser sandbox.",
+      author: "System"
+    }
+  ]);
+
+  const [sharedSnippets, setSharedSnippets] = useState<{ id: number; title: string; code: string; language: string; description: string }[]>([
+    {
+      id: 1,
+      title: "JAX Simple Analytical Gradient",
+      code: `import jax.numpy as jnp\nfrom jax import grad\n\ndef f(x):\n    return jnp.sin(x) / x\n\ngrad_f = grad(f)\nprint("Gradient at x=1.0:", grad_f(1.0))`,
+      language: "python",
+      description: "Mathematical representation of a target derivative in standard python format, reviewed by JAX compiles."
+    }
+  ]);
+
+  const [summaryNotice, setSummaryNotice] = useState<string | null>(null);
+  
+  // For manual Q&A input form
+  const [newQuestion, setNewQuestion] = useState<string>('');
+  const [newAnswer, setNewAnswer] = useState<string>('');
+  const [showAddQAForm, setShowAddQAForm] = useState<boolean>(false);
+
+  // Handlers for pinned study notes
+  const handlePinLectureQuestion = (q: { id: number; sender: string; text: string; answer?: string }) => {
+    if (pinnedQAs.some(p => p.question === q.text)) {
+      setSummaryNotice("This question has already been pinned to your Lecture Summary!");
+      setTimeout(() => setSummaryNotice(null), 3500);
+      return;
+    }
+    
+    setPinnedQAs(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        question: q.text,
+        answer: q.answer || "Discussed and verified live during group discussion.",
+        author: q.sender
+      }
+    ]);
+    
+    setSummaryNotice("Question pinned to Lecture Study Summary!");
+    setTimeout(() => setSummaryNotice(null), 3500);
+    setLectureSideTab('summary');
+  };
+
+  const handleAddNewQA = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuestion.trim()) return;
+
+    setPinnedQAs(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        question: newQuestion.trim(),
+        answer: newAnswer.trim() || "Discussed in depth during lecture.",
+        author: user?.name || "Self Notes"
+      }
+    ]);
+
+    setNewQuestion('');
+    setNewAnswer('');
+    setShowAddQAForm(false);
+    setSummaryNotice("Custom Q&A entry added to Study Summary!");
+    setTimeout(() => setSummaryNotice(null), 3500);
+  };
+
+  const handleRemoveQA = (id: number) => {
+    setPinnedQAs(prev => prev.filter(q => q.id !== id));
+  };
+
+  const handleSaveSnippetToSummary = (code: string, title?: string) => {
+    if (!code.trim()) return;
+    
+    if (sharedSnippets.some(s => s.code === code)) {
+      setSummaryNotice("This exact code block is already in your summary notes!");
+      setTimeout(() => setSummaryNotice(null), 3500);
+      return;
+    }
+
+    setSharedSnippets(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        title: title || "Interactive Sandbox Implementation Draft",
+        code: code,
+        language: "python",
+        description: "Custom Python algorithm snippet written during slide presentations"
+      }
+    ]);
+
+    setSummaryNotice("Saved editor code snippet directly to Lecture Summary!");
+    setTimeout(() => setSummaryNotice(null), 3550);
+  };
+
+  const handleDownloadSummary = () => {
+    const timestampStr = new Date().toLocaleString();
+    let md = `# Live Lecture Study Summary: ${course.title}\n\n`;
+    md += `| Metadata Field | Value |\n`;
+    md += `| --- | --- |\n`;
+    md += `| **Session Topic** | ${course.title} |\n`;
+    md += `| **Date** | ${new Date().toLocaleDateString()} |\n`;
+    md += `| **Downloaded At** | ${timestampStr} |\n`;
+    md += `| **Student Name** | ${user?.name || 'Academic Scholar'} (${user?.email}) |\n`;
+    md += `| **Academic Course ID** | ${course.id} |\n\n`;
+    md += `--- \n\n`;
+    
+    md += `## 💡 Pinned Q&A\n\n`;
+    if (pinnedQAs.length === 0) {
+      md += `*No QA elements pinned during this live stream.*\n\n`;
+    } else {
+      pinnedQAs.forEach((item, index) => {
+        md += `### Q${index + 1}: ${item.question}\n`;
+        md += `**Answer:** ${item.answer}\n`;
+        md += `*Pinned by:* ${item.author}\n\n`;
+      });
+    }
+
+    md += `---\n\n`;
+    md += `## 💻 Shared Code Snippets\n\n`;
+    if (sharedSnippets.length === 0) {
+      md += `*No core snippets shared during this session.*\n\n`;
+    } else {
+      sharedSnippets.forEach((item, index) => {
+        md += `### Snippet ${index + 1}: ${item.title}\n`;
+        if (item.description) {
+          md += `*Overview:* ${item.description}\n\n`;
+        }
+        md += `\`\`\`${item.language || 'python'}\n${item.code}\n\`\`\`\n\n`;
+      });
+    }
+
+    md += `---\n\n## 📝 Study Review Checklist\n\n`;
+    md += `- [ ] Test the shared recursive algorithms and Whitespace Tokenizer locally\n`;
+    md += `- [ ] Read through the execution assert statements\n`;
+    md += `- [ ] Solve any follow-up challenges in the main course console\n\n`;
+    md += `*Study sheet compiled automatically by Mountech Academy Live Workspace Synthesizer.*\n`;
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const sanitizedTitle = course.title.toLowerCase().replace(/[^a-z0-9]/g, "_");
+    link.setAttribute("download", `lecture_summary_${sanitizedTitle}_course_${course.id}.md`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Fetch contextual slides for the current course
   const slides = courseSlidesMap[course.id] || genericSlides;
@@ -1258,69 +1418,267 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                 </div>
 
                 {/* Live Chat / Lecture Q&A desk (4 columns) - Highly interactive! */}
-                <div className="lg:col-span-4 bg-[#121929] border border-gray-800 rounded-lg p-4 flex flex-col justify-between min-h-[400px]">
-                  <div className="space-y-4 flex-grow flex flex-col justify-between">
+                <div className="lg:col-span-4 bg-[#121929] border border-gray-800 rounded-lg p-4 flex flex-col justify-between min-h-[420px]">
+                  <div className="flex-grow flex flex-col justify-between">
                     <div>
-                      <div className="flex items-center gap-2 border-b border-gray-800/80 pb-2 mb-3">
-                        <MessageSquare className="w-4 h-4 text-[#38bdf8]" />
-                        <h4 className="text-xs font-mono font-bold tracking-wider text-white uppercase">Live Student Q&A Desk</h4>
+                      {/* Side Tab Bar */}
+                      <div className="flex items-center justify-between border-b border-gray-850 pb-2 mb-3 gap-2">
+                        <div className="flex items-center gap-1.5 bg-slate-950 p-0.5 rounded-lg border border-gray-900">
+                          <button
+                            onClick={() => setLectureSideTab('chat')}
+                            className={`px-2.5 py-1 text-[9px] font-mono font-bold uppercase rounded transition-all cursor-pointer ${
+                              lectureSideTab === 'chat'
+                                ? 'bg-[#0070f3] text-white'
+                                : 'text-gray-400 hover:text-white'
+                            }`}
+                          >
+                            💬 Q&A Desk
+                          </button>
+                          <button
+                            onClick={() => setLectureSideTab('summary')}
+                            className={`px-2.5 py-1 text-[9px] font-mono font-bold uppercase rounded transition-all cursor-pointer flex items-center gap-1 ${
+                              lectureSideTab === 'summary'
+                                ? 'bg-[#0070f3] text-white'
+                                : 'text-gray-400 hover:text-white'
+                            }`}
+                          >
+                            📚 Study Summary
+                            {pinnedQAs.length > 0 && (
+                              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                            )}
+                          </button>
+                        </div>
                       </div>
-                      
-                      {/* List of questions */}
-                      <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
-                        {lectureQuestions.map((q) => (
-                          <div key={q.id} className="text-xs bg-slate-950 p-3 rounded border border-gray-850 space-y-1">
-                            <div className="flex justify-between items-center text-[9px]">
-                              <span className="font-bold text-gray-300">{q.sender}</span>
-                              <span className="text-gray-600 font-mono">Synced</span>
-                            </div>
-                            <p className="text-gray-250 font-medium leading-relaxed">{q.text}</p>
-                            
-                            {/* Instructor's response */}
-                            {q.answer ? (
-                              <div className="mt-2 pt-2 border-t border-gray-900 text-blue-300 pl-2 border-l-2 border-blue-500 text-[11px] leading-relaxed">
-                                {q.answer}
+
+                      {lectureSideTab === 'chat' ? (
+                        <>
+                          {/* List of questions */}
+                          <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
+                            {lectureQuestions.map((q) => (
+                              <div key={q.id} className="text-xs bg-slate-950 p-3 rounded border border-gray-850 space-y-2 group relative">
+                                <div className="flex justify-between items-center text-[9px]">
+                                  <span className="font-bold text-gray-300">{q.sender}</span>
+                                  <span className="text-gray-650 font-mono">Synced</span>
+                                </div>
+                                <p className="text-gray-250 font-medium leading-relaxed">{q.text}</p>
+                                
+                                {/* Instructor's response */}
+                                {q.answer ? (
+                                  <div className="mt-2 pt-2 border-t border-gray-900 text-blue-300 pl-2 border-l-2 border-blue-500 text-[11px] leading-relaxed">
+                                    {q.answer}
+                                  </div>
+                                ) : (
+                                  <div className="mt-2 pt-2 border-t border-gray-900 text-[10px] text-gray-500 font-mono italic flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
+                                    Waiting for instructor approval...
+                                  </div>
+                                )}
+
+                                {/* Pin option */}
+                                <div className="flex items-center justify-between pt-1 border-t border-gray-900/50 mt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePinLectureQuestion(q)}
+                                    className="text-[9.5px] font-mono text-indigo-400 hover:text-indigo-300 hover:underline flex items-center gap-0.5 cursor-pointer"
+                                    title="Pin question to Study Summary"
+                                  >
+                                    <Pin className="w-2.5 h-2.5 rotate-45" />
+                                    <span>Pin to Summary Notes</span>
+                                  </button>
+                                </div>
                               </div>
-                            ) : (
-                              <div className="mt-2 pt-2 border-t border-gray-900 text-[10px] text-gray-500 font-mono italic flex items-center gap-1.5">
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />
-                                Waiting for instructor approval...
+                            ))}
+                            
+                            {qaSubmitting && (
+                              <div className="text-[10px] text-gray-500 italic font-mono flex items-center gap-1 text-center py-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-bounce" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-bounce delay-100" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-bounce delay-200" />
+                                <span>Instructor is typing response...</span>
                               </div>
                             )}
                           </div>
-                        ))}
-                        
-                        {qaSubmitting && (
-                          <div className="text-[10px] text-gray-500 italic font-mono flex items-center gap-1 text-center py-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-bounce" />
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-bounce delay-100" />
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-bounce delay-200" />
-                            <span>Instructor is typing response...</span>
+                        </>
+                      ) : (
+                        /* LECTURE STUDY SUMMARY PANEL */
+                        <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+                          {summaryNotice && (
+                            <div className="p-2 bg-emerald-950/60 border border-emerald-500/25 rounded-lg text-center text-[10px] text-emerald-400 font-mono font-bold flex items-center justify-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>{summaryNotice}</span>
+                            </div>
+                          )}
+
+                          {/* Companion Banner */}
+                          <div className="p-3 bg-gradient-to-br from-indigo-950/20 to-slate-950 border border-indigo-950/40 rounded-xl flex flex-col items-center justify-center text-center space-y-2.5 shadow">
+                            <div className="space-y-1">
+                              <span className="text-[9px] uppercase font-mono tracking-wider font-extrabold text-[#38bdf8] block">Automatic Study Companion</span>
+                              <h4 className="text-[11px] font-bold text-slate-100">Study Summary & Compiler</h4>
+                              <p className="text-[9.5px] text-gray-400 leading-snug">
+                                Save lecture whiteboard codes, pin active questions, and export a beautifully compiled Study Sheet (.md) instantly!
+                              </p>
+                            </div>
+
+                            <button
+                              onClick={handleDownloadSummary}
+                              type="button"
+                              className="w-full py-1.5 bg-[#0070f3] hover:bg-blue-600 text-white font-mono font-bold text-[10px] rounded-lg cursor-pointer transition-all flex items-center justify-center gap-1 tracking-wider shadow"
+                            >
+                              <Download className="w-3 h-3 text-white" />
+                              <span>Download Summary (.md)</span>
+                            </button>
                           </div>
-                        )}
-                      </div>
+
+                          {/* Pinned QA block */}
+                          <div className="space-y-2 border-t border-gray-800/80 pt-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-mono text-indigo-400 uppercase font-black flex items-center gap-1">
+                                <Pin className="w-2.5 h-2.5 text-indigo-400 rotate-45" /> Pinned Q&A ({pinnedQAs.length})
+                              </span>
+                              <button
+                                onClick={() => setShowAddQAForm(!showAddQAForm)}
+                                className="text-[8.5px] font-mono text-[#38bdf8] hover:text-[#0ea5e9] hover:underline cursor-pointer flex items-center gap-0.5"
+                              >
+                                <Plus className="w-2.5 h-2.5" />
+                                <span>Add Q&A Entry</span>
+                              </button>
+                            </div>
+
+                            {showAddQAForm && (
+                              <form onSubmit={handleAddNewQA} className="p-2.5 bg-slate-950 border border-slate-900 rounded-lg space-y-2">
+                                <div className="space-y-1">
+                                  <label className="text-[8.5px] font-mono text-gray-400 uppercase block font-semibold">Question</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="e.g. What is JAX compilation?"
+                                    value={newQuestion}
+                                    onChange={(e) => setNewQuestion(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-800 rounded p-1 text-[10px] text-slate-200 outline-none focus:border-indigo-500 font-mono"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[8.5px] font-mono text-gray-400 uppercase block font-semibold">Answer Details</label>
+                                  <textarea
+                                    placeholder="Enter corresponding notes..."
+                                    value={newAnswer}
+                                    rows={2}
+                                    onChange={(e) => setNewAnswer(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-800 rounded p-1 text-[10px] text-slate-200 outline-none focus:border-indigo-500 font-mono"
+                                  />
+                                </div>
+                                <div className="flex justify-end gap-1.5 text-[9.5px] font-mono">
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAddQAForm(false)}
+                                    className="px-1.5 py-0.5 text-gray-500 hover:text-white cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="submit"
+                                    className="bg-[#0070f3] text-white px-2 py-0.5 rounded font-bold cursor-pointer"
+                                  >
+                                    Add Note
+                                  </button>
+                                </div>
+                              </form>
+                            )}
+
+                            {pinnedQAs.length === 0 ? (
+                              <p className="text-[9px] font-mono text-gray-550 italic p-1.5 bg-slate-950/40 border border-dashed border-slate-800 rounded">No pinned discussions yet. Click "Pin to Summary Notes" under any question in the Q&A Desk!</p>
+                            ) : (
+                              <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-0.5">
+                                {pinnedQAs.map((item) => (
+                                  <div key={item.id} className="p-2 bg-slate-950 border border-slate-900 rounded-lg space-y-1 relative group">
+                                    <button
+                                      onClick={() => handleRemoveQA(item.id)}
+                                      type="button"
+                                      className="absolute top-1.5 right-1.5 text-gray-600 hover:text-[#ff4d4f] opacity-0 group-hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                                      title="Delete QA item from notes"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                    <div className="flex items-start gap-1">
+                                      <span className="text-[9px] font-mono font-bold text-indigo-400 shrink-0">Q:</span>
+                                      <p className="text-[10px] text-slate-200 leading-normal font-bold font-sans">{item.question}</p>
+                                    </div>
+                                    <div className="flex items-start gap-1 border-t border-slate-900 pt-1 mt-1">
+                                      <span className="text-[9px] font-mono font-bold text-emerald-400 shrink-0">A:</span>
+                                      <p className="text-[9.5px] text-slate-300 leading-normal font-mono">{item.answer}</p>
+                                    </div>
+                                    <span className="text-[8px] font-mono text-gray-500 block">Speaker: {item.author}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Code snippets block */}
+                          <div className="space-y-2 border-t border-gray-800/80 pt-2.5">
+                            <span className="text-[9px] font-mono text-indigo-400 uppercase font-black block">
+                              💻 Shared Code Scribes ({sharedSnippets.length})
+                            </span>
+
+                            {sharedSnippets.length === 0 ? (
+                              <p className="text-[9px] font-mono text-gray-500 italic p-1.5 bg-slate-950/40 border border-dashed border-slate-800 rounded">No snippets shared. Hit "Save to Summary" inside the Code Playground tab!</p>
+                            ) : (
+                              <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-0.5">
+                                {sharedSnippets.map((snippet) => (
+                                  <div key={snippet.id} className="p-2 bg-slate-950 border border-slate-900 rounded-lg space-y-1 relative group">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-bold text-slate-200 font-sans tracking-tight">{snippet.title}</span>
+                                      <span className="text-[8px] font-mono text-indigo-400 font-bold uppercase bg-indigo-950/40 px-1 border border-indigo-900/20 rounded">{snippet.language}</span>
+                                    </div>
+                                    {snippet.description && (
+                                      <p className="text-[8.5px] text-gray-400 leading-relaxed italic">{snippet.description}</p>
+                                    )}
+                                    <pre className="p-1.5 bg-[#090f1e] rounded border border-slate-900 font-mono text-[8.5px] text-cyan-400 overflow-x-auto whitespace-pre leading-relaxed select-all max-h-[80px]">
+                                      {snippet.code}
+                                    </pre>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(snippet.code);
+                                        setSummaryNotice("Snippet code copied directly to clipboard!");
+                                        setTimeout(() => setSummaryNotice(null), 3000);
+                                      }}
+                                      type="button"
+                                      className="text-[8.5px] text-[#38bdf8] hover:underline cursor-pointer flex items-center gap-0.5 mt-1 font-mono transition-all"
+                                    >
+                                      <Copy className="w-2.5 h-2.5" />
+                                      <span>Copy Code Block</span>
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Question Submit Form */}
-                    <form onSubmit={handleQAFormSubmit} className="pt-3 border-t border-gray-850 mt-4">
-                      <span className="text-[8px] font-mono text-gray-500 uppercase tracking-wider block mb-1.5">Submit question to active Queue</span>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="text"
-                          value={myQuestion}
-                          onChange={(e) => setMyQuestion(e.target.value)}
-                          placeholder="Type query to lecturer..."
-                          className="flex-1 bg-slate-950 px-3 py-2 text-xs border border-gray-850 hover:border-gray-700 focus:border-[#38bdf8] focus:outline-none rounded text-white"
-                        />
-                        <button
-                          type="submit"
-                          className="p-2 bg-[#0070f3] hover:bg-[#0051b3] text-white rounded cursor-pointer transition-all flex items-center justify-center shrink-0"
-                          title="Send to lecture table"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </form>
+                    {/* Question Submit Form (only show on chat tab) */}
+                    {lectureSideTab === 'chat' && (
+                      <form onSubmit={handleQAFormSubmit} className="pt-3 border-t border-gray-850 mt-4">
+                        <span className="text-[8px] font-mono text-gray-500 uppercase tracking-wider block mb-1.5">Submit question to active Queue</span>
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={myQuestion}
+                            onChange={(e) => setMyQuestion(e.target.value)}
+                            placeholder="Type query to lecturer..."
+                            className="flex-1 bg-slate-950 px-3 py-2 text-xs border border-gray-850 hover:border-gray-700 focus:border-[#38bdf8] focus:outline-none rounded text-white"
+                          />
+                          <button
+                            type="submit"
+                            className="p-2 bg-[#0070f3] hover:bg-[#0051b3] text-white rounded cursor-pointer transition-all flex items-center justify-center shrink-0"
+                            title="Send to lecture table"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
                 </div>
 
@@ -1331,7 +1689,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                 {(() => {
                   const activeLessonDb = activeLessonIndex !== null ? (dbLessons[activeLessonIndex] || dbLessons.find((l: any) => l.chapter === course.syllabus[activeLessonIndex]?.chapter)) : null;
                   const activeLessonId = activeLessonDb?.id || null;
-                  return <PythonSandbox lessonId={activeLessonId} />;
+                  return <PythonSandbox lessonId={activeLessonId} onSaveToSummary={handleSaveSnippetToSummary} />;
                 })()}
               </div>
             )}
@@ -1626,7 +1984,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                                     id={`chapter-interactive-trigger-${index}`}
                                     onClick={() => {
                                       setClassroomMode(true);
-                                      setClassroomTab('sandbox');
+                                      setClassroomTab('lecture');
                                       setActiveLessonIndex(index);
                                       markLessonCompleted(index);
                                       setTerminalOutput([`Successfully loaded classroom context for lesson: "${slice.title}"`]);
