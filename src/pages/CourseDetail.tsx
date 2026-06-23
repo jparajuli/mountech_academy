@@ -5,7 +5,7 @@ import {
   Award, Play, ChevronRight, Terminal, Sparkles, AlertCircle, AlertTriangle, 
   Video, Code, FileText, Check, Globe, Shield, ShieldCheck, CreditCard, 
   Send, Users, MessageSquare, ChevronLeft, Tv2, Smartphone,
-  Lock, Unlock, Trophy, RefreshCw, Radio, Pin, Download, Plus, Trash2, Copy, Bookmark, CheckCircle2
+  Lock, Unlock, Trophy, RefreshCw, Radio, Pin, Download, Plus, Trash2, Copy, Bookmark, CheckCircle2, Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams, checkoutManual, fetchCourseLessons } from '../api';
@@ -756,8 +756,145 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     document.body.removeChild(link);
   };
 
-  // Fetch contextual slides for the current course
-  const slides = courseSlidesMap[course.id] || genericSlides;
+  // Dynamic slide customization states for instructors and testing scholars
+  const [customCourseSlides, setCustomCourseSlides] = useState<Record<string, Array<{ t: string; d: string; code: string }>>>(() => {
+    try {
+      const saved = localStorage.getItem(`mountech_custom_slides_${user?.email || 'guest'}`);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [showSlideStudio, setShowSlideStudio] = useState<boolean>(false);
+  const [slideInputText, setSlideInputText] = useState<string>('');
+  const [slideFormat, setSlideFormat] = useState<'markdown' | 'json'>('markdown');
+  const [slideStudioError, setSlideStudioError] = useState<string | null>(null);
+  const [slideStudioSuccess, setSlideStudioSuccess] = useState<string | null>(null);
+
+  const parseMarkdownToSlides = (mdText: string): Array<{ t: string; d: string; code: string }> => {
+    let blocks: string[] = [];
+    // Normalize line endings
+    const normalizedText = mdText.replace(/\r\n/g, '\n');
+    
+    if (normalizedText.includes('\n---')) {
+      blocks = normalizedText.split(/\n---\s*\n/);
+    } else if (normalizedText.includes('## ')) {
+      const parts = normalizedText.split(/\n(?=##\s)/);
+      blocks = parts.map(p => p.trim()).filter(Boolean);
+    } else {
+      blocks = [normalizedText];
+    }
+
+    const slidesList: Array<{ t: string; d: string; code: string }> = [];
+
+    for (let block of blocks) {
+      block = block.trim();
+      if (!block) continue;
+
+      const titleMatch = block.match(/^(?:#+\s*)(.*)$/m);
+      const title = titleMatch ? titleMatch[1].trim() : "Untitled Slide";
+
+      const codeMatch = block.match(/```[a-zA-Z0-9]*\n([\s\S]*?)```/);
+      const code = codeMatch ? codeMatch[1].trim() : "";
+
+      let description = block;
+      if (titleMatch) {
+        description = description.replace(titleMatch[0], "");
+      }
+      if (codeMatch) {
+        description = description.replace(codeMatch[0], "");
+      }
+
+      description = description
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "$1")
+        .replace(/_([^_]+)_/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/^\s*[\r\n]/gm, "")
+        .trim();
+
+      slidesList.push({
+        t: title,
+        d: description || "No further details provided for this slide segment.",
+        code: code
+      });
+    }
+
+    return slidesList;
+  };
+
+  const handleApplyCustomSlides = (textToParse: string, format: 'markdown' | 'json') => {
+    setSlideStudioError(null);
+    setSlideStudioSuccess(null);
+    
+    if (!textToParse.trim()) {
+      setSlideStudioError("Please provide slide content first!");
+      return;
+    }
+
+    try {
+      let parsedList: Array<{ t: string; d: string; code: string }> = [];
+
+      if (format === 'json') {
+        const obj = JSON.parse(textToParse);
+        if (!Array.isArray(obj)) {
+          throw new Error("JSON must be an array of slide objects: [ { t, d, code } ]");
+        }
+        for (let idx = 0; idx < obj.length; idx++) {
+          const s = obj[idx];
+          if (!s.t) {
+            throw new Error(`Slide at index ${idx} is missing a title ("t" property)`);
+          }
+          parsedList.push({
+            t: String(s.t),
+            d: String(s.d || ""),
+            code: String(s.code || "")
+          });
+        }
+      } else {
+        parsedList = parseMarkdownToSlides(textToParse);
+      }
+
+      if (parsedList.length === 0) {
+        throw new Error("Could not extract any valid slides from the input text!");
+      }
+
+      const updated = {
+        ...customCourseSlides,
+        [course.id]: parsedList
+      };
+
+      setCustomCourseSlides(updated);
+      localStorage.setItem(`mountech_custom_slides_${user?.email || 'guest'}`, JSON.stringify(updated));
+      setActiveSlide(0);
+      setSlideStudioSuccess(`Successfully compiled and activated ${parsedList.length} slides!`);
+      
+      // Auto close after brief success delay
+      setTimeout(() => {
+        setShowSlideStudio(false);
+        setSlideStudioSuccess(null);
+      }, 1500);
+
+    } catch (err: any) {
+      setSlideStudioError(err.message || "Failed to parse slides. Please verify format schema.");
+    }
+  };
+
+  const handleResetCourseSlides = () => {
+    const updated = { ...customCourseSlides };
+    delete updated[course.id];
+    setCustomCourseSlides(updated);
+    localStorage.setItem(`mountech_custom_slides_${user?.email || 'guest'}`, JSON.stringify(updated));
+    setActiveSlide(0);
+    setSlideInputText('');
+    setSlideStudioSuccess("Restored default course slide deck.");
+    setTimeout(() => setSlideStudioSuccess(null), 1500);
+  };
+
+  // Fetch contextual slides for the current course (custom slide deck takes precedence)
+  const slides = customCourseSlides[course.id] || courseSlidesMap[course.id] || genericSlides;
 
   // Formatting credit card input automatically
   const handleCardNumberChange = (val: string) => {
@@ -1312,99 +1449,317 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                 {/* Visual Projector / Slide Whiteboard Deck (8 columns) */}
                 <div className="lg:col-span-8 space-y-4">
                   <div className="bg-[#121929] border border-gray-800 rounded-lg p-5 relative overflow-hidden aspect-[16/9] flex flex-col justify-between shadow-inner">
-                    {/* Top Watermark bar */}
-                    <div className="flex justify-between items-center text-[9px] font-mono text-gray-500 uppercase tracking-widest border-b border-gray-800 pb-2">
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-red-650 animate-pulse inline-block" />
-                        Live Lecture Presentation Broadcast
-                      </span>
-                      <span>Mountech Lecture Node #00{activeSlide + 1}</span>
-                    </div>
-
-                    {/* Central Slide Context Area */}
-                    <div className="my-auto py-4 space-y-4">
-                      <div className="space-y-1.5">
-                        <span className="text-[10px] uppercase font-mono font-bold text-blue-400 block tracking-wider">
-                          Slide Module {activeSlide + 1} of {slides.length}
-                        </span>
-                        <h4 className="text-lg md:text-2xl font-bold tracking-tight text-white leading-tight">
-                          {slides[activeSlide]?.t}
-                        </h4>
-                        <p className="text-xs md:text-sm text-gray-300 leading-relaxed max-w-2xl">
-                          {slides[activeSlide]?.d}
-                        </p>
-                      </div>
-
-                      {/* Code companion illustration inside presentation screen */}
-                      <div className="bg-[#080d16] border border-gray-850 p-4 rounded font-mono text-[10px] md:text-xs text-emerald-400 overflow-x-auto shadow-inner select-all relative">
-                        <span className="absolute top-2 right-2 text-[8px] text-gray-600 uppercase font-mono select-none">Whiteboard Code Segment</span>
-                        {slides[activeSlide]?.code}
-                      </div>
-
-                      {/* Interactive Live Whiteboard SVG Node Map graph (Changes visually on Slide clicks!) */}
-                      <div className="border border-gray-800 bg-[#070c17]/40 rounded-md p-3 max-h-[110px] hidden md:flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <span className="text-[8px] font-mono text-gray-500 uppercase tracking-wider block">Live Synced Structural Diagram</span>
-                          <span className="text-[10px] text-gray-400 font-mono">
-                            {activeSlide === 0 ? 'W_matrix values mapped against Input Tensor arrays' : 
-                             activeSlide === 1 ? 'Gradient Backpropagation derivatives tracking chain variables' : 
-                                                 'Self-Attention softmax scoring correlating Q-K-V word vectors'}
-                          </span>
+                    {showSlideStudio && (user?.role === 'instructor' || user?.role === 'admin') ? (
+                      /* SLIDE STUDIO EDITOR VIEW */
+                      <div className="flex-grow flex flex-col justify-between h-full space-y-2 overflow-y-auto pr-1">
+                        <div className="flex justify-between items-center border-b border-gray-800 pb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                            <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#38bdf8]">
+                              Live Slide Studio & Scribe
+                            </h4>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSlideFormat('markdown')}
+                              className={`px-2 py-0.5 text-[8.5px] font-mono rounded font-bold transition-all cursor-pointer ${
+                                slideFormat === 'markdown'
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'bg-slate-950 text-gray-400 border border-slate-900 hover:text-white'
+                              }`}
+                            >
+                              Markdown (.md)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSlideFormat('json')}
+                              className={`px-2 py-0.5 text-[8.5px] font-mono rounded font-bold transition-all cursor-pointer ${
+                                slideFormat === 'json'
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'bg-slate-950 text-gray-400 border border-slate-900 hover:text-white'
+                              }`}
+                            >
+                              JSON (.json)
+                            </button>
+                          </div>
                         </div>
-                        <svg className="w-24 h-12 stroke-current text-blue-400/40" viewBox="0 0 100 50">
-                          {activeSlide === 0 ? (
-                            <g fill="none" strokeWidth="1.5">
-                              <circle cx="20" cy="25" r="4" className="text-blue-500" />
-                              <circle cx="50" cy="25" r="4" className="text-emerald-500" />
-                              <circle cx="80" cy="25" r="4" className="text-indigo-500" />
-                              <line x1="24" y1="25" x2="46" y2="25" strokeDasharray="2,2" />
-                              <line x1="54" y1="25" x2="76" y2="25" />
-                            </g>
-                          ) : activeSlide === 1 ? (
-                            <g fill="none" strokeWidth="1">
-                              <path d="M 10 10 L 40 40 L 90 20" />
-                              <circle cx="40" cy="40" r="3" fill="#000" />
-                              <line x1="40" y1="40" x2="40" y2="10" strokeDasharray="3,3" />
-                            </g>
-                          ) : (
-                            <g fill="none" strokeWidth="1.5">
-                              <circle cx="50" cy="25" r="15" className="text-rose-500" strokeDasharray="5,2" />
-                              <line x1="10" y1="10" x2="90" y2="40" />
-                              <line x1="10" y1="40" x2="90" y2="10" />
-                            </g>
-                          )}
-                        </svg>
+
+                        {/* Format instructions */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[9.5px] leading-relaxed">
+                          <div className="bg-slate-950/80 p-1.5 border border-slate-900 rounded space-y-0.5">
+                            <span className="font-semibold text-indigo-400 block font-mono text-[8px] uppercase">Format Guidelines</span>
+                            {slideFormat === 'markdown' ? (
+                              <p className="text-gray-400">
+                                Start each slide with `# Title` or `## Title`. Separate slides with <code className="text-cyan-400">---</code>. Wrap code in standard triple-backticks code blocks.
+                              </p>
+                            ) : (
+                              <p className="text-gray-400">
+                                Paste a JSON array containing objects with <code className="text-cyan-400">"t"</code> (title), <code className="text-cyan-400">"d"</code> (description), and <code className="text-cyan-400">"code"</code> keys.
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="bg-slate-950/80 p-1.5 border border-slate-900 rounded space-y-0.5 flex flex-col justify-between">
+                            <div className="flex justify-between items-center">
+                              <span className="font-semibold text-indigo-400 font-mono text-[8px] uppercase">Slide Draft Tools</span>
+                              <div className="flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (slideFormat === 'markdown') {
+                                      setSlideInputText(
+`# 1. Principles of Prompt Alignment
+Supply clear context, role criteria, and specify the desired format schema. Keep models safe from leakage.
+\`\`\`python
+system_prompt = "Format output in clean, valid standard JSON arrays."
+\`\`\`
+
+---
+# 2. Autonomous Reasoning Engines
+Design cooperative loops of agents holding isolated local directories and file structures.
+\`\`\`python
+agent = Agent(name="Researcher", tools=[google_search])
+\`\`\``
+                                      );
+                                    } else {
+                                      setSlideInputText(
+`[
+  {
+    "t": "1. Multi-Agent Systems",
+    "d": "Isolate system objectives into separate cooperative micro-agent threads.",
+    "code": "print('Multi-Agent ready')"
+  }
+]`
+                                      );
+                                    }
+                                  }}
+                                  className="px-1 py-0.5 bg-slate-900 hover:bg-slate-800 text-[8px] font-mono text-[#38bdf8] rounded cursor-pointer border border-slate-800"
+                                >
+                                  Load Sample
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSlideInputText('')}
+                                  className="px-1 py-0.5 bg-slate-900 hover:bg-slate-800 text-[8px] font-mono text-gray-400 rounded cursor-pointer border border-slate-800"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                            </div>
+
+                            <label className="text-[8px] font-mono text-emerald-400 flex items-center gap-1 cursor-pointer hover:underline">
+                              <input
+                                type="file"
+                                accept={slideFormat === 'markdown' ? '.md,.txt' : '.json'}
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const r = new FileReader();
+                                  r.onload = (evt) => {
+                                    const text = evt.target?.result;
+                                    if (typeof text === 'string') {
+                                      setSlideInputText(text);
+                                      setSlideStudioSuccess(`Loaded file "${file.name}"! Click Compile to launch.`);
+                                      setTimeout(() => setSlideStudioSuccess(null), 3000);
+                                    }
+                                  };
+                                  r.readAsText(file);
+                                }}
+                              />
+                              <Upload className="w-2.5 h-2.5 shrink-0" />
+                              <span>Import .md / .json file directly</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Slide editor text container */}
+                        <div className="flex-grow space-y-1">
+                          <div className="flex justify-between items-center text-[8px] font-mono">
+                            <span className="text-gray-400 uppercase font-bold">Write or Paste Slides Content</span>
+                            {customCourseSlides[course.id] && (
+                              <button
+                                type="button"
+                                onClick={handleResetCourseSlides}
+                                className="text-rose-400 hover:text-rose-300 hover:underline cursor-pointer"
+                              >
+                                Restore Original Slides
+                              </button>
+                            )}
+                          </div>
+                          <textarea
+                            value={slideInputText}
+                            onChange={(e) => setSlideInputText(e.target.value)}
+                            placeholder={
+                              slideFormat === 'markdown'
+                                ? "# Slide 1 Title\nSlide details...\n\n```python\n# code companion\n```\n\n---\n# Slide 2 Title..."
+                                : "[\n  {\n    \"t\": \"Slide 1\",\n    \"d\": \"Details...\",\n    \"code\": \"print('hello')\"\n  }\n]"
+                            }
+                            className="w-full h-24 bg-slate-950 border border-slate-900 rounded p-1.5 text-[9px] text-slate-100 font-mono focus:border-indigo-500 outline-none resize-none"
+                          />
+                        </div>
+
+                        {/* Messages */}
+                        {slideStudioError && (
+                          <div className="p-1.5 bg-rose-950/40 border border-rose-500/25 rounded text-[9px] text-rose-400 font-mono flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span>{slideStudioError}</span>
+                          </div>
+                        )}
+                        {slideStudioSuccess && (
+                          <div className="p-1.5 bg-emerald-950/40 border border-emerald-500/25 rounded text-[9px] text-emerald-400 font-mono flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-400" />
+                            <span>{slideStudioSuccess}</span>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex justify-end gap-2 text-[9.5px] font-mono">
+                          <button
+                            type="button"
+                            onClick={() => setShowSlideStudio(false)}
+                            className="px-2.5 py-1 bg-slate-950 hover:bg-slate-900 text-gray-400 rounded border border-slate-900 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyCustomSlides(slideInputText, slideFormat)}
+                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold cursor-pointer transition-all"
+                          >
+                            Compile & Present Deck
+                          </button>
+                        </div>
                       </div>
+                    ) : (
+                      /* ORIGINAL PROJECTOR VIEW */
+                      <>
+                        {/* Top Watermark bar */}
+                        <div className="flex justify-between items-center text-[9px] font-mono text-gray-500 uppercase tracking-widest border-b border-gray-800 pb-2">
+                          <span className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-red-650 animate-pulse inline-block" />
+                            Live Lecture Presentation Broadcast
+                          </span>
+                          <span>Mountech Lecture Node #00{activeSlide + 1}</span>
+                        </div>
+
+                        {/* Central Slide Context Area */}
+                        <div className="my-auto py-4 space-y-4">
+                          <div className="space-y-1.5">
+                            <span className="text-[10px] uppercase font-mono font-bold text-blue-400 block tracking-wider">
+                              Slide Module {activeSlide + 1} of {slides.length}
+                            </span>
+                            <h4 className="text-lg md:text-2xl font-bold tracking-tight text-white leading-tight">
+                              {slides[activeSlide]?.t}
+                            </h4>
+                            <p className="text-xs md:text-sm text-gray-300 leading-relaxed max-w-2xl">
+                              {slides[activeSlide]?.d}
+                            </p>
+                          </div>
+
+                          {/* Code companion illustration inside presentation screen */}
+                          <div className="bg-[#080d16] border border-gray-850 p-4 rounded font-mono text-[10px] md:text-xs text-emerald-400 overflow-x-auto shadow-inner select-all relative">
+                            <span className="absolute top-2 right-2 text-[8px] text-gray-600 uppercase font-mono select-none">Whiteboard Code Segment</span>
+                            {slides[activeSlide]?.code}
+                          </div>
+
+                          {/* Interactive Live Whiteboard SVG Node Map graph (Changes visually on Slide clicks!) */}
+                          <div className="border border-gray-800 bg-[#070c17]/40 rounded-md p-3 max-h-[110px] hidden md:flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <span className="text-[8px] font-mono text-gray-500 uppercase tracking-wider block">Live Synced Structural Diagram</span>
+                              <span className="text-[10px] text-gray-400 font-mono">
+                                {activeSlide === 0 ? 'W_matrix values mapped against Input Tensor arrays' : 
+                                 activeSlide === 1 ? 'Gradient Backpropagation derivatives tracking chain variables' : 
+                                                     'Self-Attention softmax scoring correlating Q-K-V word vectors'}
+                              </span>
+                            </div>
+                            <svg className="w-24 h-12 stroke-current text-blue-400/40" viewBox="0 0 100 50">
+                              {activeSlide === 0 ? (
+                                <g fill="none" strokeWidth="1.5">
+                                  <circle cx="20" cy="25" r="4" className="text-blue-500" />
+                                  <circle cx="50" cy="25" r="4" className="text-emerald-500" />
+                                  <circle cx="80" cy="25" r="4" className="text-indigo-500" />
+                                  <line x1="24" y1="25" x2="46" y2="25" strokeDasharray="2,2" />
+                                  <line x1="54" y1="25" x2="76" y2="25" />
+                                </g>
+                              ) : activeSlide === 1 ? (
+                                <g fill="none" strokeWidth="1">
+                                  <path d="M 10 10 L 40 40 L 90 20" />
+                                  <circle cx="40" cy="40" r="3" fill="#000" />
+                                  <line x1="40" y1="40" x2="40" y2="10" strokeDasharray="3,3" />
+                                </g>
+                              ) : (
+                                <g fill="none" strokeWidth="1.5">
+                                  <circle cx="50" cy="25" r="15" className="text-rose-500" strokeDasharray="5,2" />
+                                  <line x1="10" y1="10" x2="90" y2="40" />
+                                  <line x1="10" y1="40" x2="90" y2="10" />
+                                </g>
+                              )}
+                            </svg>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Widescreen presentation player slide controllers */}
+                  <div className="border-t border-gray-800 pt-3 flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-[10px] text-gray-500 font-mono font-semibold">
+                      <Users className="w-3.5 h-3.5 text-blue-400" />
+                      <span>128 students active in lecture broadcast right now</span>
                     </div>
 
-                    {/* Widescreen presentation player slide controllers */}
-                    <div className="border-t border-gray-800 pt-3 flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-[10px] text-gray-500 font-mono font-semibold">
-                        <Users className="w-3.5 h-3.5 text-blue-400" />
-                        <span>128 students active in lecture broadcast right now</span>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      {/* Interactive Slide Studio trigger */}
+                      {(user?.role === 'instructor' || user?.role === 'admin') && (
+                        <button
+                          onClick={() => {
+                            setShowSlideStudio(!showSlideStudio);
+                            // Initialize text field if empty with current custom deck or default template
+                            if (!slideInputText) {
+                              if (customCourseSlides[course.id]) {
+                                setSlideInputText(customCourseSlides[course.id].map(s => `# ${s.t}\n${s.d}\n\n\`\`\`python\n${s.code}\n\`\`\``).join('\n\n---\n\n'));
+                                setSlideFormat('markdown');
+                              } else {
+                                const defaultMd = slides.map(s => `# ${s.t}\n${s.d}\n\n\`\`\`python\n${s.code}\n\`\`\``).join('\n\n---\n\n');
+                                setSlideInputText(defaultMd);
+                                setSlideFormat('markdown');
+                              }
+                            }
+                          }}
+                          className={`px-2 py-1 text-[10px] font-mono rounded border flex items-center gap-1 cursor-pointer transition-all ${
+                            showSlideStudio
+                              ? 'bg-indigo-600 border-indigo-600 text-white font-bold'
+                              : 'bg-slate-900 border-slate-800 text-indigo-400 hover:text-white hover:border-slate-700'
+                          }`}
+                          title="Upload, draft, or edit slides for this live session"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Slide Studio</span>
+                          <span className="bg-amber-400 text-slate-950 font-extrabold text-[8px] px-1 rounded scale-90 select-none">INST</span>
+                        </button>
+                      )}
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setActiveSlide((prev) => Math.max(0, prev - 1))}
-                          disabled={activeSlide === 0}
-                          className="p-1.5 bg-gray-800 border border-gray-700 hover:bg-gray-700 disabled:opacity-40 rounded cursor-pointer text-xs"
-                          title="Previous Slide"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <span className="text-xs font-mono font-medium tracking-widest text-[#38bdf8]">
-                          {activeSlide + 1} / {slides.length}
-                        </span>
-                        <button
-                          onClick={() => setActiveSlide((prev) => Math.min(slides.length - 1, prev + 1))}
-                          disabled={activeSlide === slides.length - 1}
-                          className="p-1.5 bg-gray-800 border border-gray-700 hover:bg-gray-700 disabled:opacity-40 rounded cursor-pointer text-xs"
-                          title="Next Slide"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => setActiveSlide((prev) => Math.max(0, prev - 1))}
+                        disabled={activeSlide === 0}
+                        className="p-1.5 bg-gray-800 border border-gray-700 hover:bg-gray-700 disabled:opacity-40 rounded cursor-pointer text-xs"
+                        title="Previous Slide"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <span className="text-xs font-mono font-medium tracking-widest text-[#38bdf8]">
+                        {activeSlide + 1} / {slides.length}
+                      </span>
+                      <button
+                        onClick={() => setActiveSlide((prev) => Math.min(slides.length - 1, prev + 1))}
+                        disabled={activeSlide === slides.length - 1}
+                        className="p-1.5 bg-gray-800 border border-gray-700 hover:bg-gray-700 disabled:opacity-40 rounded cursor-pointer text-xs"
+                        title="Next Slide"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
