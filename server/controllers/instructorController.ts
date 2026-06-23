@@ -573,6 +573,13 @@ export function saveCustomSlides(req: Request, res: Response) {
   try {
     const instructorId = user.email.toLowerCase().trim();
 
+    // 1. Insert into slide_revisions first as an immutable log
+    db.prepare(`
+      INSERT INTO slide_revisions (lesson_id, instructor_id, slide_content, format_type, created_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+    `).run(lessonId, instructorId, slide_content, format_type);
+
+    // 2. Update active instructor_slides table
     db.prepare(`
       INSERT INTO instructor_slides (instructor_id, lesson_id, slide_content, format_type, updated_at)
       VALUES (?, ?, ?, ?, datetime('now'))
@@ -589,6 +596,28 @@ export function saveCustomSlides(req: Request, res: Response) {
   } catch (err: any) {
     console.error("[SAVE CUSTOM SLIDES ERR]", err);
     return res.status(500).json({ error: "Failed to save slide deck: " + err.message });
+  }
+}
+
+// GET /api/lessons/:lessonId/slides/revisions - Retrieve revision history list
+export function getSlideRevisions(req: Request, res: Response) {
+  const { lessonId } = req.params;
+
+  try {
+    const revisions = db.prepare(`
+      SELECT id, lesson_id, instructor_id, slide_content, format_type, created_at
+      FROM slide_revisions
+      WHERE lesson_id = ?
+      ORDER BY created_at DESC
+    `).all(lessonId) as any[];
+
+    return res.json({
+      success: true,
+      revisions
+    });
+  } catch (err: any) {
+    console.error("[GET SLIDE REVISIONS ERR]", err);
+    return res.status(500).json({ error: "Failed to retrieve slide revisions: " + err.message });
   }
 }
 

@@ -908,6 +908,23 @@ try {
     console.error("[DB SETUP ERROR] instructor_slides table creation failed:", err.message);
   }
 
+  // Create slide_revisions table
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS slide_revisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lesson_id TEXT NOT NULL,
+        instructor_id TEXT NOT NULL,
+        slide_content TEXT NOT NULL,
+        format_type TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    console.log("[DB SETUP] slide_revisions table guaranteed.");
+  } catch (err: any) {
+    console.error("[DB SETUP ERROR] slide_revisions table creation failed:", err.message);
+  }
+
 } catch (seedingError: any) {
   console.error("[DB SEEDER ERROR] Seeding aborted because:", seedingError.message);
 }

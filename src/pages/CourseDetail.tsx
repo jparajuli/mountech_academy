@@ -6,9 +6,11 @@ import {
   Award, Play, ChevronRight, Terminal, Sparkles, AlertCircle, AlertTriangle, 
   Video, Code, FileText, Check, Globe, Shield, ShieldCheck, CreditCard, 
   Send, Users, MessageSquare, ChevronLeft, Tv2, Smartphone,
-  Lock, Unlock, Trophy, RefreshCw, Radio, Pin, Download, Plus, Trash2, Copy, Bookmark, CheckCircle2, Upload
+  Lock, Unlock, Trophy, RefreshCw, Radio, Pin, Download, Plus, Trash2, Copy, Bookmark, CheckCircle2, Upload,
+  Image, History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { auth, GoogleAuthProvider, signInWithPopup } from '../firebase';
 import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams, checkoutManual, fetchCourseLessons } from '../api';
 import InstructorCard from '../components/InstructorCard';
 import { StudentExamTaker } from '../components/StudentExamTaker';
@@ -787,6 +789,13 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   const [loadingSlides, setLoadingSlides] = useState<boolean>(false);
   const [publishingSlides, setPublishingSlides] = useState<boolean>(false);
 
+  // Google Drive & Version History States
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [editorRef, setEditorRef] = useState<any>(null);
+  const [revisions, setRevisions] = useState<any[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState<boolean>(false);
+  const [showRevisionsDropdown, setShowRevisionsDropdown] = useState<boolean>(false);
+
   const parseMarkdownToSlides = (mdText: string): Array<{ t: string; d: string; code: string }> => {
     let blocks: string[] = [];
     const normalizedText = mdText.replace(/\r\n/g, '\n');
@@ -906,6 +915,188 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     } finally {
       setLoadingSlides(false);
     }
+  };
+
+  // Load Revision History List from DB
+  const loadRevisions = async () => {
+    try {
+      setLoadingRevisions(true);
+      const token = getToken();
+      if (!token) return;
+
+      const res = await fetch(`/api/lessons/${course.id}/slides/revisions`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data.success && data.revisions) {
+        setRevisions(data.revisions);
+      }
+    } catch (err) {
+      console.warn("Failed to load revisions:", err);
+    } finally {
+      setLoadingRevisions(false);
+    }
+  };
+
+  // Google OAuth Drive Access Token requester
+  const handleGoogleSignIn = async (): Promise<string | null> => {
+    if (accessToken) return accessToken;
+    try {
+      if (!auth) {
+        throw new Error("Mountech Academy database authentication system is offline.");
+      }
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/drive.file');
+      provider.addScope('https://www.googleapis.com/auth/drive.metadata.readonly');
+
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        setAccessToken(credential.accessToken);
+        return credential.accessToken;
+      } else {
+        throw new Error("No OAuth accessToken returned in Firebase credential schema.");
+      }
+    } catch (err: any) {
+      console.warn("Failed automatic Google Sign in SDK popup:", err);
+      const manualToken = window.prompt("Google Login popup was blocked or could not resolve. To bypass local iframe restrictions, please paste a valid Google Access Token, or leave blank to cancel:");
+      if (manualToken) {
+        setAccessToken(manualToken);
+        return manualToken;
+      }
+      return null;
+    }
+  };
+
+  // Load Picker library safely
+  const loadPickerInstance = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const gapi = (window as any).gapi;
+      if (!gapi) return reject(new Error("Google APIs framework not loaded yet."));
+      gapi.load('picker', {
+        callback: () => resolve(),
+        onerror: (e: any) => reject(e)
+      });
+    });
+  };
+
+  // Handle Google Picker image selection and formatting the direct-view URL
+  const handleInsertDriveImage = async () => {
+    setSlideStudioError(null);
+    let token = accessToken;
+    if (!token) {
+      token = await handleGoogleSignIn();
+    }
+    if (!token) return;
+
+    try {
+      await loadPickerInstance();
+
+      const pickerOrigin = window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0
+        ? window.location.ancestorOrigins[window.location.ancestorOrigins.length - 1]
+        : window.location.origin;
+
+      const googleRef = (window as any).google;
+      
+      const docsView = new googleRef.picker.DocsView(googleRef.picker.ViewId.DOCS)
+        .setMimeTypes('image/png,image/jpeg,image/gif,image/webp')
+        .setMode(googleRef.picker.DocsViewMode.GRID);
+
+      const picker = new googleRef.picker.PickerBuilder()
+        .addView(docsView)
+        .setOAuthToken(token)
+        .setCallback(async (data: any) => {
+          if (data.action === googleRef.picker.Action.PICKED) {
+            const chosenDoc = data.docs[0];
+            const fileId = chosenDoc.id;
+            
+            const driveUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+            const markdownImage = `![Drive Image](${driveUrl})`;
+
+            if (editorRef) {
+              const position = editorRef.getPosition();
+              if (position) {
+                const range = {
+                  startLineNumber: position.lineNumber,
+                  startColumn: position.column,
+                  endLineNumber: position.lineNumber,
+                  endColumn: position.column
+                };
+                editorRef.executeEdits('drive-picker', [{
+                  range: range,
+                  text: markdownImage,
+                  forceMoveMarkers: true
+                }]);
+              } else {
+                setSlideInputText(prev => prev + `\n${markdownImage}`);
+              }
+            } else {
+              setSlideInputText(prev => prev + `\n${markdownImage}`);
+            }
+
+            setSlideStudioSuccess(`Successfully inserted Google Drive image link!`);
+            setTimeout(() => setSlideStudioSuccess(null), 2500);
+          }
+        })
+        .setOrigin(pickerOrigin)
+        .build();
+
+      picker.setVisible(true);
+    } catch (pickerErr: any) {
+      console.warn("Picker API UI failed in sandboxed frame:", pickerErr);
+      const fileId = window.prompt("Google Picker failed to render in the sandboxed frame. Please enter your Google Drive File ID manually:");
+      if (fileId) {
+        const driveUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+        const markdownImage = `![Drive Image](${driveUrl})`;
+        if (editorRef) {
+          const position = editorRef.getPosition();
+          if (position) {
+            const range = {
+              startLineNumber: position.lineNumber,
+              startColumn: position.column,
+              endLineNumber: position.lineNumber,
+              endColumn: position.column
+            };
+            editorRef.executeEdits('drive-picker', [{
+              range: range,
+              text: markdownImage,
+              forceMoveMarkers: true
+            }]);
+          } else {
+            setSlideInputText(prev => prev + `\n${markdownImage}`);
+          }
+        } else {
+          setSlideInputText(prev => prev + `\n${markdownImage}`);
+        }
+        setSlideStudioSuccess(`Manually inserted Google Drive image link!`);
+        setTimeout(() => setSlideStudioSuccess(null), 2500);
+      }
+    }
+  };
+
+  const formatTimestamp = (ts: string) => {
+    try {
+      const d = new Date(ts.replace(' ', 'T'));
+      if (isNaN(d.getTime())) return ts;
+      return d.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return ts;
+    }
+  };
+
+  const handleSelectRevision = (rev: any) => {
+    setSlideInputText(rev.slide_content);
+    setSlideFormat(rev.format_type);
+    setShowRevisionsDropdown(false);
+    setSlideStudioSuccess(`Loaded revision from ${formatTimestamp(rev.created_at)} into the editor. Review it and click "Publish to Course" to make active.`);
+    setTimeout(() => setSlideStudioSuccess(null), 3500);
   };
 
   // Compile and apply slides locally (Push to live)
@@ -1030,6 +1221,9 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
       localStorage.setItem(`mountech_custom_slides_${user?.email || 'guest'}`, JSON.stringify(updated));
       setActiveSlide(0);
       setSlideStudioSuccess(`Successfully published & persisted ${parsedList.length} slides to Course Database!`);
+      
+      // Auto-refresh version history dropdown
+      loadRevisions();
 
     } catch (err: any) {
       setSlideStudioError(err.message || "Failed to publish slides.");
@@ -1775,6 +1969,66 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                               </div>
                             </div>
 
+                            {/* Insert Drive Image Button */}
+                            <button
+                              type="button"
+                              onClick={handleInsertDriveImage}
+                              className="px-2 py-1 bg-slate-900 border border-slate-850 hover:bg-slate-800 text-[9px] font-mono rounded flex items-center gap-1 text-gray-300 scale-90 cursor-pointer"
+                              title="Insert direct-link image from Google Drive"
+                            >
+                              <Image className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Insert Image</span>
+                            </button>
+
+                            {/* Version History Dropdown */}
+                            <div className="relative scale-90">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowRevisionsDropdown(!showRevisionsDropdown);
+                                  if (!showRevisionsDropdown) {
+                                    loadRevisions();
+                                  }
+                                }}
+                                className="px-2 py-1 bg-slate-900 border border-slate-850 hover:bg-slate-800 text-[9px] font-mono rounded flex items-center gap-1 text-gray-300 cursor-pointer"
+                                title="View previous published versions"
+                              >
+                                <History className="w-3.5 h-3.5 text-indigo-400" />
+                                <span>Version History ({revisions.length})</span>
+                              </button>
+                              {showRevisionsDropdown && (
+                                <div className="absolute right-0 top-full mt-1 bg-slate-950 border border-slate-800 rounded shadow-xl z-50 py-1 min-w-[200px] max-h-[220px] overflow-y-auto border border-indigo-950/50">
+                                  {loadingRevisions ? (
+                                    <div className="px-3 py-2 text-[8.5px] font-mono text-gray-500 flex items-center gap-1.5">
+                                      <RefreshCw className="w-3 h-3 animate-spin text-indigo-400" />
+                                      <span>Loading logs...</span>
+                                    </div>
+                                  ) : revisions.length === 0 ? (
+                                    <div className="px-3 py-2 text-[8.5px] font-mono text-gray-400 italic">
+                                      No published logs found.
+                                    </div>
+                                  ) : (
+                                    revisions.map((rev) => (
+                                      <button
+                                        key={rev.id}
+                                        type="button"
+                                        onClick={() => handleSelectRevision(rev)}
+                                        className="w-full text-left px-3 py-2 text-[8.5px] font-mono hover:bg-indigo-950/40 text-gray-300 hover:text-indigo-200 border-b border-slate-900 last:border-0 flex flex-col gap-0.5 cursor-pointer"
+                                      >
+                                        <span className="font-bold text-gray-200 flex items-center gap-1">
+                                          <Clock className="w-2.5 h-2.5 text-indigo-450" />
+                                          {formatTimestamp(rev.created_at)}
+                                        </span>
+                                        <span className="text-[7.5px] text-gray-500 font-mono">
+                                          Format: {rev.format_type}
+                                        </span>
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
                             {/* AI Scribe Toggle */}
                             <button
                               type="button"
@@ -1857,6 +2111,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                                 language={slideFormat === 'markdown' ? 'markdown' : 'json'}
                                 value={slideInputText}
                                 onChange={(val) => setSlideInputText(val || '')}
+                                onMount={(editor) => setEditorRef(editor)}
                                 options={{
                                   minimap: { enabled: false },
                                   fontSize: 10,
@@ -2097,7 +2352,11 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                       {(user?.role === 'instructor' || user?.role === 'admin') && (
                         <button
                           onClick={() => {
-                            setShowSlideStudio(!showSlideStudio);
+                            const nextState = !showSlideStudio;
+                            setShowSlideStudio(nextState);
+                            if (nextState) {
+                              loadRevisions();
+                            }
                             // Initialize text field if empty with current custom deck or default template
                             if (!slideInputText) {
                               if (customCourseSlides[course.id]) {
