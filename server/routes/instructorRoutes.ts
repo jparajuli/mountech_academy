@@ -26,6 +26,9 @@ import {
   updateExamQuestion,
   deleteCourseExam,
   deleteExamQuestion,
+  saveCustomSlides,
+  getCustomSlides,
+  generateSlidesAI,
 } from "../controllers/instructorController.js";
 
 const router = Router();
@@ -166,6 +169,31 @@ router.delete(
   requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   deleteExamQuestion
+);
+
+// --- ENTERPRISE SLIDE STUDIO PORTAL ENDPOINTS ---
+
+// Retrieve slides for classroom (accessible to any authenticated student or staff)
+router.get(
+  "/lessons/:lessonId/slides",
+  requireAuth,
+  getCustomSlides
+);
+
+// Save/publish custom instructor slides
+router.post(
+  "/lessons/:lessonId/slides",
+  requireAuth,
+  requireRole(["instructor", "admin"]),
+  saveCustomSlides
+);
+
+// Auto-generate slides with Gemini AI Scribe
+router.post(
+  "/ai/generate-slides",
+  requireAuth,
+  requireRole(["instructor", "admin"]),
+  generateSlidesAI
 );
 
 export default router;

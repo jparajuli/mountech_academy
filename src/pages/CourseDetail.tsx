@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Editor from '@monaco-editor/react';
 import { Course, User, LiveSession, InstructorProfile, Lesson } from '../types';
 import { 
   ArrowLeft, Clock, BookOpen, Star, CheckCircle, HelpCircle, 
@@ -391,6 +392,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
       loadSessions();
       loadDbStudentExams();
       loadDbLessons();
+      loadCustomSlidesFromDb();
     }
     // Reset submission feedback states on course switch
     setSubmitSuccess('');
@@ -772,9 +774,21 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   const [slideStudioError, setSlideStudioError] = useState<string | null>(null);
   const [slideStudioSuccess, setSlideStudioSuccess] = useState<string | null>(null);
 
+  // Decoupled Preview States
+  const [previewSlides, setPreviewSlides] = useState<Array<{ t: string; d: string; code: string }>>([]);
+  const [activePreviewSlide, setActivePreviewSlide] = useState<number>(0);
+
+  // AI Auto-Scribe States
+  const [aiPrompt, setAiPrompt] = useState<string>('');
+  const [aiGenerating, setAiGenerating] = useState<boolean>(false);
+  const [showAiInput, setShowAiInput] = useState<boolean>(false);
+
+  // Persistence States
+  const [loadingSlides, setLoadingSlides] = useState<boolean>(false);
+  const [publishingSlides, setPublishingSlides] = useState<boolean>(false);
+
   const parseMarkdownToSlides = (mdText: string): Array<{ t: string; d: string; code: string }> => {
     let blocks: string[] = [];
-    // Normalize line endings
     const normalizedText = mdText.replace(/\r\n/g, '\n');
     
     if (normalizedText.includes('\n---')) {
@@ -825,6 +839,76 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     return slidesList;
   };
 
+  // Live Decoupled Preview Parsing Effect
+  useEffect(() => {
+    try {
+      if (!slideInputText.trim()) {
+        setPreviewSlides([]);
+        return;
+      }
+      let parsed: Array<{ t: string; d: string; code: string }> = [];
+      if (slideFormat === 'json') {
+        const obj = JSON.parse(slideInputText);
+        if (Array.isArray(obj)) {
+          parsed = obj.map(s => ({
+            t: String(s.t || "Untitled Slide"),
+            d: String(s.d || ""),
+            code: String(s.code || "")
+          }));
+        }
+      } else {
+        parsed = parseMarkdownToSlides(slideInputText);
+      }
+      setPreviewSlides(parsed);
+    } catch {
+      // Don't show validation errors continuously in real-time typing
+    }
+  }, [slideInputText, slideFormat]);
+
+  // Load custom slides from Database
+  const loadCustomSlidesFromDb = async () => {
+    try {
+      setLoadingSlides(true);
+      const token = getToken();
+      if (!token) return;
+
+      const res = await fetch(`/api/lessons/${course.id}/slides`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data.success && data.slides) {
+        let parsedList: Array<{ t: string; d: string; code: string }> = [];
+        const { slide_content, format_type } = data.slides;
+        
+        if (format_type === 'json') {
+          try {
+            parsedList = JSON.parse(slide_content);
+          } catch {
+            parsedList = [];
+          }
+        } else {
+          parsedList = parseMarkdownToSlides(slide_content);
+        }
+
+        if (parsedList.length > 0) {
+          setCustomCourseSlides(prev => ({
+            ...prev,
+            [course.id]: parsedList
+          }));
+          setSlideInputText(slide_content);
+          setSlideFormat(format_type);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load custom slides from DB:", err);
+    } finally {
+      setLoadingSlides(false);
+    }
+  };
+
+  // Compile and apply slides locally (Push to live)
   const handleApplyCustomSlides = (textToParse: string, format: 'markdown' | 'json') => {
     setSlideStudioError(null);
     setSlideStudioSuccess(null);
@@ -869,16 +953,192 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
       setCustomCourseSlides(updated);
       localStorage.setItem(`mountech_custom_slides_${user?.email || 'guest'}`, JSON.stringify(updated));
       setActiveSlide(0);
-      setSlideStudioSuccess(`Successfully compiled and activated ${parsedList.length} slides!`);
+      setSlideStudioSuccess(`Successfully compiled and launched ${parsedList.length} slides to active carousel!`);
       
-      // Auto close after brief success delay
-      setTimeout(() => {
-        setShowSlideStudio(false);
-        setSlideStudioSuccess(null);
-      }, 1500);
-
     } catch (err: any) {
       setSlideStudioError(err.message || "Failed to parse slides. Please verify format schema.");
+    }
+  };
+
+  // Publish slides to backend database (and apply locally)
+  const handlePublishSlidesToDb = async () => {
+    setSlideStudioError(null);
+    setSlideStudioSuccess(null);
+
+    if (!slideInputText.trim()) {
+      setSlideStudioError("Please provide slide content first!");
+      return;
+    }
+
+    try {
+      setPublishingSlides(true);
+      const token = getToken();
+      if (!token) {
+        throw new Error("Authentication token is missing. Please log in again.");
+      }
+
+      let parsedList: Array<{ t: string; d: string; code: string }> = [];
+
+      if (slideFormat === 'json') {
+        const obj = JSON.parse(slideInputText);
+        if (!Array.isArray(obj)) {
+          throw new Error("JSON must be an array of slide objects: [ { t, d, code } ]");
+        }
+        for (let idx = 0; idx < obj.length; idx++) {
+          const s = obj[idx];
+          if (!s.t) {
+            throw new Error(`Slide at index ${idx} is missing a title ("t" property)`);
+          }
+          parsedList.push({
+            t: String(s.t),
+            d: String(s.d || ""),
+            code: String(s.code || "")
+          });
+        }
+      } else {
+        parsedList = parseMarkdownToSlides(slideInputText);
+      }
+
+      if (parsedList.length === 0) {
+        throw new Error("Could not extract any valid slides from the input text!");
+      }
+
+      // Save custom slides to database
+      const res = await fetch(`/api/lessons/${course.id}/slides`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          slide_content: slideInputText,
+          format_type: slideFormat
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to publish slides to server database.");
+      }
+
+      // Update local storage and custom slides
+      const updated = {
+        ...customCourseSlides,
+        [course.id]: parsedList
+      };
+      setCustomCourseSlides(updated);
+      localStorage.setItem(`mountech_custom_slides_${user?.email || 'guest'}`, JSON.stringify(updated));
+      setActiveSlide(0);
+      setSlideStudioSuccess(`Successfully published & persisted ${parsedList.length} slides to Course Database!`);
+
+    } catch (err: any) {
+      setSlideStudioError(err.message || "Failed to publish slides.");
+    } finally {
+      setPublishingSlides(false);
+    }
+  };
+
+  // AI "Auto-Scribe" Slide Generation Handler
+  const handleAutoGenerateSlides = async () => {
+    if (!aiPrompt.trim()) {
+      setSlideStudioError("Please enter some instructions or a topic first!");
+      return;
+    }
+
+    setSlideStudioError(null);
+    setSlideStudioSuccess(null);
+    setAiGenerating(true);
+
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error("Authentication token is missing. Please log in.");
+      }
+
+      const res = await fetch("/api/ai/generate-slides", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ instructions: aiPrompt })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to auto-generate slides.");
+      }
+
+      const generatedSlides = data.slides;
+      if (!Array.isArray(generatedSlides) || generatedSlides.length === 0) {
+        throw new Error("Generative model returned an invalid or empty slide structure.");
+      }
+
+      let formattedText = "";
+      if (slideFormat === "json") {
+        formattedText = JSON.stringify(generatedSlides, null, 2);
+      } else {
+        formattedText = generatedSlides.map(s => `# ${s.t}\n${s.d}\n\n\`\`\`python\n${s.code}\n\`\`\``).join("\n\n---\n\n");
+      }
+
+      setSlideInputText(formattedText);
+      setSlideStudioSuccess(`AI auto-generated ${generatedSlides.length} educational slides into the editor!`);
+      setShowAiInput(false);
+      setAiPrompt("");
+
+    } catch (err: any) {
+      setSlideStudioError(err.message || "Failed to auto-generate slides.");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  // Client-side Slide Deck Exporter (.md or .json)
+  const handleExportSlides = (exportFormat: 'markdown' | 'json') => {
+    try {
+      let content = slideInputText;
+      let filename = `course_slides_${course.id}`;
+      let mimeType = "text/plain";
+
+      if (exportFormat === 'json') {
+        mimeType = "application/json";
+        filename += ".json";
+        if (slideFormat !== 'json') {
+          try {
+            const parsed = parseMarkdownToSlides(slideInputText);
+            content = JSON.stringify(parsed, null, 2);
+          } catch {
+            setSlideStudioError("Could not convert current Markdown to a valid JSON array.");
+            return;
+          }
+        }
+      } else {
+        filename += ".md";
+        if (slideFormat === 'json') {
+          try {
+            const parsed = JSON.parse(slideInputText);
+            if (Array.isArray(parsed)) {
+              content = parsed.map((s: any) => `# ${s.t || 'Untitled Slide'}\n${s.d || ''}\n\n\`\`\`python\n${s.code || ''}\n\`\`\``).join("\n\n---\n\n");
+            }
+          } catch {
+            setSlideStudioError("Could not convert current JSON text to valid Markdown.");
+            return;
+          }
+        }
+      }
+
+      const blob = new Blob([content], { type: `${mimeType};charset=utf-8;` });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setSlideStudioSuccess(`Successfully exported slides as ${exportFormat.toUpperCase()}!`);
+      setTimeout(() => setSlideStudioSuccess(null), 1500);
+    } catch (err: any) {
+      setSlideStudioError(`Export failed: ${err.message}`);
     }
   };
 
@@ -1451,185 +1711,307 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                   <div className="bg-[#121929] border border-gray-800 rounded-lg p-5 relative overflow-hidden aspect-[16/9] flex flex-col justify-between shadow-inner">
                     {showSlideStudio && (user?.role === 'instructor' || user?.role === 'admin') ? (
                       /* SLIDE STUDIO EDITOR VIEW */
-                      <div className="flex-grow flex flex-col justify-between h-full space-y-2 overflow-y-auto pr-1">
-                        <div className="flex justify-between items-center border-b border-gray-800 pb-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                            <h4 className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#38bdf8]">
-                              Live Slide Studio & Scribe
+                      <div className="flex-grow flex flex-col h-full space-y-2 text-slate-100 overflow-hidden text-xs">
+                        {/* Top Control Bar */}
+                        <div className="flex flex-wrap justify-between items-center border-b border-gray-800 pb-2 gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+                            <h4 className="text-[11px] font-mono font-bold uppercase tracking-wider text-indigo-400">
+                              Enterprise Slide Studio & AI Scribe
                             </h4>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setSlideFormat('markdown')}
-                              className={`px-2 py-0.5 text-[8.5px] font-mono rounded font-bold transition-all cursor-pointer ${
-                                slideFormat === 'markdown'
-                                  ? 'bg-indigo-600 text-white'
-                                  : 'bg-slate-950 text-gray-400 border border-slate-900 hover:text-white'
-                              }`}
-                            >
-                              Markdown (.md)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSlideFormat('json')}
-                              className={`px-2 py-0.5 text-[8.5px] font-mono rounded font-bold transition-all cursor-pointer ${
-                                slideFormat === 'json'
-                                  ? 'bg-indigo-600 text-white'
-                                  : 'bg-slate-950 text-gray-400 border border-slate-900 hover:text-white'
-                              }`}
-                            >
-                              JSON (.json)
-                            </button>
-                          </div>
-                        </div>
 
-                        {/* Format instructions */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[9.5px] leading-relaxed">
-                          <div className="bg-slate-950/80 p-1.5 border border-slate-900 rounded space-y-0.5">
-                            <span className="font-semibold text-indigo-400 block font-mono text-[8px] uppercase">Format Guidelines</span>
-                            {slideFormat === 'markdown' ? (
-                              <p className="text-gray-400">
-                                Start each slide with `# Title` or `## Title`. Separate slides with <code className="text-cyan-400">---</code>. Wrap code in standard triple-backticks code blocks.
-                              </p>
-                            ) : (
-                              <p className="text-gray-400">
-                                Paste a JSON array containing objects with <code className="text-cyan-400">"t"</code> (title), <code className="text-cyan-400">"d"</code> (description), and <code className="text-cyan-400">"code"</code> keys.
-                              </p>
-                            )}
-                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Format toggle */}
+                            <div className="bg-slate-950 p-0.5 rounded border border-slate-800 flex gap-0.5 scale-90">
+                              <button
+                                type="button"
+                                onClick={() => setSlideFormat('markdown')}
+                                className={`px-2 py-0.5 text-[8px] font-mono rounded font-bold transition-all cursor-pointer ${
+                                  slideFormat === 'markdown'
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'text-gray-400 hover:text-white'
+                                }`}
+                              >
+                                Markdown
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSlideFormat('json')}
+                                className={`px-2 py-0.5 text-[8px] font-mono rounded font-bold transition-all cursor-pointer ${
+                                  slideFormat === 'json'
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'text-gray-400 hover:text-white'
+                                }`}
+                              >
+                                JSON
+                              </button>
+                            </div>
 
-                          <div className="bg-slate-950/80 p-1.5 border border-slate-900 rounded space-y-0.5 flex flex-col justify-between">
-                            <div className="flex justify-between items-center">
-                              <span className="font-semibold text-indigo-400 font-mono text-[8px] uppercase">Slide Draft Tools</span>
-                              <div className="flex gap-1.5">
+                            {/* Export drop button */}
+                            <div className="relative group scale-90">
+                              <button
+                                type="button"
+                                className="px-2 py-1 bg-slate-900 border border-slate-850 hover:bg-slate-800 text-[9px] font-mono rounded flex items-center gap-1 text-gray-300"
+                              >
+                                <Download className="w-3 h-3 text-cyan-400" />
+                                <span>Export</span>
+                              </button>
+                              <div className="absolute right-0 top-full mt-1 bg-slate-950 border border-slate-800 rounded shadow-xl hidden group-hover:block z-50 py-1 min-w-[100px]">
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    if (slideFormat === 'markdown') {
-                                      setSlideInputText(
-`# 1. Principles of Prompt Alignment
-Supply clear context, role criteria, and specify the desired format schema. Keep models safe from leakage.
-\`\`\`python
-system_prompt = "Format output in clean, valid standard JSON arrays."
-\`\`\`
-
----
-# 2. Autonomous Reasoning Engines
-Design cooperative loops of agents holding isolated local directories and file structures.
-\`\`\`python
-agent = Agent(name="Researcher", tools=[google_search])
-\`\`\``
-                                      );
-                                    } else {
-                                      setSlideInputText(
-`[
-  {
-    "t": "1. Multi-Agent Systems",
-    "d": "Isolate system objectives into separate cooperative micro-agent threads.",
-    "code": "print('Multi-Agent ready')"
-  }
-]`
-                                      );
-                                    }
-                                  }}
-                                  className="px-1 py-0.5 bg-slate-900 hover:bg-slate-800 text-[8px] font-mono text-[#38bdf8] rounded cursor-pointer border border-slate-800"
+                                  onClick={() => handleExportSlides('markdown')}
+                                  className="w-full text-left px-2 py-1 text-[9px] font-mono hover:bg-slate-900 text-gray-300 hover:text-white"
                                 >
-                                  Load Sample
+                                  As Markdown (.md)
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setSlideInputText('')}
-                                  className="px-1 py-0.5 bg-slate-900 hover:bg-slate-800 text-[8px] font-mono text-gray-400 rounded cursor-pointer border border-slate-800"
+                                  onClick={() => handleExportSlides('json')}
+                                  className="w-full text-left px-2 py-1 text-[9px] font-mono hover:bg-slate-900 text-gray-300 hover:text-white"
                                 >
-                                  Clear
+                                  As JSON (.json)
                                 </button>
                               </div>
                             </div>
 
-                            <label className="text-[8px] font-mono text-emerald-400 flex items-center gap-1 cursor-pointer hover:underline">
-                              <input
-                                type="file"
-                                accept={slideFormat === 'markdown' ? '.md,.txt' : '.json'}
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (!file) return;
-                                  const r = new FileReader();
-                                  r.onload = (evt) => {
-                                    const text = evt.target?.result;
-                                    if (typeof text === 'string') {
-                                      setSlideInputText(text);
-                                      setSlideStudioSuccess(`Loaded file "${file.name}"! Click Compile to launch.`);
-                                      setTimeout(() => setSlideStudioSuccess(null), 3000);
-                                    }
-                                  };
-                                  r.readAsText(file);
-                                }}
-                              />
-                              <Upload className="w-2.5 h-2.5 shrink-0" />
-                              <span>Import .md / .json file directly</span>
-                            </label>
+                            {/* AI Scribe Toggle */}
+                            <button
+                              type="button"
+                              onClick={() => setShowAiInput(!showAiInput)}
+                              className={`px-2.5 py-1 text-[9px] font-mono rounded flex items-center gap-1 scale-90 transition-all ${
+                                showAiInput
+                                  ? 'bg-purple-650 border-purple-600 text-white'
+                                  : 'bg-slate-900 border border-slate-850 hover:bg-slate-800 text-purple-400'
+                              }`}
+                            >
+                              <Sparkles className="w-3 h-3 text-purple-400" />
+                              <span>AI Auto-Scribe</span>
+                            </button>
                           </div>
                         </div>
 
-                        {/* Slide editor text container */}
-                        <div className="flex-grow space-y-1">
-                          <div className="flex justify-between items-center text-[8px] font-mono">
-                            <span className="text-gray-400 uppercase font-bold">Write or Paste Slides Content</span>
-                            {customCourseSlides[course.id] && (
+                        {/* AI Input Section */}
+                        {showAiInput && (
+                          <div className="bg-purple-950/20 border border-purple-500/20 p-2 rounded flex flex-col md:flex-row gap-1.5 items-center transition-all animate-fadeIn">
+                            <div className="flex-grow w-full relative">
+                              <input
+                                type="text"
+                                value={aiPrompt}
+                                onChange={(e) => setAiPrompt(e.target.value)}
+                                placeholder="Enter lecture topic or guidelines (e.g. 'Draft 4 slides detailing multi-agent architectures')..."
+                                className="w-full bg-slate-950 border border-purple-500/30 rounded px-2.5 py-1 text-[10px] text-slate-100 font-mono focus:border-purple-500 outline-none pr-8"
+                              />
+                              <Sparkles className="w-3.5 h-3.5 text-purple-500 absolute right-2.5 top-1/2 -translate-y-1/2 animate-pulse" />
+                            </div>
+                            <div className="flex gap-1.5 w-full md:w-auto justify-end">
                               <button
                                 type="button"
-                                onClick={handleResetCourseSlides}
-                                className="text-rose-400 hover:text-rose-300 hover:underline cursor-pointer"
+                                onClick={() => setShowAiInput(false)}
+                                className="px-2 py-1 bg-slate-950 border border-slate-900 rounded text-[9px] font-mono text-gray-400 hover:text-white"
                               >
-                                Restore Original Slides
+                                Cancel
                               </button>
-                            )}
+                              <button
+                                type="button"
+                                onClick={handleAutoGenerateSlides}
+                                disabled={aiGenerating}
+                                className="px-3 py-1 bg-purple-600 hover:bg-purple-750 disabled:opacity-40 text-white font-bold rounded text-[9px] font-mono flex items-center gap-1"
+                              >
+                                {aiGenerating ? (
+                                  <>
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                    <span>Scribing...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>Draft with AI</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </div>
-                          <textarea
-                            value={slideInputText}
-                            onChange={(e) => setSlideInputText(e.target.value)}
-                            placeholder={
-                              slideFormat === 'markdown'
-                                ? "# Slide 1 Title\nSlide details...\n\n```python\n# code companion\n```\n\n---\n# Slide 2 Title..."
-                                : "[\n  {\n    \"t\": \"Slide 1\",\n    \"d\": \"Details...\",\n    \"code\": \"print('hello')\"\n  }\n]"
-                            }
-                            className="w-full h-24 bg-slate-950 border border-slate-900 rounded p-1.5 text-[9px] text-slate-100 font-mono focus:border-indigo-500 outline-none resize-none"
-                          />
+                        )}
+
+                        {/* Split Editor / Preview Pane */}
+                        <div className="flex-grow grid grid-cols-1 md:grid-cols-12 gap-3 min-h-0 overflow-hidden">
+                          {/* Left Column: Monaco Editor */}
+                          <div className="md:col-span-7 flex flex-col space-y-1.5 min-h-0">
+                            <div className="flex justify-between items-center text-[8.5px] font-mono">
+                              <span className="text-gray-400 uppercase font-bold tracking-wider">Source Code Scribe</span>
+                              {customCourseSlides[course.id] && (
+                                <button
+                                  type="button"
+                                  onClick={handleResetCourseSlides}
+                                  className="text-rose-450 hover:text-rose-350 hover:underline cursor-pointer"
+                                >
+                                  Reset Default Deck
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex-grow border border-slate-850 rounded overflow-hidden min-h-[140px] bg-slate-950">
+                              <Editor
+                                height="100%"
+                                theme="vs-dark"
+                                language={slideFormat === 'markdown' ? 'markdown' : 'json'}
+                                value={slideInputText}
+                                onChange={(val) => setSlideInputText(val || '')}
+                                options={{
+                                  minimap: { enabled: false },
+                                  fontSize: 10,
+                                  fontFamily: "JetBrains Mono, monospace",
+                                  lineHeight: 14,
+                                  wordWrap: 'on',
+                                  padding: { top: 4, bottom: 4 },
+                                  scrollBeyondLastLine: false,
+                                  automaticLayout: true,
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Right Column: Live Presentation Preview */}
+                          <div className="md:col-span-5 flex flex-col space-y-1.5 min-h-0">
+                            <div className="flex justify-between items-center text-[8.5px] font-mono">
+                              <span className="text-emerald-400 uppercase font-bold tracking-wider flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Dynamic Whiteboard Preview
+                              </span>
+                              <span className="text-gray-500 text-[8px]">
+                                {previewSlides.length > 0 ? `Slide ${activePreviewSlide + 1} of ${previewSlides.length}` : 'Empty Deck'}
+                              </span>
+                            </div>
+
+                            <div className="flex-grow bg-[#090f1a] border border-slate-855 rounded p-3 flex flex-col justify-between min-h-[140px] shadow-inner overflow-y-auto">
+                              {previewSlides.length > 0 ? (
+                                <div className="space-y-2 flex-grow flex flex-col justify-between">
+                                  <div className="space-y-1">
+                                    <h5 className="font-bold text-white text-[11px] leading-tight font-sans tracking-tight border-b border-slate-900 pb-1">
+                                      {previewSlides[activePreviewSlide]?.t}
+                                    </h5>
+                                    <p className="text-[9px] text-gray-300 leading-relaxed font-sans line-clamp-3 overflow-y-auto max-h-[48px]">
+                                      {previewSlides[activePreviewSlide]?.d}
+                                    </p>
+                                  </div>
+
+                                  {previewSlides[activePreviewSlide]?.code && (
+                                    <pre className="bg-[#040810] border border-slate-900 p-1.5 rounded text-[8.5px] text-emerald-400 font-mono overflow-x-auto max-h-[50px] overflow-y-auto scrollbar-thin">
+                                      <code>{previewSlides[activePreviewSlide]?.code}</code>
+                                    </pre>
+                                  )}
+
+                                  {/* Preview Slider Pagination */}
+                                  <div className="flex justify-between items-center pt-1 border-t border-slate-900 shrink-0">
+                                    <span className="text-[8px] font-mono text-gray-500 uppercase">Preview Slide</span>
+                                    <div className="flex gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setActivePreviewSlide(prev => Math.max(0, prev - 1))}
+                                        disabled={activePreviewSlide === 0}
+                                        className="p-1 bg-slate-900 border border-slate-800 disabled:opacity-30 rounded hover:bg-slate-850 cursor-pointer text-gray-400 hover:text-white"
+                                      >
+                                        <ChevronLeft className="w-2.5 h-2.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setActivePreviewSlide(prev => Math.min(previewSlides.length - 1, prev + 1))}
+                                        disabled={activePreviewSlide === previewSlides.length - 1}
+                                        className="p-1 bg-slate-900 border border-slate-800 disabled:opacity-30 rounded hover:bg-slate-850 cursor-pointer text-gray-400 hover:text-white"
+                                      >
+                                        <ChevronRight className="w-2.5 h-2.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex-grow flex flex-col items-center justify-center text-center text-gray-500 font-mono space-y-1 py-4">
+                                  <FileText className="w-6 h-6 text-slate-700 animate-pulse" />
+                                  <span className="text-[8.5px]">No preview slides parsed. Enter content on the left pane to begin.</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Messages */}
+                        {/* Error and Success notifications */}
                         {slideStudioError && (
-                          <div className="p-1.5 bg-rose-950/40 border border-rose-500/25 rounded text-[9px] text-rose-400 font-mono flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" />
+                          <div className="p-1.5 bg-rose-950/30 border border-rose-500/20 rounded text-[9px] text-rose-400 font-mono flex items-center gap-1 animate-fadeIn">
+                            <AlertCircle className="w-3 h-3 shrink-0 text-rose-500" />
                             <span>{slideStudioError}</span>
                           </div>
                         )}
                         {slideStudioSuccess && (
-                          <div className="p-1.5 bg-emerald-950/40 border border-emerald-500/25 rounded text-[9px] text-emerald-400 font-mono flex items-center gap-1">
+                          <div className="p-1.5 bg-emerald-950/30 border border-emerald-500/20 rounded text-[9px] text-emerald-400 font-mono flex items-center gap-1 animate-fadeIn">
                             <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-400" />
                             <span>{slideStudioSuccess}</span>
                           </div>
                         )}
 
-                        {/* Actions */}
-                        <div className="flex justify-end gap-2 text-[9.5px] font-mono">
-                          <button
-                            type="button"
-                            onClick={() => setShowSlideStudio(false)}
-                            className="px-2.5 py-1 bg-slate-950 hover:bg-slate-900 text-gray-400 rounded border border-slate-900 cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleApplyCustomSlides(slideInputText, slideFormat)}
-                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold cursor-pointer transition-all"
-                          >
-                            Compile & Present Deck
-                          </button>
+                        {/* Footer Actions */}
+                        <div className="flex justify-between items-center pt-1.5 border-t border-gray-850 shrink-0">
+                          <label className="text-[8px] font-mono text-emerald-400 flex items-center gap-1 cursor-pointer hover:underline">
+                            <input
+                              type="file"
+                              accept={slideFormat === 'markdown' ? '.md,.txt' : '.json'}
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const r = new FileReader();
+                                r.onload = (evt) => {
+                                  const text = evt.target?.result;
+                                  if (typeof text === 'string') {
+                                    setSlideInputText(text);
+                                    setSlideStudioSuccess(`Loaded file "${file.name}"! Click Compile to launch.`);
+                                    setTimeout(() => setSlideStudioSuccess(null), 3000);
+                                  }
+                                };
+                                r.readAsText(file);
+                              }}
+                            />
+                            <Upload className="w-2.5 h-2.5 shrink-0" />
+                            <span>Import File</span>
+                          </label>
+
+                          <div className="flex justify-end gap-1.5 text-[9.5px] font-mono">
+                            <button
+                              type="button"
+                              onClick={() => setShowSlideStudio(false)}
+                              className="px-2.5 py-1 bg-slate-950 hover:bg-slate-900 text-gray-400 rounded border border-slate-900 cursor-pointer"
+                            >
+                              Close
+                            </button>
+                            
+                            {/* Publish to Database Button */}
+                            <button
+                              type="button"
+                              onClick={handlePublishSlidesToDb}
+                              disabled={publishingSlides}
+                              className="px-3 py-1 bg-[#0f172a] hover:bg-slate-900 text-amber-400 rounded border border-amber-500/35 font-bold cursor-pointer transition-all flex items-center gap-1 disabled:opacity-40"
+                              title="Publish slide deck to Course database for all students to access"
+                            >
+                              {publishingSlides ? (
+                                <>
+                                  <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />
+                                  <span>Publishing...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>Publish to Course</span>
+                                </>
+                              )}
+                            </button>
+
+                            {/* Push to Presentation Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleApplyCustomSlides(slideInputText, slideFormat)}
+                              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold cursor-pointer transition-all"
+                            >
+                              Push to Live
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ) : (

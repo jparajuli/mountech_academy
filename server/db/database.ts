@@ -889,6 +889,25 @@ try {
     console.error("[DB SETUP ERROR] live_challenges tables creation failed:", err.message);
   }
 
+  // Create instructor_slides table
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS instructor_slides (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        instructor_id TEXT NOT NULL,
+        lesson_id TEXT NOT NULL,
+        slide_content TEXT NOT NULL,
+        format_type TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(instructor_id, lesson_id)
+      );
+    `);
+    console.log("[DB SETUP] instructor_slides table guaranteed.");
+  } catch (err: any) {
+    console.error("[DB SETUP ERROR] instructor_slides table creation failed:", err.message);
+  }
+
 } catch (seedingError: any) {
   console.error("[DB SEEDER ERROR] Seeding aborted because:", seedingError.message);
 }
