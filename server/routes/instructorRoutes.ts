@@ -28,6 +28,7 @@ import {
   deleteExamQuestion,
   saveCustomSlides,
   getCustomSlides,
+  getSlideRevisions,
   generateSlidesAI,
 } from "../controllers/instructorController.js";
 
@@ -178,6 +179,14 @@ router.get(
   "/lessons/:lessonId/slides",
   requireAuth,
   getCustomSlides
+);
+
+// Retrieve slide revisions history (accessible to instructors and admins)
+router.get(
+  "/lessons/:lessonId/slides/revisions",
+  requireAuth,
+  requireRole(["instructor", "admin"]),
+  getSlideRevisions
 );
 
 // Save/publish custom instructor slides
