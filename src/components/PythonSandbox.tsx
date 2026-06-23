@@ -10,6 +10,7 @@ import { auth, GoogleAuthProvider, signInWithPopup } from '../firebase';
 
 interface PythonSandboxProps {
   lessonId?: number | null;
+  onSaveToSummary?: (code: string, title?: string) => void;
 }
 
 interface CodeTemplate {
@@ -133,7 +134,7 @@ f"Array recursion sorted."
   }
 };
 
-export const PythonSandbox: React.FC<PythonSandboxProps> = ({ lessonId }) => {
+export const PythonSandbox: React.FC<PythonSandboxProps> = ({ lessonId, onSaveToSummary }) => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('fibonacci');
   const [code, setCode] = useState<string>(TEMPLATES.fibonacci.code);
   const [outputs, setOutputs] = useState<{ type: 'log' | 'stdout' | 'stderr' | 'result' | 'status', text: string }[]>([
@@ -931,14 +932,30 @@ export const PythonSandbox: React.FC<PythonSandboxProps> = ({ lessonId }) => {
 
           {/* Execute Footer Bar */}
           <div className="p-3 bg-[#020617] border-t border-slate-900 flex items-center justify-between gap-4">
-            <button
-              onClick={handleResetCode}
-              title="Revert modifications to original problem prompt"
-              className="p-2 text-[10px] text-gray-400 hover:text-white hover:bg-slate-900 rounded-md transition-all flex items-center gap-1 cursor-pointer border border-slate-900"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Reset Canvas</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleResetCode}
+                title="Revert modifications to original problem prompt"
+                className="p-2 text-[10px] text-gray-400 hover:text-white hover:bg-slate-900 rounded-md transition-all flex items-center gap-1 cursor-pointer border border-slate-900"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Canvas</span>
+              </button>
+
+              {onSaveToSummary && (
+                <button
+                  onClick={() => {
+                    const activeProb = problems[selectedProblemIndex];
+                    onSaveToSummary(code, activeProb ? activeProb.title : "Custom Code Workspace");
+                  }}
+                  className="p-2 text-[10px] bg-slate-900 hover:bg-[#0070f3] text-gray-300 hover:text-white rounded-md transition-all flex items-center gap-1 cursor-pointer border border-slate-800"
+                  title="Save current editor script to Study Summary"
+                >
+                  <Save className="w-3 h-3" />
+                  <span>Save to Summary</span>
+                </button>
+              )}
+            </div>
 
             <button
               id="run-python-sandbox-btn"

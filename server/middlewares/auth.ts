@@ -36,23 +36,29 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 
   try {
-    // Look up the user in the SQLite database
-    const dbUser = db.prepare("SELECT * FROM users WHERE email = ?").get(payload.email.trim().toLowerCase()) as any;
+    const emailLower = payload.email.trim().toLowerCase();
+    let dbUser = db.prepare("SELECT * FROM users WHERE email = ?").get(emailLower) as any;
     
     // Resolve dynamic or persisted role
     let role = "student";
-    if (dbUser) {
+    if (emailLower === "jhanak.parajuli@gmail.com" || emailLower === "admin@mountech.academy" || emailLower === "developer@mountech.academy") {
+      role = "admin";
+    } else if (emailLower === "instructor@mountech.academy") {
+      role = "instructor";
+    } else if (dbUser) {
       role = dbUser.role;
-    } else {
-      // Direct email checks for oauth fallbacks if not yet persisted
-      const email = payload.email.trim().toLowerCase();
-      if (email === "jhanak.parajuli@gmail.com" || email === "admin@mountech.academy") {
-        role = "admin";
-      } else if (email === "instructor@mountech.academy") {
-        role = "instructor";
-      } else if (email === "developer@mountech.academy") {
-        role = "admin";
-      }
+    }
+
+    // Auto-create user if missing in DB to satisfy foreign keys (e.g. for enrollments or ratings)
+    if (!dbUser) {
+      db.prepare(`
+        INSERT OR IGNORE INTO users (email, name, passwordHash, passwordAlgorithm, role, isVerified)
+        VALUES (?, ?, 'oauth_fallback_placeholder', 'bcrypt', ?, 1)
+      `).run(emailLower, payload.name || "Academic Scholar", role);
+      dbUser = db.prepare("SELECT * FROM users WHERE email = ?").get(emailLower) as any;
+    } else if (dbUser.role !== role) {
+      // Sync DB role if it differs from forced roles
+      db.prepare("UPDATE users SET role = ? WHERE email = ?").run(role, emailLower);
     }
 
     (req as any).user = {
