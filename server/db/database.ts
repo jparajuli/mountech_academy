@@ -859,6 +859,36 @@ try {
     console.error("[DB SEEDER ERROR] lesson_problems seeding failed:", probErr.message);
   }
 
+  // Create Live Code Push Challenge tables
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS live_challenges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        live_session_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description_markdown TEXT,
+        starter_code TEXT,
+        is_active INTEGER DEFAULT 1,
+        duration_seconds INTEGER DEFAULT 120,
+        pushed_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS live_challenge_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        live_challenge_id INTEGER NOT NULL,
+        student_email TEXT NOT NULL,
+        student_name TEXT NOT NULL,
+        duration_seconds_taken INTEGER NOT NULL,
+        submitted_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        submitted_code TEXT
+      );
+    `);
+    console.log("[DB SETUP] live_challenges and live_challenge_submissions tables guaranteed.");
+  } catch (err: any) {
+    console.error("[DB SETUP ERROR] live_challenges tables creation failed:", err.message);
+  }
+
 } catch (seedingError: any) {
   console.error("[DB SEEDER ERROR] Seeding aborted because:", seedingError.message);
 }
