@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import db from "../db/database.js";
+import { generateSlidesFromInstructions } from "../services/geminiService.js";
 
 // GET /api/instructors - Return all instructor profiles
 export function listInstructors(req: Request, res: Response) {
@@ -548,6 +549,99 @@ export function deleteExamQuestion(req: Request, res: Response) {
   } catch (err: any) {
     console.error("[DELETE QUESTION ERR]", err);
     return res.status(500).json({ error: "Failed to delete exam question: " + err.message });
+  }
+}
+
+// POST /api/lessons/:lessonId/slides - Save or update custom slide deck
+export function saveCustomSlides(req: Request, res: Response) {
+  const { lessonId } = req.params;
+  const { slide_content, format_type } = req.body;
+  const user = (req as any).user;
+
+  if (!user) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+
+  if (!slide_content) {
+    return res.status(400).json({ error: "Slide content is required." });
+  }
+
+  if (format_type !== "markdown" && format_type !== "json") {
+    return res.status(400).json({ error: "Format type must be 'markdown' or 'json'." });
+  }
+
+  try {
+    const instructorId = user.email.toLowerCase().trim();
+
+    db.prepare(`
+      INSERT INTO instructor_slides (instructor_id, lesson_id, slide_content, format_type, updated_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(instructor_id, lesson_id) DO UPDATE SET
+        slide_content = excluded.slide_content,
+        format_type = excluded.format_type,
+        updated_at = datetime('now')
+    `).run(instructorId, lessonId, slide_content, format_type);
+
+    return res.json({
+      success: true,
+      message: "Slide deck published successfully to course theater database."
+    });
+  } catch (err: any) {
+    console.error("[SAVE CUSTOM SLIDES ERR]", err);
+    return res.status(500).json({ error: "Failed to save slide deck: " + err.message });
+  }
+}
+
+// GET /api/lessons/:lessonId/slides - Retrieve custom slide deck
+export function getCustomSlides(req: Request, res: Response) {
+  const { lessonId } = req.params;
+
+  try {
+    const slideRow = db.prepare(`
+      SELECT slide_content, format_type, updated_at
+      FROM instructor_slides
+      WHERE lesson_id = ?
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `).get(lessonId) as any;
+
+    if (!slideRow) {
+      return res.json({
+        success: true,
+        slides: null
+      });
+    }
+
+    return res.json({
+      success: true,
+      slides: {
+        slide_content: slideRow.slide_content,
+        format_type: slideRow.format_type
+      }
+    });
+  } catch (err: any) {
+    console.error("[GET CUSTOM SLIDES ERR]", err);
+    return res.status(500).json({ error: "Failed to retrieve custom slides: " + err.message });
+  }
+}
+
+// POST /api/ai/generate-slides - Auto-generate slides with LLM Scribe
+export async function generateSlidesAI(req: Request, res: Response) {
+  const { instructions } = req.body;
+
+  if (!instructions || !instructions.trim()) {
+    return res.status(400).json({ error: "Lesson instructions or text content are required." });
+  }
+
+  try {
+    const generatedList = await generateSlidesFromInstructions(instructions);
+    return res.json({
+      success: true,
+      slides: generatedList
+    });
+  } catch (err: any) {
+    console.error("[GENERATE SLIDES AI ERR]", err);
+    return res.status(500).json({ error: "Failed to auto-generate slides: " + err.message });
   }
 }
 
