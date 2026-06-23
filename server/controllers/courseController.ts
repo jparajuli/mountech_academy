@@ -7,6 +7,15 @@ import { generateCertificatePDF } from "../services/CertificateService.js";
 
 
 function getCourseTitle(courseId: string): string {
+  try {
+    const course = db.prepare("SELECT title FROM courses WHERE id = ?").get(courseId) as { title: string } | undefined;
+    if (course && course.title) {
+      return course.title;
+    }
+  } catch (err: any) {
+    console.error("Failed to query course title from DB:", err.message);
+  }
+
   const titles: Record<string, string> = {
     "chatgpt-prompt-engineering": "ChatGPT Prompt Engineering for Developers",
     "ai-agentic-design-patterns": "AI Agentic Design Patterns with AutoGen",

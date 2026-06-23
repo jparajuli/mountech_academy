@@ -1709,6 +1709,14 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                                       setActiveLessonIndex(index);
                                       markLessonCompleted(index);
                                       setTerminalOutput([`Successfully loaded classroom context for lesson: "${slice.title}"`]);
+                                      setTimeout(() => {
+                                        const panel = document.getElementById('sandbox-classroom-panel');
+                                        if (panel) {
+                                          panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                        } else {
+                                          window.scrollTo({ top: 320, behavior: 'smooth' });
+                                        }
+                                      }, 80);
                                     }}
                                     className="text-xs px-3 py-1.5 bg-[#111827] text-white hover:bg-[#0070f3] transition-all rounded-lg font-semibold flex items-center justify-center gap-1 cursor-pointer shadow-3xs"
                                   >
