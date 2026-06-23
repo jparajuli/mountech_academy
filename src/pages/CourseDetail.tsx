@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams, checkoutManual, fetchCourseLessons } from '../api';
 import InstructorCard from '../components/InstructorCard';
 import { StudentExamTaker } from '../components/StudentExamTaker';
+import { PythonSandbox } from '../components/PythonSandbox';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
@@ -1309,118 +1310,9 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
 
               </div>
             ) : (
-              /* TAB TWO: ORIGINAL CODE SANDBOX INTEGRATED SCENE */
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="code-sandbox-grid">
-                {/* Lecture list left (4 cols) */}
-                <div className="lg:col-span-4 space-y-2">
-                  <h4 className="text-[10px] font-mono font-bold tracking-widest text-[#38bdf8] uppercase mb-3">Syllabus Lab Notebooks</h4>
-                  <div className="space-y-1.5">
-                    {course.syllabus.map((les, index) => {
-                      const isLesCompleted = completedLessons.includes(index);
-                      const dbLes = dbLessons[index] || dbLessons.find(l => l.chapter === les.chapter);
-                      const isLesLockedCombined = dbLes ? dbLes.isLocked : (index > 0 && !completedLessons.includes(index - 1));
-                      return (
-                        <button
-                          key={index}
-                          id={`sandbox-lesson-btn-${index}`}
-                          disabled={isLesLockedCombined}
-                          onClick={() => {
-                            if (isLesLockedCombined) return;
-                            setActiveLessonIndex(index);
-                            markLessonCompleted(index);
-                            setTerminalOutput([`Loaded notebook for chapter: "${les.title}"`, `Double-click items to customize prompts. Run cell to evaluate.`]);
-                          }}
-                          className={`w-full text-left p-3 rounded-lg border transition-all text-xs flex justify-between items-center ${
-                            isLesLockedCombined
-                              ? 'bg-slate-900/45 border-gray-900/60 text-gray-500 opacity-40 cursor-not-allowed select-none'
-                              : activeLessonIndex === index
-                                ? 'bg-slate-800 border-[#38bdf8] text-[#38bdf8] cursor-pointer'
-                                : 'bg-slate-900/60 border-gray-800 hover:bg-slate-800 hover:text-white text-gray-300 cursor-pointer'
-                          }`}
-                        >
-                          <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5 font-sans">
-                              <span className="font-mono text-[9px] text-gray-550 uppercase">{les.chapter}</span>
-                              {isLesLockedCombined ? (
-                                <span className="text-[8px] bg-amber-500/10 text-amber-500 px-1 py-0.2 rounded font-mono font-black uppercase inline-flex items-center gap-0.5">
-                                  <Lock className="w-2 h-2" /> LOCKED
-                                </span>
-                              ) : (
-                                isLesCompleted && (
-                                  <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1 py-0.2 rounded font-mono font-black uppercase">READ</span>
-                                )
-                              )}
-                            </div>
-                            <span className="font-medium line-clamp-1">{les.title}</span>
-                          </div>
-                          {isLesLockedCombined ? (
-                            <Lock className="w-3.5 h-3.5 text-amber-500/80 shrink-0" />
-                          ) : isLesCompleted ? (
-                            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 opacity-50 shrink-0" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Code execution area right (8 cols) */}
-                <div className="lg:col-span-8 bg-[#090d16] border border-gray-800 rounded-lg p-5 flex flex-col justify-between min-h-[340px]">
-                  {activeLessonIndex !== null ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between border-b border-gray-800/80 pb-3">
-                        <div>
-                          <span className="text-[9px] font-mono text-gray-500 uppercase tracking-wider block">ACTIVE CELL STATE</span>
-                          <h4 className="text-sm font-bold text-white">{course.syllabus[activeLessonIndex].title}</h4>
-                        </div>
-
-                        <button
-                          id="run-sandbox-cell-btn"
-                          disabled={runLoading}
-                          onClick={() => handleRunCommand(course.syllabus[activeLessonIndex].title)}
-                          className="px-4 py-2 bg-[#0070f3] hover:bg-[#0051b3] text-white rounded font-mono text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-45 shadow-sm"
-                        >
-                          {runLoading ? (
-                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Play className="w-3.5 h-3.5 fill-current" />
-                          )}
-                          <span>Run Cell</span>
-                        </button>
-                      </div>
-
-                      <div className="space-y-2">
-                        <p className="text-xs text-gray-400 italic">
-                          {course.syllabus[activeLessonIndex].description}
-                        </p>
-
-                        <div className="p-3.5 bg-slate-900 border border-gray-800 rounded font-mono text-xs text-gray-300">
-                          <span className="text-[#38bdf8]">import</span> mountech.genai <span className="text-[#38bdf8]">as</span> ai<br/>
-                          prompt = <span className="text-teal-400">"Evaluate user input: {user.name} on {course.syllabus[activeLessonIndex].title}"</span><br/>
-                          response = ai.models.generate_content(prompt, temperature=0.1)<br/>
-                          <span className="text-[#38bdf8]">print</span>(response)
-                        </div>
-                      </div>
-
-                      <div className="space-y-1 pt-2">
-                        <span className="text-[9px] font-mono text-gray-500 uppercase tracking-wider block">CONSOLE STDOUT/STDERR</span>
-                        <pre className="bg-slate-900 p-3 border border-gray-800 rounded text-[11px] font-mono text-emerald-400 overflow-x-auto max-h-[120px] whitespace-pre-wrap">
-                          {terminalOutput.join('\n')}
-                        </pre>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-center my-auto p-8">
-                      <Terminal className="w-10 h-10 text-gray-650 mb-3" />
-                      <h4 className="text-sm font-bold text-gray-400">No Lesson Loaded</h4>
-                      <p className="text-xs text-gray-505 mt-1 max-w-xs">
-                        Select a notebook from the sidebar to test prompts dynamically inside the container sandbox.
-                      </p>
-                    </div>
-                  )}
-                </div>
+              /* TAB TWO: INTERACTIVE PYTHON SANDBOX (WEBASSEMBLY) */
+              <div id="code-sandbox-grid" className="w-full">
+                <PythonSandbox />
               </div>
             )}
 
