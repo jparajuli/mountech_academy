@@ -24,6 +24,7 @@ import {
   submitStudentExamResponse,
   updateSharedSyllabus,
   getCourseLessonsForStudent,
+  getLessonProblems,
 } from "../controllers/courseController.js";
 import { createManualCheckout } from "../controllers/paymentController.js";
 import { handleGitLabWebhook } from "../../src/controllers/gitlabController.js";
@@ -56,6 +57,7 @@ router.get("/courses/:courseId/student-exams", requireAuth, checkCourseSunset, g
 router.post("/courses/:courseId/exams/:examId/start", requireAuth, checkCourseSunset, startStudentExam);
 router.post("/attempts/:attemptId/submit", requireAuth, checkCourseSunset, submitStudentExamResponse);
 router.get("/courses/:courseId/lessons", requireAuth, checkCourseSunset, getCourseLessonsForStudent);
+router.get("/lessons/:lessonId/problems", requireAuth, checkCourseSunset, getLessonProblems);
 
 // GitLab Webhook Integration Phase 4 route
 router.post("/gitlab/webhook", handleGitLabWebhook);

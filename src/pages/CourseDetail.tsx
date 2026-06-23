@@ -1312,7 +1312,11 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
             ) : (
               /* TAB TWO: INTERACTIVE PYTHON SANDBOX (WEBASSEMBLY) */
               <div id="code-sandbox-grid" className="w-full">
-                <PythonSandbox />
+                {(() => {
+                  const activeLessonDb = activeLessonIndex !== null ? (dbLessons[activeLessonIndex] || dbLessons.find((l: any) => l.chapter === course.syllabus[activeLessonIndex]?.chapter)) : null;
+                  const activeLessonId = activeLessonDb?.id || null;
+                  return <PythonSandbox lessonId={activeLessonId} />;
+                })()}
               </div>
             )}
 

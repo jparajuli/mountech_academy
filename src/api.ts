@@ -564,4 +564,17 @@ export async function submitStudentExamAnswers(attemptId: number, answers: { que
   });
 }
 
+export interface LessonProblem {
+  id: number;
+  lesson_id: number;
+  title: string;
+  description_markdown: string;
+  starter_code: string;
+}
+
+export async function fetchLessonProblems(lessonId: number): Promise<{ problems: LessonProblem[] }> {
+  return apiFetch(`/api/lessons/${lessonId}/problems`);
+}
+
+
 

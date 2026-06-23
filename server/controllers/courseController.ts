@@ -1539,3 +1539,21 @@ export function submitStudentExamResponse(req: Request, res: Response) {
   }
 }
 
+// GET /api/lessons/:lessonId/problems - Fetch problems for a student lesson workspace
+export function getLessonProblems(req: Request, res: Response) {
+  const { lessonId } = req.params;
+  try {
+    const problems = db.prepare(`
+      SELECT id, lesson_id, title, description_markdown, starter_code
+      FROM lesson_problems
+      WHERE lesson_id = ?
+    `).all(Number(lessonId)) as any[];
+
+    return res.json({ problems });
+  } catch (err: any) {
+    console.error("[GET LESSON PROBLEMS ERR]", err);
+    return res.status(500).json({ error: "Failed to retrieve lesson problems: " + err.message });
+  }
+}
+
+

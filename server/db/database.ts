@@ -775,6 +775,90 @@ try {
     console.error("[DB SYNC ERROR] Failed to synchronize lessons table or map lesson IDs:", syncErr.message);
   }
 
+  // Seed Chapter-specific problems to lesson_problems table
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS lesson_problems (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        lesson_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description_markdown TEXT,
+        starter_code TEXT,
+        FOREIGN KEY(lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+      );
+    `);
+    console.log("[DB SETUP] lesson_problems table guaranteed.");
+
+    const allLessons = db.prepare("SELECT id, title FROM lessons").all() as { id: number; title: string }[];
+    const checkProblems = db.prepare("SELECT count(*) as count FROM lesson_problems WHERE lesson_id = ?");
+    const insertProblem = db.prepare(`
+      INSERT INTO lesson_problems (lesson_id, title, description_markdown, starter_code)
+      VALUES (?, ?, ?, ?)
+    `);
+
+    for (const lesson of allLessons) {
+      const hasProblems = (checkProblems.get(lesson.id) as { count: number }).count > 0;
+      if (!hasProblems) {
+        const t = lesson.title.toLowerCase();
+        let exercises = [
+          {
+            title: "Interactive Hello World",
+            desc: "Write a script that prints a formatted welcome message to the Mountech Academy Python sandbox, indicating the current chapter runtime is fully functional.",
+            starter: "import sys\n\nprint(\"Mountech Canvas Standard Playground\")\nprint(f\"Python Version: {sys.version}\")\n\n# Try writing your code here\n"
+          },
+          {
+            title: "Basic Math Challenge",
+            desc: "Write a simple function `multiply(a, b)` that returns the product of two numbers, and test it with several assertion printouts.",
+            starter: "def multiply(a, b):\n    # Write logic here\n    return a * b\n\nprint(multiply(5, 7))\n"
+          }
+        ];
+
+        if (t.includes("performance") || t.includes("jax") || t.includes("transformation") || t.includes("compile") || t.includes("optimization")) {
+          exercises = [
+            {
+              title: "Functional Purity Proof",
+              desc: "Demonstrate functional purity by writing a pure function `square_all(numbers)` that takes a list of integers and returns a new list of their squares without mutating the input argument.",
+              starter: "def square_all(nums):\n    # Return squared items in a new list\n    return [n ** 2 for n in nums]\n\nmy_data = [1, 2, 3, 4]\nprint(\"Squared arrays:\", square_all(my_data))\nprint(\"Original holds pure:\", my_data)\n"
+            },
+            {
+              title: "Abstract Gradient Mockup",
+              desc: "Calculate derivative vectors. Represent a mathematical function $f(x) = 3x^2 + 5x + 2$ and write a helper function `numerical_derivative(f, x, h=0.0001)` to estimate the gradient slope at $x=2.0$.",
+              starter: "def f(x):\n    return 3 * (x ** 2) + 5 * x + 2\n\ndef slope_at(func, x, h=1e-5):\n    # Estimate derivative using: (f(x+h) - f(x)) / h\n    return (func(x + h) - func(x)) / h\n\nprint(\"Estimated slope at x=2.0:\", slope_at(f, 2.0))\nprint(\"Analytical exact slope (6x + 5) is:\", 6 * 2.0 + 5)\n"
+            }
+          ];
+        } else if (t.includes("prompt") || t.includes("guideline") || t.includes("chatgpt") || t.includes("instruction") || t.includes("llm")) {
+          exercises = [
+            {
+              title: "Delimiter Formatting Lab",
+              desc: "Write a utility function `wrap_xml(tag, text)` that formats content with clean XML delimiters to feed structured instructions safely into generative language models.",
+              starter: "def wrap_xml(tag, text):\n    # Return formatted string with tag delimiters\n    return f\"<{tag}>\\n{text}\\n</{tag}>\"\n\nprint(wrap_xml(\"context\", \"MountTech specialized student workspace data\"))\n"
+            },
+            {
+              title: "Few-Shot Prompt Engineering Generator",
+              desc: "Create a template-driven function that structures a prompt using few-shot exemplars inside a single Python script. The prompt should teach a sentiment analyzer to classify tech reviews.",
+              starter: "def compile_few_shot_prompt(target_review):\n    few_shots = [\n        (\"Code compiles in 2s. Excellent system.\", \"POSITIVE\"),\n        (\"Bug crash in loading Pyodide packages. Frustrated.\", \"NEGATIVE\"),\n    ]\n    \n    prompt_lines = [\"Classify the sentiment of the terminal review as either POSITIVE or NEGATIVE:\\n\"]\n    for text, label in few_shots:\n        prompt_lines.append(f\"Review: {text}\\nSentiment: {label}\\n\")\n    \n    prompt_lines.append(f\"Review: {target_review}\\nSentiment:\")\n    return \"\\n\".join(prompt_lines)\n\nprint(compile_few_shot_prompt(\"Fast, clean WebAssembly Python IDE. Outstanding!\"))\n"
+            }
+          ];
+        } else if (t.includes("token") || t.includes("pipeline") || t.includes("data") || t.includes("preprocess") || t.includes("stream")) {
+          exercises = [
+            {
+              title: "Custom Vocabulary Dictionary split",
+              desc: "Simulate a naive space-based whitespace parser that returns structural tokens of a text corpus alongside sequence length counts.",
+              starter: "def naive_tokenizer(corpus):\n    words = corpus.strip().split()\n    # Create standard 1-based index vocabs mapping\n    vocab = {word: idx + 1 for idx, word in enumerate(set(words))}\n    encoded = [vocab[w] for w in words]\n    return vocab, encoded\n\nsample = \"JAX compiles pure numerical arrays via XLA machine compile arrays\"\nword_dict, encoded_tokens = naive_tokenizer(sample)\nprint(\"Vocabulary Dictionary:\", word_dict)\nprint(\"Encoded Sequence:\", encoded_tokens)\n"
+            }
+          ];
+        }
+
+        for (const ex of exercises) {
+          insertProblem.run(lesson.id, ex.title, ex.desc, ex.starter);
+        }
+      }
+    }
+    console.log("[DB SEEDER] lesson_problems populated successfully with chapter-specific exercises.");
+  } catch (probErr: any) {
+    console.error("[DB SEEDER ERROR] lesson_problems seeding failed:", probErr.message);
+  }
+
 } catch (seedingError: any) {
   console.error("[DB SEEDER ERROR] Seeding aborted because:", seedingError.message);
 }
