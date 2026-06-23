@@ -5,13 +5,14 @@ import {
   Award, Play, ChevronRight, Terminal, Sparkles, AlertCircle, AlertTriangle, 
   Video, Code, FileText, Check, Globe, Shield, ShieldCheck, CreditCard, 
   Send, Users, MessageSquare, ChevronLeft, Tv2, Smartphone,
-  Lock, Unlock, Trophy, RefreshCw
+  Lock, Unlock, Trophy, RefreshCw, Radio
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams, checkoutManual, fetchCourseLessons } from '../api';
 import InstructorCard from '../components/InstructorCard';
 import { StudentExamTaker } from '../components/StudentExamTaker';
 import { PythonSandbox } from '../components/PythonSandbox';
+import { InteractiveLiveClassroom } from '../components/InteractiveLiveClassroom';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
@@ -197,6 +198,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [confirmDownloadedAt, setConfirmDownloadedAt] = useState<string>('');
   const [downloadingCert, setDownloadingCert] = useState<boolean>(false);
+  const [activeLiveRoomSession, setActiveLiveRoomSession] = useState<LiveSession | null>(null);
 
   // Find enrollment metadata for current course
   const currentEnrollment = rawEnrollments.find(e => e.courseId === course.id);
@@ -809,6 +811,20 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
       );
     }, 2000);
   };
+
+  if (activeLiveRoomSession) {
+    return (
+      <div id="course-detail-root" className="min-h-screen bg-[#030712] text-slate-100 font-sans p-6 md:p-12">
+        <div className="max-w-7xl mx-auto">
+          <InteractiveLiveClassroom
+            session={activeLiveRoomSession}
+            user={user}
+            onBack={() => setActiveLiveRoomSession(null)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div id="course-detail-root" className="min-h-screen bg-white text-[#111827] font-sans flex flex-col justify-between">
@@ -1474,7 +1490,16 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                             </div>
                           </div>
                           
-                          <LiveSessionButton session={session} />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={() => setActiveLiveRoomSession(session)}
+                              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[11px] font-bold cursor-pointer flex items-center gap-1.5 transition-all shadow-sm font-sans"
+                            >
+                              <Radio className="w-3.5 h-3.5 text-white animate-pulse" />
+                              <span>Join Live Classroom</span>
+                            </button>
+                            <LiveSessionButton session={session} />
+                          </div>
                         </div>
                       );
                     })}

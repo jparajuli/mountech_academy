@@ -4,6 +4,8 @@ import express from "express";
 import app from "./server/app.js";
 import { runMigration } from "./server/db/migrate.js";
 import { startLiveSessionReminderScheduler } from "./server/utils/reminderScheduler.js";
+import http from "http";
+import { initWebSocketServer } from "./server/utils/websocket.js";
 
 const PORT = 3000;
 
@@ -16,6 +18,9 @@ async function start() {
   } catch (err: any) {
     console.error("Critical: Database migration failed on startup:", err.message);
   }
+
+  const httpServer = http.createServer(app);
+  initWebSocketServer(httpServer);
 
   // 2. Attach Vite middleware in dev or static asset servers in production
   if (process.env.NODE_ENV !== "production") {
@@ -32,7 +37,7 @@ async function start() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Modular Server listening on http://0.0.0.0:${PORT}`);
   });
 }
