@@ -19,6 +19,9 @@ async function initPyodide() {
       }
     });
 
+    // Load micropip package installer
+    await pyodide.loadPackage("micropip");
+
     // Warm up the runtime
     await pyodide.runPythonAsync("print('Mountech Academy Python Runtime Core Online')");
 
@@ -40,6 +43,11 @@ self.onmessage = async (event) => {
   }
 
   try {
+    self.postMessage({ type: 'status', id, status: 'running', message: 'Analyzing and installing imports...' });
+    
+    // Automatically load all imported modules detected in the user's script
+    await pyodide.loadPackagesFromImports(code);
+    
     self.postMessage({ type: 'status', id, status: 'running', message: 'Evaluating script...' });
     
     // Execute user code asynchronously
