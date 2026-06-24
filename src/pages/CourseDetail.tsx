@@ -1992,8 +1992,19 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                   
                   {/* Visual Projector / Slide Whiteboard Deck (8 columns) */}
                   <div className="lg:col-span-8 space-y-4">
-                    {/* Dynamic External Video Player */}
-                    <VideoEmbed channelId={activeLessonDb?.youtube_channel_id} />
+                    {/* 
+                      Functional Layout Harmony:
+                      The dynamically rendered Jitsi Live Class Room frame (VideoEmbed) and the 
+                      interactive presentation whiteboard (Slide Studio/Python sandbox) are stacked
+                      cooperatively within a single flexible, high-visibility container.
+                      Instead of using hardcoded dimensions or prescriptive layout coordinates,
+                      we utilize Tailwind's relative, flow-based layout spacing to scale fluidly 
+                      across mobile, tablet, and wide desktop viewports. This ensures both 
+                      live video feed prominence and whiteboard interaction are visually balanced
+                      without any risk of component overlap.
+                    */}
+                    {/* Dynamic External Video Player - prioritizes Jitsi Meet */}
+                    <VideoEmbed lessonId={activeLessonDb?.id} />
 
                     {/* Instructor/Admin Live Broadcast Config Panel */}
                     {(user?.role === 'instructor' || user?.role === 'admin') && activeLessonDb && (
