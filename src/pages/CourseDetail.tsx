@@ -7,16 +7,17 @@ import {
   Video, Code, FileText, Check, Globe, Shield, ShieldCheck, CreditCard, 
   Send, Users, MessageSquare, ChevronLeft, Tv2, Smartphone,
   Lock, Unlock, Trophy, RefreshCw, Radio, Pin, Download, Plus, Trash2, Copy, Bookmark, CheckCircle2, Upload,
-  Image, History
+  Image, History, Maximize2, Minimize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, GoogleAuthProvider, signInWithPopup } from '../firebase';
 import { io } from 'socket.io-client';
-import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams, checkoutManual, fetchCourseLessons } from '../api';
+import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams, checkoutManual, fetchCourseLessons, updateLessonConfig } from '../api';
 import InstructorCard from '../components/InstructorCard';
 import { StudentExamTaker } from '../components/StudentExamTaker';
 import { PythonSandbox } from '../components/PythonSandbox';
 import { InteractiveLiveClassroom } from '../components/InteractiveLiveClassroom';
+import { VideoEmbed } from '../components/VideoEmbed';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
@@ -553,6 +554,44 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   // Custom states to deliver high-fidelity "Lectures"
   const [classroomTab, setClassroomTab] = useState<'lecture' | 'sandbox'>('lecture');
   const [activeSlide, setActiveSlide] = useState(0);
+  const [isLectureFullscreen, setIsLectureFullscreen] = useState<boolean>(false);
+  const [updatingConfig, setUpdatingConfig] = useState(false);
+  const [configChannelId, setConfigChannelId] = useState('');
+
+  useEffect(() => {
+    const activeLessonDb = activeLessonIndex !== null ? (dbLessons[activeLessonIndex] || dbLessons.find((l: any) => l.chapter === course.syllabus[activeLessonIndex]?.chapter)) : null;
+    if (activeLessonDb) {
+      setConfigChannelId(activeLessonDb.youtube_channel_id || '');
+    } else {
+      setConfigChannelId('');
+    }
+  }, [activeLessonIndex, dbLessons, course.syllabus]);
+
+  const handleUpdateLessonChannelId = async (lessonId: number, channelId: string) => {
+    setUpdatingConfig(true);
+    try {
+      const res = await updateLessonConfig(lessonId, { youtube_channel_id: channelId || null });
+      if (res.success) {
+        setDbLessons(prev => prev.map(l => l.id === lessonId ? { ...l, youtube_channel_id: channelId || null } : l));
+      } else {
+        alert("Failed to update broadcast settings.");
+      }
+    } catch (err) {
+      console.error("Failed to update lesson broadcast settings:", err);
+    } finally {
+      setUpdatingConfig(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsLectureFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   
   // Payment gateway checkout states
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -1946,12 +1985,56 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
             </div>
 
             {/* TAB ONE: ONLINE LECTURE THEATER BROADCAST WITH SYNCHRONIZED PRESENTATIONS AND STUDENT CHAT */}
-            {classroomTab === 'lecture' ? (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="live-lecture-grid">
-                
-                {/* Visual Projector / Slide Whiteboard Deck (8 columns) */}
-                <div className="lg:col-span-8 space-y-4">
-                  <div className="bg-[#121929] border border-gray-800 rounded-lg p-5 relative overflow-hidden aspect-[16/9] flex flex-col justify-between shadow-inner">
+            {classroomTab === 'lecture' ? (() => {
+              const activeLessonDb = activeLessonIndex !== null ? (dbLessons[activeLessonIndex] || dbLessons.find((l: any) => l.chapter === course.syllabus[activeLessonIndex]?.chapter)) : null;
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="live-lecture-grid">
+                  
+                  {/* Visual Projector / Slide Whiteboard Deck (8 columns) */}
+                  <div className="lg:col-span-8 space-y-4">
+                    {/* Dynamic External Video Player */}
+                    <VideoEmbed channelId={activeLessonDb?.youtube_channel_id} />
+
+                    {/* Instructor/Admin Live Broadcast Config Panel */}
+                    {(user?.role === 'instructor' || user?.role === 'admin') && activeLessonDb && (
+                      <div className="p-4 bg-slate-900 border border-gray-800 rounded-lg space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[9px] text-[#38bdf8] font-bold uppercase tracking-wider block">Live Stream Broadcast Settings ⚙️</span>
+                          <span className="text-[8px] text-amber-400 font-mono font-bold">Parallel Execution Node</span>
+                        </div>
+                        <p className="text-[11px] text-gray-400 leading-normal">
+                          Configure a distinct YouTube Channel ID for this lesson. This allows multiple instructors to broadcast parallel live streams simultaneously without overlapping or interference.
+                        </p>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <div className="relative flex-grow">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-gray-500 select-none">ID:</span>
+                            <input
+                              type="text"
+                              value={configChannelId}
+                              onChange={(e) => setConfigChannelId(e.target.value)}
+                              placeholder="e.g. UC_x5XG1OV2P6uYZ5pxKUXgQ"
+                              className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            disabled={updatingConfig}
+                            onClick={() => handleUpdateLessonChannelId(activeLessonDb.id, configChannelId)}
+                            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-mono font-bold transition-all disabled:opacity-55 cursor-pointer flex items-center justify-center gap-1 shrink-0"
+                          >
+                            {updatingConfig ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Saving...</span>
+                              </>
+                            ) : (
+                              <span>Save Broadcast Channel</span>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  <div className={isLectureFullscreen ? "fixed inset-0 z-[9999] p-6 md:p-8 bg-[#090f1d] flex flex-col justify-between shadow-2xl overflow-y-auto" : "bg-[#121929] border border-gray-800 rounded-lg p-5 relative overflow-hidden aspect-[16/9] flex flex-col justify-between shadow-inner"}>
                     {showSlideStudio && (user?.role === 'instructor' || user?.role === 'admin') ? (
                       /* SLIDE STUDIO EDITOR VIEW */
                       <div className="flex-grow flex flex-col h-full space-y-2 text-slate-100 overflow-hidden text-xs">
@@ -2090,6 +2173,26 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                             >
                               <Sparkles className="w-3 h-3 text-purple-400" />
                               <span>AI Auto-Scribe</span>
+                            </button>
+
+                            {/* Fullscreen Toggle */}
+                            <button
+                              type="button"
+                              onClick={() => setIsLectureFullscreen(!isLectureFullscreen)}
+                              className="px-2.5 py-1 bg-indigo-950 border border-indigo-900 hover:bg-indigo-900 text-[9px] font-mono rounded flex items-center gap-1 text-indigo-300 scale-90 cursor-pointer"
+                              title={isLectureFullscreen ? "Exit Fullscreen" : "Fullscreen View"}
+                            >
+                              {isLectureFullscreen ? (
+                                <>
+                                  <Minimize2 className="w-3.5 h-3.5 text-indigo-400" />
+                                  <span>Exit Fullscreen</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
+                                  <span>Fullscreen</span>
+                                </>
+                              )}
                             </button>
                           </div>
                         </div>
@@ -2324,22 +2427,42 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                         {/* Top Watermark bar */}
                         <div className="flex justify-between items-center text-[9px] font-mono text-gray-500 uppercase tracking-widest border-b border-gray-800 pb-2">
                           <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-red-650 animate-pulse inline-block" />
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse inline-block" />
                             Live Lecture Presentation Broadcast
                           </span>
-                          <span>Mountech Lecture Node #00{activeSlide + 1}</span>
+                          <div className="flex items-center gap-3">
+                            <span>Mountech Lecture Node #00{activeSlide + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => setIsLectureFullscreen(!isLectureFullscreen)}
+                              className="p-1 rounded bg-[#090f1d] border border-slate-800 hover:bg-slate-800 text-gray-450 hover:text-white transition-all cursor-pointer flex items-center gap-1 normal-case font-semibold text-[10px]"
+                              title={isLectureFullscreen ? "Exit Fullscreen" : "Fullscreen View"}
+                            >
+                              {isLectureFullscreen ? (
+                                <>
+                                  <Minimize2 className="w-3.5 h-3.5 text-indigo-400" />
+                                  <span className="hidden sm:inline">Exit Fullscreen</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Maximize2 className="w-3.5 h-3.5 text-indigo-400" />
+                                  <span className="hidden sm:inline">Fullscreen</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
 
                         {/* Central Slide Context Area */}
                         <div className="my-auto py-4 space-y-4">
                           <div className="space-y-1.5">
-                            <span className="text-[10px] uppercase font-mono font-bold text-blue-400 block tracking-wider">
+                            <span className={`uppercase font-mono font-bold text-blue-400 block tracking-wider ${isLectureFullscreen ? 'text-xs md:text-sm' : 'text-[10px]'}`}>
                               Slide Module {activeSlide + 1} of {slides.length}
                             </span>
-                            <h4 className="text-lg md:text-2xl font-bold tracking-tight text-white leading-tight">
+                            <h4 className={`font-bold tracking-tight text-white leading-tight ${isLectureFullscreen ? 'text-2xl md:text-4xl' : 'text-lg md:text-2xl'}`}>
                               {slides[activeSlide]?.t}
                             </h4>
-                            <p className="text-xs md:text-sm text-gray-300 leading-relaxed max-w-2xl">
+                            <p className={`text-gray-300 leading-relaxed max-w-4xl ${isLectureFullscreen ? 'text-sm md:text-base' : 'text-xs md:text-sm'}`}>
                               {slides[activeSlide]?.d}
                             </p>
                           </div>
@@ -2771,7 +2894,8 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                 </div>
 
               </div>
-            ) : (
+            );
+          })() : (
               /* TAB TWO: INTERACTIVE PYTHON SANDBOX (WEBASSEMBLY) */
               <div id="code-sandbox-grid" className="w-full">
                 {(() => {

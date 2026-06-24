@@ -108,6 +108,7 @@ export interface Lesson {
   description?: string;
   order_index: number;
   isLocked?: boolean;
+  youtube_channel_id?: string | null;
 }
 
 

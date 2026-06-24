@@ -268,6 +268,7 @@ try {
       title TEXT NOT NULL,
       description TEXT,
       order_index INTEGER NOT NULL,
+      youtube_channel_id TEXT,
       FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
   `);
@@ -275,6 +276,11 @@ try {
 } catch (e: any) {
   console.error("Failed to create lessons table:", e.message);
 }
+
+try {
+  db.exec("ALTER TABLE lessons ADD COLUMN youtube_channel_id TEXT;");
+  console.log("[DB SETUP] Added youtube_channel_id column to lessons table.");
+} catch (_) {}
 
 try {
   db.exec("ALTER TABLE exams ADD COLUMN lesson_id INTEGER REFERENCES lessons(id) ON DELETE SET NULL;");
