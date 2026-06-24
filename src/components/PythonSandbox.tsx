@@ -11,6 +11,7 @@ import { auth, GoogleAuthProvider, signInWithPopup } from '../firebase';
 interface PythonSandboxProps {
   lessonId?: number | null;
   onSaveToSummary?: (code: string, title?: string) => void;
+  initialCode?: string;
 }
 
 interface CodeTemplate {
@@ -134,9 +135,15 @@ f"Array recursion sorted."
   }
 };
 
-export const PythonSandbox: React.FC<PythonSandboxProps> = ({ lessonId, onSaveToSummary }) => {
+export const PythonSandbox: React.FC<PythonSandboxProps> = ({ lessonId, onSaveToSummary, initialCode }) => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('fibonacci');
-  const [code, setCode] = useState<string>(TEMPLATES.fibonacci.code);
+  const [code, setCode] = useState<string>(initialCode || TEMPLATES.fibonacci.code);
+
+  useEffect(() => {
+    if (initialCode !== undefined) {
+      setCode(initialCode);
+    }
+  }, [initialCode]);
   const [outputs, setOutputs] = useState<{ type: 'log' | 'stdout' | 'stderr' | 'result' | 'status', text: string }[]>([
     { type: 'status', text: "Python sandbox initialized. Press 'Run Code' to execute." }
   ]);
