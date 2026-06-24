@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 
 let io: Server | null = null;
+const activeStreams = new Map<string, { roomName: string; password: string }>();
 
 export function initSocket(httpServer: any): Server {
   if (io) {
@@ -24,6 +25,21 @@ export function initSocket(httpServer: any): Server {
       const room = `lesson:${lessonId}`;
       socket.join(room);
       console.log(`[SOCKET.IO] User ${email || 'anonymous'} (${role || 'student'}) joined room: ${room}`);
+
+      // If there is an active stream for this room, send it to the joining user immediately
+      const stream = activeStreams.get(room);
+      if (stream) {
+        console.log(`[SOCKET.IO] Instantly synced active Jitsi stream to late-joining user ${email}: ${stream.roomName}`);
+        socket.emit("live-stream-ready", { roomName: stream.roomName, password: stream.password });
+      }
+    });
+
+    socket.on("live-stream-ready", ({ lessonId, roomName, password }) => {
+      const room = `lesson:${lessonId}`;
+      activeStreams.set(room, { roomName, password });
+      console.log(`[SOCKET.IO] Live stream ready in room ${room}: name ${roomName}, password ${password}`);
+      // Broadcast this live stream config to all other clients in that specific room
+      socket.to(room).emit("live-stream-ready", { roomName, password });
     });
 
     socket.on("slide-change", ({ lessonId, slideIndex }) => {

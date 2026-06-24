@@ -269,6 +269,7 @@ try {
       description TEXT,
       order_index INTEGER NOT NULL,
       youtube_channel_id TEXT,
+      is_chosen_for_recording INTEGER DEFAULT 0,
       FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
   `);
@@ -280,6 +281,11 @@ try {
 try {
   db.exec("ALTER TABLE lessons ADD COLUMN youtube_channel_id TEXT;");
   console.log("[DB SETUP] Added youtube_channel_id column to lessons table.");
+} catch (_) {}
+
+try {
+  db.exec("ALTER TABLE lessons ADD COLUMN is_chosen_for_recording INTEGER DEFAULT 0;");
+  console.log("[DB SETUP] Added is_chosen_for_recording column to lessons table.");
 } catch (_) {}
 
 try {

@@ -1,10 +1,15 @@
 import React from 'react';
+import { InstructorVideo } from './InstructorVideo';
+import { StudentVideo } from './StudentVideo';
 
 interface VideoEmbedProps {
   lessonId: number | string | null | undefined;
+  socket: any;
+  user: any;
+  isChosenForRecording?: boolean;
 }
 
-export const VideoEmbed: React.FC<VideoEmbedProps> = ({ lessonId }) => {
+export const VideoEmbed: React.FC<VideoEmbedProps> = ({ lessonId, socket, user, isChosenForRecording = false }) => {
   if (!lessonId) {
     return (
       <div 
@@ -24,24 +29,18 @@ export const VideoEmbed: React.FC<VideoEmbedProps> = ({ lessonId }) => {
     );
   }
 
-  // Construct uniquely namespaced room for Jitsi Meet dynamically based on the lesson ID
-  const jitsiRoomName = `MountechAcademy-LiveClass-${lessonId}`;
-  const embedUrl = `https://meet.jit.si/${jitsiRoomName}`;
+  const isModerator = user?.role === 'instructor' || user?.role === 'admin';
 
   return (
     <div 
       id="video-embed-player-wrapper"
       className="w-full aspect-[16/9] relative overflow-hidden rounded-lg border border-gray-800 shadow-lg bg-black"
     >
-      <iframe
-        id="jitsi-meet-iframe"
-        src={embedUrl}
-        title={`Live Class Room Session - ${jitsiRoomName}`}
-        frameBorder="0"
-        allow="camera; microphone; fullscreen; display-capture; autoplay"
-        allowFullScreen
-        className="absolute top-0 left-0 w-full h-full"
-      />
+      {isModerator ? (
+        <InstructorVideo lessonId={lessonId} socket={socket} user={user} isChosenForRecording={isChosenForRecording} />
+      ) : (
+        <StudentVideo lessonId={lessonId} socket={socket} user={user} />
+      )}
     </div>
   );
 };

@@ -1211,7 +1211,7 @@ export function getCourseLessonsForStudent(req: Request, res: Response) {
     }
 
     const lessons = db.prepare(`
-      SELECT id, course_id, chapter, title, description, order_index, youtube_channel_id
+      SELECT id, course_id, chapter, title, description, order_index, youtube_channel_id, is_chosen_for_recording
       FROM lessons
       WHERE course_id = ?
       ORDER BY order_index ASC
@@ -1561,7 +1561,7 @@ export function getLessonDetail(req: Request, res: Response) {
   const { lessonId } = req.params;
   try {
     const lesson = db.prepare(`
-      SELECT id, course_id, chapter, title, description, order_index, youtube_channel_id
+      SELECT id, course_id, chapter, title, description, order_index, youtube_channel_id, is_chosen_for_recording
       FROM lessons
       WHERE id = ?
     `).get(Number(lessonId)) as any;
@@ -1577,17 +1577,31 @@ export function getLessonDetail(req: Request, res: Response) {
   }
 }
 
-// PATCH /api/admin/lessons/:lessonId/config - Update lessons configuration (e.g., youtube_channel_id) for parallel instructors
+// PATCH /api/admin/lessons/:lessonId/config - Update lessons configuration (e.g., youtube_channel_id, is_chosen_for_recording) for parallel instructors
 export function updateLessonConfig(req: Request, res: Response) {
   const { lessonId } = req.params;
-  const { youtube_channel_id } = req.body;
+  const { youtube_channel_id, is_chosen_for_recording } = req.body;
 
   try {
-    const updateResult = db.prepare(`
-      UPDATE lessons
-      SET youtube_channel_id = ?
-      WHERE id = ?
-    `).run(youtube_channel_id === undefined ? null : youtube_channel_id, Number(lessonId));
+    let updateResult;
+    if (is_chosen_for_recording !== undefined) {
+      const isChosenNum = is_chosen_for_recording ? 1 : 0;
+      updateResult = db.prepare(`
+        UPDATE lessons
+        SET youtube_channel_id = ?, is_chosen_for_recording = ?
+        WHERE id = ?
+      `).run(
+        youtube_channel_id === undefined ? null : youtube_channel_id,
+        isChosenNum,
+        Number(lessonId)
+      );
+    } else {
+      updateResult = db.prepare(`
+        UPDATE lessons
+        SET youtube_channel_id = ?
+        WHERE id = ?
+      `).run(youtube_channel_id === undefined ? null : youtube_channel_id, Number(lessonId));
+    }
 
     if (updateResult.changes === 0) {
       return res.status(404).json({ error: "Lesson not found or no changes made." });
@@ -1596,7 +1610,8 @@ export function updateLessonConfig(req: Request, res: Response) {
     return res.json({
       success: true,
       message: "Lesson configuration updated successfully to support parallel live broadcasts.",
-      youtube_channel_id
+      youtube_channel_id,
+      is_chosen_for_recording
     });
   } catch (err: any) {
     console.error("[PATCH LESSON CONFIG ERR]", err);

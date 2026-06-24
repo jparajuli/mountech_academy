@@ -32,7 +32,14 @@ interface CoursesProps {
 }
 
 export default function Courses({ user, onSignOut, onSelectCourse, enrolledCourseIds }: CoursesProps) {
-  const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin' | 'instructor-profile' | 'grades'>('catalog');
+  const [currentMenuTab, setCurrentMenuTab] = useState<'catalog' | 'resources' | 'admin' | 'instructor-profile' | 'grades'>(() => {
+    const saved = localStorage.getItem("mountech_courses_tab");
+    if (saved === 'resources' || saved === 'catalog' || saved === 'admin' || saved === 'instructor-profile' || saved === 'grades') {
+      localStorage.removeItem("mountech_courses_tab");
+      return saved;
+    }
+    return 'catalog';
+  });
   const [adminSubTab, setAdminSubTab] = useState<'users' | 'instructors' | 'payments' | 'matrix'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');

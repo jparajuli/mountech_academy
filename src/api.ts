@@ -576,7 +576,7 @@ export async function fetchLessonProblems(lessonId: number): Promise<{ problems:
   return apiFetch(`/api/lessons/${lessonId}/problems`);
 }
 
-export async function updateLessonConfig(lessonId: number, config: { youtube_channel_id: string | null }): Promise<{ success: boolean; message: string; youtube_channel_id: string | null }> {
+export async function updateLessonConfig(lessonId: number, config: { youtube_channel_id?: string | null; is_chosen_for_recording?: boolean | number | null }): Promise<{ success: boolean; message: string; youtube_channel_id?: string | null; is_chosen_for_recording?: number | boolean }> {
   return apiFetch(`/api/admin/lessons/${lessonId}/config`, {
     method: 'PATCH',
     body: JSON.stringify(config),
