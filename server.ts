@@ -6,7 +6,7 @@ import { runMigration } from "./server/db/migrate.js";
 import { startLiveSessionReminderScheduler } from "./server/utils/reminderScheduler.js";
 import http from "http";
 import { initWebSocketServer } from "./server/utils/websocket.js";
-import { initSocketIOServer } from "./server/utils/socketio.js";
+import { initSocket } from "./server/utils/socketio.js";
 
 const PORT = 3000;
 
@@ -22,7 +22,7 @@ async function start() {
 
   const httpServer = http.createServer(app);
   initWebSocketServer(httpServer);
-  initSocketIOServer(httpServer);
+  initSocket(httpServer);
 
   // 2. Attach Vite middleware in dev or static asset servers in production
   if (process.env.NODE_ENV !== "production") {

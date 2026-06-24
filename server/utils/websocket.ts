@@ -231,6 +231,16 @@ export function initWebSocketServer(server: any) {
 
   // Upgrade plumbing on request
   server.on("upgrade", (request: any, socket: any, head: any) => {
+    try {
+      const url = request.url || "";
+      if (url.includes("/socket.io/")) {
+        // Let socket.io handle its own websocket upgrades
+        return;
+      }
+    } catch (err) {
+      console.warn("[WEBSOCKET] Error checking upgrade URL path:", err);
+    }
+
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit("connection", ws, request);
     });
