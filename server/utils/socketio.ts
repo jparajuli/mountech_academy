@@ -1,14 +1,21 @@
 import { Server } from "socket.io";
 
-export function initSocketIOServer(httpServer: any) {
-  const io = new Server(httpServer, {
+let io: Server | null = null;
+
+export function initSocket(httpServer: any): Server {
+  if (io) {
+    console.log("⚙️ Socket.io already initialized. Returning existing instance.");
+    return io;
+  }
+
+  io = new Server(httpServer, {
     cors: {
       origin: "*",
       methods: ["GET", "POST"]
     }
   });
 
-  console.log("⚙️ Socket.io Server initialized.");
+  console.log("⚙️ Socket.io Server initialized (Singleton).");
 
   io.on("connection", (socket) => {
     console.log(`[SOCKET.IO] New connection: ${socket.id}`);
@@ -31,5 +38,17 @@ export function initSocketIOServer(httpServer: any) {
     });
   });
 
+  return io;
+}
+
+// Keep original function name exported as an alias for backward compatibility
+export function initSocketIOServer(httpServer: any): Server {
+  return initSocket(httpServer);
+}
+
+export function getIO(): Server {
+  if (!io) {
+    throw new Error("Socket.io has not been initialized yet. Please call initSocket(httpServer) first.");
+  }
   return io;
 }
