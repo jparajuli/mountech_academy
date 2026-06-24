@@ -1211,7 +1211,7 @@ export function getCourseLessonsForStudent(req: Request, res: Response) {
     }
 
     const lessons = db.prepare(`
-      SELECT id, course_id, chapter, title, description, order_index
+      SELECT id, course_id, chapter, title, description, order_index, youtube_channel_id
       FROM lessons
       WHERE course_id = ?
       ORDER BY order_index ASC
@@ -1553,6 +1553,54 @@ export function getLessonProblems(req: Request, res: Response) {
   } catch (err: any) {
     console.error("[GET LESSON PROBLEMS ERR]", err);
     return res.status(500).json({ error: "Failed to retrieve lesson problems: " + err.message });
+  }
+}
+
+// GET /api/lessons/:lessonId - Retrieve dynamic configuration and details for a given lesson
+export function getLessonDetail(req: Request, res: Response) {
+  const { lessonId } = req.params;
+  try {
+    const lesson = db.prepare(`
+      SELECT id, course_id, chapter, title, description, order_index, youtube_channel_id
+      FROM lessons
+      WHERE id = ?
+    `).get(Number(lessonId)) as any;
+
+    if (!lesson) {
+      return res.status(404).json({ error: "Lesson not found." });
+    }
+
+    return res.json({ lesson });
+  } catch (err: any) {
+    console.error("[GET LESSON DETAIL ERR]", err);
+    return res.status(500).json({ error: "Failed to retrieve lesson detail: " + err.message });
+  }
+}
+
+// PATCH /api/admin/lessons/:lessonId/config - Update lessons configuration (e.g., youtube_channel_id) for parallel instructors
+export function updateLessonConfig(req: Request, res: Response) {
+  const { lessonId } = req.params;
+  const { youtube_channel_id } = req.body;
+
+  try {
+    const updateResult = db.prepare(`
+      UPDATE lessons
+      SET youtube_channel_id = ?
+      WHERE id = ?
+    `).run(youtube_channel_id === undefined ? null : youtube_channel_id, Number(lessonId));
+
+    if (updateResult.changes === 0) {
+      return res.status(404).json({ error: "Lesson not found or no changes made." });
+    }
+
+    return res.json({
+      success: true,
+      message: "Lesson configuration updated successfully to support parallel live broadcasts.",
+      youtube_channel_id
+    });
+  } catch (err: any) {
+    console.error("[PATCH LESSON CONFIG ERR]", err);
+    return res.status(500).json({ error: "Failed to update lesson configuration: " + err.message });
   }
 }
 
