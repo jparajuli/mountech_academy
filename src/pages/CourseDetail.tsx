@@ -18,6 +18,7 @@ import { StudentExamTaker } from '../components/StudentExamTaker';
 import { PythonSandbox } from '../components/PythonSandbox';
 import { InteractiveLiveClassroom } from '../components/InteractiveLiveClassroom';
 import { VideoEmbed } from '../components/VideoEmbed';
+import { LiveClassroomWrapper } from '../components/LiveClassroomWrapper';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
@@ -2030,7 +2031,31 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
             {classroomTab === 'lecture' ? (() => {
               const activeLessonDb = activeLessonIndex !== null ? (dbLessons[activeLessonIndex] || dbLessons.find((l: any) => l.chapter === course.syllabus[activeLessonIndex]?.chapter)) : null;
               return (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="live-lecture-grid">
+                <LiveClassroomWrapper
+                  user={user}
+                  lessonId={activeLessonDb?.id || course.id}
+                  lessonTitle={activeLessonDb?.title || course.syllabus[activeLessonIndex || 0]?.title || course.title}
+                  courseId={course.id}
+                  slides={slides}
+                  activeSlide={activeSlide}
+                  onNextSlide={() => setActiveSlide((prev) => Math.min(slides.length - 1, prev + 1))}
+                  onPrevSlide={() => setActiveSlide((prev) => Math.max(0, prev - 1))}
+                  socket={socket}
+                  videoLayoutMode={videoLayoutMode}
+                  setVideoLayoutMode={setVideoLayoutMode}
+                  isRecording={configIsChosenForRecording}
+                  setIsRecording={setConfigIsChosenForRecording}
+                  onSyncSandbox={() => {
+                    if (socket) {
+                      socket.emit("sandbox-sync", {
+                        lessonId: course.id,
+                        code: slides[activeSlide]?.code || ""
+                      });
+                      alert("Sandbox state synchronized with all active students!");
+                    }
+                  }}
+                >
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="live-lecture-grid">
                   
                   {/* Visual Projector / Slide Whiteboard Deck (8 columns) */}
                   <div className="lg:col-span-8 space-y-4">
@@ -2956,7 +2981,8 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                 </div>
 
               </div>
-            );
+            </LiveClassroomWrapper>
+          );
           })() : (
               /* TAB TWO: INTERACTIVE PYTHON SANDBOX (WEBASSEMBLY) */
               <div id="code-sandbox-grid" className="w-full">
