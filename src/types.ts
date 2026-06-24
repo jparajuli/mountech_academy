@@ -109,6 +109,7 @@ export interface Lesson {
   order_index: number;
   isLocked?: boolean;
   youtube_channel_id?: string | null;
+  is_chosen_for_recording?: number | boolean;
 }
 
 

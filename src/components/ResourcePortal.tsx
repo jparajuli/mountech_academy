@@ -3,7 +3,7 @@ import {
   BookOpen, FileText, Presentation, GitPullRequest, Link, ArrowRight, 
   Upload, Plus, Trash2, Search, ExternalLink, RefreshCw, Layers, 
   Database, Code, CheckCircle2, AlertCircle, Sparkles, FolderOpen,
-  HelpCircle, ChevronRight, FileCode, Check, Copy
+  HelpCircle, ChevronRight, FileCode, Check, Copy, Lock
 } from "lucide-react";
 import { Course } from "../types";
 
@@ -951,13 +951,14 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                       ) : (
-                        <button
-                          onClick={() => alert(`Simulating file download: "${res.title}" (${res.fileSize || 'N/A'}). File extraction active.`)}
+                        <a
+                          href="/api/download/syllabus"
+                          download={`${res.title.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`}
                           className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 border border-gray-700 cursor-pointer"
                         >
                           <span>Download PDF</span>
                           <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
+                        </a>
                       )}
                     </div>
                   </div>

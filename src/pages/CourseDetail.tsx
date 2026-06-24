@@ -424,6 +424,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
 
   // Page states
   const [classroomMode, setClassroomMode] = useState(false);
+  const [videoLayoutMode, setVideoLayoutMode] = useState<'prominent' | 'floating'>('prominent');
   const [activeLessonIndex, setActiveLessonIndex] = useState<number | null>(null);
 
   // Lesson progress tracking state (persisted per course & scholar)
@@ -557,22 +558,32 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   const [isLectureFullscreen, setIsLectureFullscreen] = useState<boolean>(false);
   const [updatingConfig, setUpdatingConfig] = useState(false);
   const [configChannelId, setConfigChannelId] = useState('');
+  const [configIsChosenForRecording, setConfigIsChosenForRecording] = useState(false);
 
   useEffect(() => {
     const activeLessonDb = activeLessonIndex !== null ? (dbLessons[activeLessonIndex] || dbLessons.find((l: any) => l.chapter === course.syllabus[activeLessonIndex]?.chapter)) : null;
     if (activeLessonDb) {
       setConfigChannelId(activeLessonDb.youtube_channel_id || '');
+      setConfigIsChosenForRecording(!!activeLessonDb.is_chosen_for_recording);
     } else {
       setConfigChannelId('');
+      setConfigIsChosenForRecording(false);
     }
   }, [activeLessonIndex, dbLessons, course.syllabus]);
 
-  const handleUpdateLessonChannelId = async (lessonId: number, channelId: string) => {
+  const handleUpdateLessonChannelId = async (lessonId: number, channelId: string, isChosenForRecording: boolean) => {
     setUpdatingConfig(true);
     try {
-      const res = await updateLessonConfig(lessonId, { youtube_channel_id: channelId || null });
+      const res = await updateLessonConfig(lessonId, { 
+        youtube_channel_id: channelId || null,
+        is_chosen_for_recording: isChosenForRecording
+      });
       if (res.success) {
-        setDbLessons(prev => prev.map(l => l.id === lessonId ? { ...l, youtube_channel_id: channelId || null } : l));
+        setDbLessons(prev => prev.map(l => l.id === lessonId ? { 
+          ...l, 
+          youtube_channel_id: channelId || null, 
+          is_chosen_for_recording: isChosenForRecording ? 1 : 0
+        } : l));
       } else {
         alert("Failed to update broadcast settings.");
       }
@@ -1915,27 +1926,58 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
               </div>
 
               {/* Tab options button toggle */}
-              <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-gray-800">
-                <button
-                  onClick={() => setClassroomTab('lecture')}
-                  className={`px-3 py-1.5 text-[10px] font-bold font-mono tracking-wider uppercase rounded transition-all cursor-pointer ${
-                    classroomTab === 'lecture'
-                      ? 'bg-slate-800 text-[#38bdf8] shadow-xs'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  📡 Live Lecture Stream
-                </button>
-                <button
-                  onClick={() => setClassroomTab('sandbox')}
-                  className={`px-3 py-1.5 text-[10px] font-bold font-mono tracking-wider uppercase rounded transition-all cursor-pointer ${
-                    classroomTab === 'sandbox'
-                      ? 'bg-slate-800 text-[#38bdf8] shadow-xs'
-                      : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  💻 Code Playground Sandbox
-                </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-gray-800">
+                  <button
+                    onClick={() => setClassroomTab('lecture')}
+                    className={`px-3 py-1.5 text-[10px] font-bold font-mono tracking-wider uppercase rounded transition-all cursor-pointer ${
+                      classroomTab === 'lecture'
+                        ? 'bg-slate-800 text-[#38bdf8] shadow-xs'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    📡 Live Lecture Stream
+                  </button>
+                  <button
+                    onClick={() => setClassroomTab('sandbox')}
+                    className={`px-3 py-1.5 text-[10px] font-bold font-mono tracking-wider uppercase rounded transition-all cursor-pointer ${
+                      classroomTab === 'sandbox'
+                        ? 'bg-slate-800 text-[#38bdf8] shadow-xs'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    💻 Code Playground Sandbox
+                  </button>
+                </div>
+
+                {classroomTab === 'lecture' && (
+                  <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-gray-800" id="video-layout-mode-toggle">
+                    <button
+                      onClick={() => setVideoLayoutMode('prominent')}
+                      className={`px-2.5 py-1.5 text-[10px] font-bold font-mono tracking-wider uppercase rounded transition-all cursor-pointer flex items-center gap-1.5 ${
+                        videoLayoutMode === 'prominent'
+                          ? 'bg-slate-800 text-[#38bdf8] shadow-xs'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                      title="Prominent Split View (Default)"
+                    >
+                      <Maximize2 className="w-3 h-3" />
+                      <span>Split</span>
+                    </button>
+                    <button
+                      onClick={() => setVideoLayoutMode('floating')}
+                      className={`px-2.5 py-1.5 text-[10px] font-bold font-mono tracking-wider uppercase rounded transition-all cursor-pointer flex items-center gap-1.5 ${
+                        videoLayoutMode === 'floating'
+                          ? 'bg-slate-800 text-[#38bdf8] shadow-xs'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                      title="Focus Mode (Floating PiP)"
+                    >
+                      <Minimize2 className="w-3 h-3" />
+                      <span>Focus/PiP</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2 self-end sm:self-center">
@@ -1993,44 +2035,53 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                   {/* Visual Projector / Slide Whiteboard Deck (8 columns) */}
                   <div className="lg:col-span-8 space-y-4">
                     {/* 
-                      Functional Layout Harmony:
-                      The dynamically rendered Jitsi Live Class Room frame (VideoEmbed) and the 
-                      interactive presentation whiteboard (Slide Studio/Python sandbox) are stacked
-                      cooperatively within a single flexible, high-visibility container.
-                      Instead of using hardcoded dimensions or prescriptive layout coordinates,
-                      we utilize Tailwind's relative, flow-based layout spacing to scale fluidly 
-                      across mobile, tablet, and wide desktop viewports. This ensures both 
-                      live video feed prominence and whiteboard interaction are visually balanced
-                      without any risk of component overlap.
+                      Functional Layout Harmony & Fluid Mode Scaling:
+                      To maximize lecture presentation and playground real estate, the live video feed is wrapped
+                      in a transition-friendly container.
+                      - Split Mode (Prominent): Video remains in normal document flow, positioned above 
+                        the slide projector. Ideal for introductory discussions and direct lectures.
+                      - Focus Mode (Floating PiP): Video transitions smoothly into a compact, non-intrusive,
+                        floating corner panel (using fixed positioning) that hovers over the desk. This allows 
+                        the presentation slide deck and Python executing console to automatically claim the
+                        reclaimed vertical space and maximize the active coding canvas without any unmounting
+                        of the WebRTC stream.
                     */}
-                    {/* Dynamic External Video Player - prioritizes Jitsi Meet */}
-                    <VideoEmbed lessonId={activeLessonDb?.id} />
+                    <div 
+                      id="jitsi-layout-wrapper" 
+                      className={`transition-all duration-300 ${
+                        videoLayoutMode === 'floating'
+                          ? 'fixed bottom-6 right-6 z-50 w-80 md:w-96 shadow-2xl bg-slate-900 border border-slate-800 rounded-lg overflow-hidden'
+                          : 'w-full'
+                      }`}
+                    >
+                      <VideoEmbed lessonId={activeLessonDb?.id} socket={socket} user={user} isChosenForRecording={!!activeLessonDb?.is_chosen_for_recording} />
+                    </div>
 
                     {/* Instructor/Admin Live Broadcast Config Panel */}
                     {(user?.role === 'instructor' || user?.role === 'admin') && activeLessonDb && (
                       <div className="p-4 bg-slate-900 border border-gray-800 rounded-lg space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="font-mono text-[9px] text-[#38bdf8] font-bold uppercase tracking-wider block">Live Stream Broadcast Settings ⚙️</span>
-                          <span className="text-[8px] text-amber-400 font-mono font-bold">Parallel Execution Node</span>
+                          <span className="font-mono text-[9px] text-[#38bdf8] font-bold uppercase tracking-wider block">Classroom Stream Configuration ⚙️</span>
+                          <span className="text-[8px] text-emerald-400 font-mono font-bold">Jitsi Secure Node</span>
                         </div>
                         <p className="text-[11px] text-gray-400 leading-normal">
-                          Configure a distinct YouTube Channel ID for this lesson. This allows multiple instructors to broadcast parallel live streams simultaneously without overlapping or interference.
+                          Enable automatic local or cloud-based recording for this specific lecture room session. Students can watch recordings in their archives.
                         </p>
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                          <div className="relative flex-grow">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-gray-500 select-none">ID:</span>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                          <label className="flex items-center gap-2 px-3 py-1.5 bg-slate-950 border border-slate-800 rounded text-xs font-mono text-gray-300 cursor-pointer select-none">
                             <input
-                              type="text"
-                              value={configChannelId}
-                              onChange={(e) => setConfigChannelId(e.target.value)}
-                              placeholder="e.g. UC_x5XG1OV2P6uYZ5pxKUXgQ"
-                              className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                              type="checkbox"
+                              checked={configIsChosenForRecording}
+                              onChange={(e) => setConfigIsChosenForRecording(e.target.checked)}
+                              className="accent-indigo-500 h-3.5 w-3.5 rounded border-slate-800 bg-slate-950 text-indigo-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
                             />
-                          </div>
+                            <span>Enable Stream Recording</span>
+                          </label>
+
                           <button
                             type="button"
                             disabled={updatingConfig}
-                            onClick={() => handleUpdateLessonChannelId(activeLessonDb.id, configChannelId)}
+                            onClick={() => handleUpdateLessonChannelId(activeLessonDb.id, '', configIsChosenForRecording)}
                             className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-mono font-bold transition-all disabled:opacity-55 cursor-pointer flex items-center justify-center gap-1 shrink-0"
                           >
                             {updatingConfig ? (
@@ -2039,7 +2090,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                                 <span>Saving...</span>
                               </>
                             ) : (
-                              <span>Save Broadcast Channel</span>
+                              <span>Save Config</span>
                             )}
                           </button>
                         </div>
@@ -2956,21 +3007,22 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                   </a>
 
                   {/* Item 2 */}
-                  <a 
-                    href="https://github.com/mountech-academy-labs" 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="p-4 bg-white border border-gray-200 hover:border-[#0070f3] rounded-lg transition-all flex flex-col justify-between group h-32 text-left shrink-0"
+                  <button 
+                    onClick={() => {
+                      localStorage.setItem("mountech_courses_tab", "resources");
+                      onBack();
+                    }}
+                    className="p-4 bg-white border border-gray-200 hover:border-[#0070f3] rounded-lg transition-all flex flex-col justify-between group h-32 text-left shrink-0 cursor-pointer w-full"
                   >
                     <div className="flex justify-between items-start">
-                      <Code className="w-6 h-6 text-indigo-600 bg-indigo-50 p-1 rounded" />
-                      <span className="text-[9px] font-mono bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold uppercase">REPOS</span>
+                      <Code className="w-6 h-6 text-orange-600 bg-orange-50 p-1 rounded" />
+                      <span className="text-[9px] font-mono bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold uppercase">GITLAB</span>
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-[#111827] line-clamp-1 group-hover:text-[#0070f3]">GitHub Lab Assignments</h4>
-                      <p className="text-[10px] text-gray-450 mt-1">Clean Python configurations & container deployment code</p>
+                      <h4 className="text-xs font-bold text-[#111827] line-clamp-1 group-hover:text-[#0070f3]">GitLab Classroom Hub</h4>
+                      <p className="text-[10px] text-gray-450 mt-1">Synchronize your repositories & stream pipelines</p>
                     </div>
-                  </a>
+                  </button>
 
                   {/* Item 3 */}
                   <a 
