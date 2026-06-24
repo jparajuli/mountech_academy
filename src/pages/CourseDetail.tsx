@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, GoogleAuthProvider, signInWithPopup } from '../firebase';
+import { io } from 'socket.io-client';
 import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLiveSessions, joinLiveSessionRequest, fetchInstructors, fetchStudentExams, checkoutManual, fetchCourseLessons } from '../api';
 import InstructorCard from '../components/InstructorCard';
 import { StudentExamTaker } from '../components/StudentExamTaker';
@@ -796,7 +797,53 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   const [loadingRevisions, setLoadingRevisions] = useState<boolean>(false);
   const [showRevisionsDropdown, setShowRevisionsDropdown] = useState<boolean>(false);
 
-  const parseMarkdownToSlides = (mdText: string): Array<{ t: string; d: string; code: string }> => {
+  // WebSockets states
+  const [socket, setSocket] = useState<any>(null);
+  const [liveSyncEnabled, setLiveSyncEnabled] = useState<boolean>(true);
+  const [isLiveSynced, setIsLiveSynced] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!course?.id || !user) return;
+
+    const socketUrl = window.location.origin;
+    const newSocket = io(socketUrl, {
+      transports: ["websocket", "polling"]
+    });
+
+    setSocket(newSocket);
+
+    newSocket.emit("join-lesson", {
+      lessonId: course.id,
+      email: user.email,
+      role: user.role
+    });
+
+    if (user.role === "student") {
+      setIsLiveSynced(true);
+    }
+
+    newSocket.on("slide-change", ({ slideIndex }: { slideIndex: number }) => {
+      if (user.role === "student") {
+        setActiveSlide(slideIndex);
+        setIsLiveSynced(true);
+      }
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [course?.id, user]);
+
+  useEffect(() => {
+    if (socket && liveSyncEnabled && (user?.role === 'instructor' || user?.role === 'admin')) {
+      socket.emit("slide-change", {
+        lessonId: course.id,
+        slideIndex: activeSlide
+      });
+    }
+  }, [activeSlide, socket, liveSyncEnabled, course?.id, user?.role]);
+
+  const parseMarkdownToSlides = (mdText: string): Array<{ t: string; d: string; code: string; lang?: string }> => {
     let blocks: string[] = [];
     const normalizedText = mdText.replace(/\r\n/g, '\n');
     
@@ -809,7 +856,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
       blocks = [normalizedText];
     }
 
-    const slidesList: Array<{ t: string; d: string; code: string }> = [];
+    const slidesList: Array<{ t: string; d: string; code: string; lang?: string }> = [];
 
     for (let block of blocks) {
       block = block.trim();
@@ -818,8 +865,9 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
       const titleMatch = block.match(/^(?:#+\s*)(.*)$/m);
       const title = titleMatch ? titleMatch[1].trim() : "Untitled Slide";
 
-      const codeMatch = block.match(/```[a-zA-Z0-9]*\n([\s\S]*?)```/);
-      const code = codeMatch ? codeMatch[1].trim() : "";
+      const codeMatch = block.match(/```([a-zA-Z0-9-]*)\n([\s\S]*?)```/);
+      const lang = codeMatch ? codeMatch[1].trim() : "";
+      const code = codeMatch ? codeMatch[2].trim() : "";
 
       let description = block;
       if (titleMatch) {
@@ -841,7 +889,8 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
       slidesList.push({
         t: title,
         d: description || "No further details provided for this slide segment.",
-        code: code
+        code: code,
+        lang: lang
       });
     }
 
@@ -2296,10 +2345,28 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                           </div>
 
                           {/* Code companion illustration inside presentation screen */}
-                          <div className="bg-[#080d16] border border-gray-850 p-4 rounded font-mono text-[10px] md:text-xs text-emerald-400 overflow-x-auto shadow-inner select-all relative">
-                            <span className="absolute top-2 right-2 text-[8px] text-gray-600 uppercase font-mono select-none">Whiteboard Code Segment</span>
-                            {slides[activeSlide]?.code}
-                          </div>
+                          {slides[activeSlide]?.lang === 'python-runnable' || slides[activeSlide]?.lang === 'language-python-runnable' ? (
+                            <div className="w-full mt-2 rounded border border-gray-850 bg-[#080d16]/95 p-3 overflow-y-auto max-h-[380px]">
+                              <div className="text-[10px] uppercase font-mono text-indigo-400 font-bold mb-2 flex items-center justify-between">
+                                <span className="flex items-center gap-1">
+                                  <Radio className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+                                  Live Runnable Python Sandbox
+                                </span>
+                                <span className="text-gray-500 text-[8px]">Interactive Slide Module</span>
+                              </div>
+                              <PythonSandbox
+                                lessonId={course.id}
+                                initialCode={slides[activeSlide]?.code}
+                              />
+                            </div>
+                          ) : (
+                            <div className="bg-[#080d16] border border-gray-850 p-4 rounded font-mono text-[10px] md:text-xs text-emerald-400 overflow-x-auto shadow-inner select-all relative">
+                              <span className="absolute top-2 right-2 text-[8px] text-gray-600 uppercase font-mono select-none">
+                                {slides[activeSlide]?.lang ? `${slides[activeSlide]?.lang.toUpperCase()} Code Segment` : "Whiteboard Code Segment"}
+                              </span>
+                              {slides[activeSlide]?.code}
+                            </div>
+                          )}
 
                           {/* Interactive Live Whiteboard SVG Node Map graph (Changes visually on Slide clicks!) */}
                           <div className="border border-gray-800 bg-[#070c17]/40 rounded-md p-3 max-h-[110px] hidden md:flex items-center justify-between">
@@ -2342,12 +2409,37 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
 
                   {/* Widescreen presentation player slide controllers */}
                   <div className="border-t border-gray-800 pt-3 flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-[10px] text-gray-500 font-mono font-semibold">
-                      <Users className="w-3.5 h-3.5 text-blue-400" />
-                      <span>128 students active in lecture broadcast right now</span>
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-gray-500 font-mono font-semibold">
+                      <div className="flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5 text-blue-400" />
+                        <span>128 students active in lecture broadcast right now</span>
+                      </div>
+                      {user?.role === 'student' && isLiveSynced && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 animate-pulse text-[9px]">
+                          <Radio className="w-3 h-3 text-emerald-400" />
+                          <span>Live: Syncing with Instructor</span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {/* Live Sync Toggle for Instructors */}
+                      {(user?.role === 'instructor' || user?.role === 'admin') && (
+                        <button
+                          type="button"
+                          onClick={() => setLiveSyncEnabled(!liveSyncEnabled)}
+                          className={`px-2 py-1 text-[10px] font-mono rounded border flex items-center gap-1 cursor-pointer transition-all ${
+                            liveSyncEnabled
+                              ? 'bg-emerald-600/95 border-emerald-600 text-white font-bold'
+                              : 'bg-slate-900 border-slate-800 text-gray-400 hover:text-white'
+                          }`}
+                          title="Toggle broadcasting slide changes to students in real-time"
+                        >
+                          <Radio className={`w-3.5 h-3.5 ${liveSyncEnabled ? 'animate-pulse text-emerald-200' : ''}`} />
+                          <span>Live Sync: {liveSyncEnabled ? 'ON' : 'OFF'}</span>
+                        </button>
+                      )}
+
                       {/* Interactive Slide Studio trigger */}
                       {(user?.role === 'instructor' || user?.role === 'admin') && (
                         <button
