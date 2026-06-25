@@ -27,6 +27,7 @@ import {
   getLessonProblems,
   getLessonDetail,
   updateLessonConfig,
+  getJaasToken,
 } from "../controllers/courseController.js";
 import { createManualCheckout } from "../controllers/paymentController.js";
 import { handleGitLabWebhook } from "../../src/controllers/gitlabController.js";
@@ -53,6 +54,7 @@ router.post("/ratings", requireAuth, validateRequest(RatingSchema), submitRating
 router.post("/admin/courses/:courseId/sessions", requireAuth, requireRole(["admin"]), validateRequest(LiveSessionSchema), createLiveSession);
 router.get("/courses/:courseId/sessions", requireAuth, checkCourseSunset, listLiveSessions);
 router.get("/sessions/:sessionId/join", requireAuth, checkCourseSunset, joinLiveSession);
+router.get("/live-sessions/:lessonId/jaas-token", requireAuth, getJaasToken);
 
 // Student Exams Phase 3 routes
 router.get("/courses/:courseId/student-exams", requireAuth, checkCourseSunset, getCourseExamsForStudent);

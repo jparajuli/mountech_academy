@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { JitsiMeeting } from '@jitsi/react-sdk';
-import { Circle, Square, Video } from 'lucide-react';
+import { JaaSMeeting } from '@jitsi/react-sdk';
+import { Circle, Square, Video, Loader2 } from 'lucide-react';
+import { getJaasTokenRequest } from '../api';
 
 interface InstructorVideoProps {
   lessonId: string | number;
@@ -13,12 +14,45 @@ interface InstructorVideoProps {
 }
 
 export const InstructorVideo: React.FC<InstructorVideoProps> = ({ lessonId, socket, user, isChosenForRecording = false }) => {
+  const [jwtToken, setJwtToken] = useState<string | null>(null);
+  const [isLoadingToken, setIsLoadingToken] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [generatedPassword] = useState(() => Math.random().toString(36).slice(-8));
   const [isJoined, setIsJoined] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const jitsiApiRef = useRef<any>(null);
 
   const currentRoom = `MountechAcademy-LiveClass-${lessonId}`;
+
+  useEffect(() => {
+    let active = true;
+    const fetchToken = async () => {
+      try {
+        setIsLoadingToken(true);
+        setFetchError(null);
+        const res = await getJaasTokenRequest(lessonId);
+        if (active) {
+          if (res.success && res.token) {
+            setJwtToken(res.token);
+          } else {
+            throw new Error("Unable to obtain standard JaaS JWT security token.");
+          }
+        }
+      } catch (err: any) {
+        if (active) {
+          setFetchError(err?.message || "Secure stream token fetch failed.");
+        }
+      } finally {
+        if (active) {
+          setIsLoadingToken(false);
+        }
+      }
+    };
+    fetchToken();
+    return () => {
+      active = false;
+    };
+  }, [lessonId]);
 
   useEffect(() => {
     // If the socket reconnects or is ready, re-emit the stream state so any new/late students can catch it
@@ -127,46 +161,90 @@ export const InstructorVideo: React.FC<InstructorVideoProps> = ({ lessonId, sock
         </div>
       </div>
 
-      <div className="flex-grow relative aspect-[16/9] w-full bg-slate-950 overflow-hidden">
-        <JitsiMeeting
-          domain="meet.jit.si"
-          roomName={currentRoom}
-          configOverwrite={{
-            startWithAudioMuted: false,
-            startWithVideoMuted: false,
-            prejoinPageEnabled: false,
-            disableInviteFunctions: true,
-            hideConferenceSubject: true,
-            hideConferenceTimer: true,
-            localRecording: {
-              enabled: false
-            },
-            toolbarButtons: [
-              'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
-              'fodeviceselection', 'hangup', 'profile', 'chat',
-              ...(isChosenForRecording ? ['recording'] : []),
-              'settings', 'videoquality', 'filmstrip', 'participants-pane'
-            ],
-            subject: 'Mountech Academy Instructor Room',
-          }}
-          interfaceConfigOverwrite={{
-            SHOW_JITSI_WATERMARK: false,
-            SHOW_WATERMARK_FOR_GUESTS: false,
-            DEFAULT_BACKGROUND: '#090f1d',
-          }}
-          userInfo={{
-            displayName: user.name || user.email || 'Instructor',
-            email: user.email,
-          }}
-          onApiReady={handleApiReady}
-          getIFrameRef={(iframeRef) => {
-            if (iframeRef) {
-              iframeRef.style.width = '100%';
-              iframeRef.style.height = '100%';
-              iframeRef.style.border = '0';
-            }
-          }}
-        />
+      <div className="flex-grow relative aspect-[16/9] w-full bg-slate-950 overflow-hidden flex items-center justify-center">
+        {isLoadingToken ? (
+          <div className="flex flex-col items-center justify-center p-6 text-center" id="jaas-token-loading">
+            <Loader2 className="w-8 h-8 text-rose-500 animate-spin mb-4" />
+            <span className="text-sm font-mono text-gray-300 font-semibold mb-2">
+              Authenticating Secure Video Stream...
+            </span>
+            <p className="text-xs text-gray-500 max-w-md leading-relaxed">
+              Establishing a secure end-to-end encrypted connection with 8x8 Jitsi as a Service.
+            </p>
+          </div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center justify-center p-6 text-center" id="jaas-token-error">
+            <span className="text-lg mb-2">⚠️</span>
+            <span className="text-sm font-mono text-red-400 font-bold mb-2">
+              Secure Stream Authentication Failed
+            </span>
+            <p className="text-xs text-gray-400 max-w-md leading-relaxed mb-4">
+              {fetchError}
+            </p>
+            <button
+              onClick={() => {
+                setIsLoadingToken(true);
+                setFetchError(null);
+                getJaasTokenRequest(lessonId).then((res) => {
+                  if (res.success && res.token) {
+                    setJwtToken(res.token);
+                    setIsLoadingToken(false);
+                  } else {
+                    setFetchError("Failed to fetch token on retry.");
+                    setIsLoadingToken(false);
+                  }
+                }).catch(e => {
+                  setFetchError(e.message || "Failed to fetch token.");
+                  setIsLoadingToken(false);
+                });
+              }}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+            >
+              Retry Connection
+            </button>
+          </div>
+        ) : jwtToken ? (
+          <JaaSMeeting
+            appId={(import.meta as any).env.VITE_JAAS_APP_ID || ''}
+            jwt={jwtToken}
+            roomName={currentRoom}
+            configOverwrite={{
+              startWithAudioMuted: false,
+              startWithVideoMuted: false,
+              prejoinPageEnabled: false,
+              disableInviteFunctions: true,
+              hideConferenceSubject: true,
+              hideConferenceTimer: true,
+              localRecording: {
+                enabled: false
+              },
+              toolbarButtons: [
+                'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
+                'fodeviceselection', 'hangup', 'profile', 'chat',
+                ...(isChosenForRecording ? ['recording'] : []),
+                'settings', 'videoquality', 'filmstrip', 'participants-pane'
+              ],
+              subject: 'Mountech Academy Instructor Room',
+            }}
+            interfaceConfigOverwrite={{
+              SHOW_JITSI_WATERMARK: false,
+              SHOW_WATERMARK_FOR_GUESTS: false,
+              DEFAULT_BACKGROUND: '#090f1d',
+            }}
+            userInfo={{
+              displayName: user.name || user.email || 'Instructor',
+              email: user.email,
+            }}
+            onApiReady={handleApiReady}
+            getIFrameRef={(iframeRef) => {
+              if (iframeRef) {
+                iframeRef.style.width = '100%';
+                iframeRef.style.height = '100%';
+                iframeRef.style.border = '0';
+              }
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -583,5 +583,9 @@ export async function updateLessonConfig(lessonId: number, config: { youtube_cha
   });
 }
 
+export async function getJaasTokenRequest(lessonId: string | number): Promise<{ success: boolean; token: string }> {
+  return apiFetch(`/api/live-sessions/${lessonId}/jaas-token`);
+}
+
 
 

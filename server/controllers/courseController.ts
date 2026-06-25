@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import db from "../db/database.js";
 import { verifyToken } from "../middlewares/auth.js";
 import { sendEmail } from "../utils/mailer.js";
@@ -1626,6 +1627,65 @@ export function updateLessonConfig(req: Request, res: Response) {
   } catch (err: any) {
     console.error("[PATCH LESSON CONFIG ERR]", err);
     return res.status(500).json({ error: "Failed to update lesson configuration: " + err.message });
+  }
+}
+
+export function getJaasToken(req: Request, res: Response) {
+  const user = (req as any).user;
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized. Authentication is required." });
+  }
+
+  const { lessonId } = req.params;
+  
+  const appId = process.env.JAAS_APP_ID;
+  const apiKeyId = process.env.JAAS_API_KEY_ID;
+  const privateKey = process.env.JAAS_PRIVATE_KEY;
+
+  if (!appId || !apiKeyId || !privateKey) {
+    console.error("[JAAS ERROR] Missing JaaS configuration environment variables.");
+    return res.status(500).json({ error: "JaaS credentials are not fully configured on the server." });
+  }
+
+  try {
+    const isModerator = user.role === "instructor" || user.role === "admin";
+    
+    const payload = {
+      aud: "jitsi",
+      iss: "chat",
+      sub: appId,
+      room: "*",
+      context: {
+        user: {
+          id: String(user.id),
+          name: user.name,
+          email: user.email,
+        },
+        features: {
+          moderator: isModerator ? true : false,
+        }
+      }
+    };
+
+    const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
+
+    const token = jwt.sign(payload, formattedPrivateKey, {
+      algorithm: "RS256",
+      expiresIn: "2h",
+      keyid: apiKeyId,
+      header: {
+        alg: "RS256",
+        kid: apiKeyId,
+      } as any
+    });
+
+    return res.json({
+      success: true,
+      token,
+    });
+  } catch (err: any) {
+    console.error("[JAAS TOKEN EXCEPTION]", err);
+    return res.status(500).json({ error: "Failed to generate security token: " + err.message });
   }
 }
 
