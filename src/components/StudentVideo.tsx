@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { JitsiMeeting } from '@jitsi/react-sdk';
+import { JaaSMeeting } from '@jitsi/react-sdk';
 import { Loader2 } from 'lucide-react';
+import { getJaasTokenRequest } from '../api';
 
 interface StudentVideoProps {
   lessonId: string | number;
@@ -13,7 +14,42 @@ interface StudentVideoProps {
 
 export const StudentVideo: React.FC<StudentVideoProps> = ({ lessonId, socket, user }) => {
   const [streamConfig, setStreamConfig] = useState<{ roomName: string; password: string } | null>(null);
+  const [jwtToken, setJwtToken] = useState<string | null>(null);
+  const [isLoadingToken, setIsLoadingToken] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const jitsiApiRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!streamConfig) return;
+
+    let active = true;
+    const fetchToken = async () => {
+      try {
+        setIsLoadingToken(true);
+        setFetchError(null);
+        const res = await getJaasTokenRequest(lessonId);
+        if (active) {
+          if (res.success && res.token) {
+            setJwtToken(res.token);
+          } else {
+            throw new Error("Unable to obtain standard JaaS JWT security token.");
+          }
+        }
+      } catch (err: any) {
+        if (active) {
+          setFetchError(err?.message || "Secure stream token fetch failed.");
+        }
+      } finally {
+        if (active) {
+          setIsLoadingToken(false);
+        }
+      }
+    };
+    fetchToken();
+    return () => {
+      active = false;
+    };
+  }, [streamConfig, lessonId]);
 
   useEffect(() => {
     if (!socket) return;
@@ -94,41 +130,85 @@ export const StudentVideo: React.FC<StudentVideoProps> = ({ lessonId, socket, us
         </div>
       </div>
 
-      <div className="flex-grow relative aspect-[16/9] w-full bg-slate-950 overflow-hidden">
-        <JitsiMeeting
-          domain="meet.jit.si"
-          roomName={streamConfig.roomName}
-          configOverwrite={{
-            startWithAudioMuted: true,
-            startWithVideoMuted: true,
-            prejoinPageEnabled: false,
-            disableInviteFunctions: true,
-            hideConferenceSubject: true,
-            hideConferenceTimer: true,
-            toolbarButtons: [
-              'microphone', 'camera', 'closedcaptions', 'fullscreen',
-              'fodeviceselection', 'hangup', 'chat', 'raisehand', 'videoquality', 'filmstrip'
-            ],
-            subject: 'Mountech Academy Live Room',
-          }}
-          interfaceConfigOverwrite={{
-            SHOW_JITSI_WATERMARK: false,
-            SHOW_WATERMARK_FOR_GUESTS: false,
-            DEFAULT_BACKGROUND: '#090f1d',
-          }}
-          userInfo={{
-            displayName: user.name || user.email || 'Student',
-            email: user.email,
-          }}
-          onApiReady={handleApiReady}
-          getIFrameRef={(iframeRef) => {
-            if (iframeRef) {
-              iframeRef.style.width = '100%';
-              iframeRef.style.height = '100%';
-              iframeRef.style.border = '0';
-            }
-          }}
-        />
+      <div className="flex-grow relative aspect-[16/9] w-full bg-slate-950 overflow-hidden flex items-center justify-center">
+        {isLoadingToken ? (
+          <div className="flex flex-col items-center justify-center p-6 text-center" id="jaas-token-loading">
+            <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-4" />
+            <span className="text-sm font-mono text-gray-300 font-semibold mb-2">
+              Authenticating Secure Video Stream...
+            </span>
+            <p className="text-xs text-gray-500 max-w-md leading-relaxed">
+              Establishing a secure connection with JaaS Room.
+            </p>
+          </div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center justify-center p-6 text-center" id="jaas-token-error">
+            <span className="text-lg mb-2">⚠️</span>
+            <span className="text-sm font-mono text-red-400 font-bold mb-2">
+              Secure Stream Authentication Failed
+            </span>
+            <p className="text-xs text-gray-400 max-w-md leading-relaxed mb-4">
+              {fetchError}
+            </p>
+            <button
+              onClick={() => {
+                setIsLoadingToken(true);
+                setFetchError(null);
+                getJaasTokenRequest(lessonId).then((res) => {
+                  if (res.success && res.token) {
+                    setJwtToken(res.token);
+                    setIsLoadingToken(false);
+                  } else {
+                    setFetchError("Failed to fetch token on retry.");
+                    setIsLoadingToken(false);
+                  }
+                }).catch(e => {
+                  setFetchError(e.message || "Failed to fetch token.");
+                  setIsLoadingToken(false);
+                });
+              }}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+            >
+              Retry Connection
+            </button>
+          </div>
+        ) : jwtToken ? (
+          <JaaSMeeting
+            appId={(import.meta as any).env.VITE_JAAS_APP_ID || ''}
+            jwt={jwtToken}
+            roomName={streamConfig.roomName}
+            configOverwrite={{
+              startWithAudioMuted: true,
+              startWithVideoMuted: true,
+              prejoinPageEnabled: false,
+              disableInviteFunctions: true,
+              hideConferenceSubject: true,
+              hideConferenceTimer: true,
+              toolbarButtons: [
+                'microphone', 'camera', 'closedcaptions', 'fullscreen',
+                'fodeviceselection', 'hangup', 'chat', 'raisehand', 'videoquality', 'filmstrip'
+              ],
+              subject: 'Mountech Academy Live Room',
+            }}
+            interfaceConfigOverwrite={{
+              SHOW_JITSI_WATERMARK: false,
+              SHOW_WATERMARK_FOR_GUESTS: false,
+              DEFAULT_BACKGROUND: '#090f1d',
+            }}
+            userInfo={{
+              displayName: user.name || user.email || 'Student',
+              email: user.email,
+            }}
+            onApiReady={handleApiReady}
+            getIFrameRef={(iframeRef) => {
+              if (iframeRef) {
+                iframeRef.style.width = '100%';
+                iframeRef.style.height = '100%';
+                iframeRef.style.border = '0';
+              }
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );
