@@ -1642,9 +1642,22 @@ export function getJaasToken(req: Request, res: Response) {
   const apiKeyId = process.env.JAAS_API_KEY_ID;
   const privateKey = process.env.JAAS_PRIVATE_KEY;
 
-  if (!appId || !apiKeyId || !privateKey) {
-    console.error("[JAAS ERROR] Missing JaaS configuration environment variables.");
-    return res.status(500).json({ error: "JaaS credentials are not fully configured on the server." });
+  if (!appId || appId.includes("vpaas-magic-cookie") || appId === "") {
+    return res.status(500).json({ 
+      error: "JAAS_APP_ID environment variable is missing or using a placeholder value. Please configure your JaaS App ID in the Settings -> Environment Variables menu." 
+    });
+  }
+
+  if (!apiKeyId || apiKeyId.includes("your-jaas") || apiKeyId === "") {
+    return res.status(500).json({ 
+      error: "JAAS_API_KEY_ID environment variable is missing or using a placeholder value. Please configure your JaaS API Key ID in the Settings -> Environment Variables menu." 
+    });
+  }
+
+  if (!privateKey || privateKey.includes("MIIE...") || privateKey === "") {
+    return res.status(500).json({ 
+      error: "JAAS_PRIVATE_KEY environment variable is missing or using a placeholder value. Please configure your PEM-formatted RSA Private Key (beginning with -----BEGIN RSA PRIVATE KEY-----) in the Settings -> Environment Variables menu." 
+    });
   }
 
   try {
@@ -1667,7 +1680,14 @@ export function getJaasToken(req: Request, res: Response) {
       }
     };
 
-    const formattedPrivateKey = privateKey.replace(/\\n/g, '\n');
+    const formattedPrivateKey = privateKey.replace(/\\n/g, '\n').trim();
+
+    // Verify key format before signing to prevent confusing crypto crashes
+    if (!formattedPrivateKey.startsWith("-----BEGIN")) {
+      return res.status(400).json({
+        error: "JAAS_PRIVATE_KEY does not appear to be a valid PEM private key. It must start with '-----BEGIN PRIVATE KEY-----' or '-----BEGIN RSA PRIVATE KEY-----'. Please check your configuration in the Environment Variables."
+      });
+    }
 
     const token = jwt.sign(payload, formattedPrivateKey, {
       algorithm: "RS256",
@@ -1685,7 +1705,11 @@ export function getJaasToken(req: Request, res: Response) {
     });
   } catch (err: any) {
     console.error("[JAAS TOKEN EXCEPTION]", err);
-    return res.status(500).json({ error: "Failed to generate security token: " + err.message });
+    let userFriendlyError = err.message;
+    if (err.message.includes("asymmetric key")) {
+      userFriendlyError = "The JAAS_PRIVATE_KEY provided is not a valid asymmetric RSA key. Ensure you copied the entire PEM-formatted block, including the BEGIN and END lines, and configured it correctly as an RSA Private Key.";
+    }
+    return res.status(500).json({ error: "Failed to generate security token: " + userFriendlyError });
   }
 }
 
