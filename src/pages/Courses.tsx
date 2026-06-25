@@ -10,6 +10,7 @@ import AdminStudentMatrix from '../components/AdminStudentMatrix';
 import MyProfileSettings from '../components/MyProfileSettings';
 import { StudentGradingDashboard } from '../components/StudentGradingDashboard';
 import { SyllabusEditor } from '../components/Shared/SyllabusEditor';
+import { ScheduleLiveSession } from '../components/ScheduleLiveSession';
 import { 
   LogOut, GraduationCap, ArrowUpRight, HelpCircle, 
   Shield, Check, Lock, Server, Activity,
@@ -99,15 +100,6 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
   const [createCourseError, setCreateCourseError] = useState('');
   const [createCourseSuccess, setCreateCourseSuccess] = useState('');
   const [creatingCourse, setCreatingCourse] = useState(false);
-
-  // Live Session Scheduling States
-  const [sessionTitle, setSessionTitle] = useState('');
-  const [sessionStart, setSessionStart] = useState('');
-  const [sessionEnd, setSessionEnd] = useState('');
-  const [sessionMeetUrl, setSessionMeetUrl] = useState('');
-  const [scheduling, setScheduling] = useState(false);
-  const [scheduleSuccess, setScheduleSuccess] = useState('');
-  const [scheduleError, setScheduleError] = useState('');
 
   const resetForm = () => {
     setNewCourseTitle('');
@@ -210,44 +202,6 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
 
   const handleRemoveSyllabus = (index: number) => {
     setSyllabusList(syllabusList.filter((_, i) => i !== index));
-  };
-
-  const handleScheduleSessionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingCourseId) return;
-    setScheduling(true);
-    setScheduleSuccess('');
-    setScheduleError('');
-
-    try {
-      if (!sessionMeetUrl.startsWith('http://') && !sessionMeetUrl.startsWith('https://')) {
-        throw new Error('A valid meeting URL starting with http:// or https:// is required.');
-      }
-
-      // Convert local date inputs to UTC ISO strings
-      const startIso = new Date(sessionStart).toISOString();
-      const endIso = new Date(sessionEnd).toISOString();
-
-      const res = await scheduleLiveSession(editingCourseId, {
-        title: sessionTitle || 'Live Online Class Session',
-        start_time: startIso,
-        end_time: endIso,
-        meet_url: sessionMeetUrl.trim()
-      });
-
-      if (res.success) {
-        setScheduleSuccess(`Course lecture session "${sessionTitle}" successfully scheduled!`);
-        setSessionTitle('');
-        setSessionStart('');
-        setSessionEnd('');
-        setSessionMeetUrl('');
-        setTimeout(() => setScheduleSuccess(''), 4000);
-      }
-    } catch (err: any) {
-      setScheduleError(err?.message || 'Unable to schedule live class seminar.');
-    } finally {
-      setScheduling(false);
-    }
   };
 
   const handleStartEditCourse = (course: Course) => {
@@ -1382,108 +1336,13 @@ export default function Courses({ user, onSignOut, onSelectCourse, enrolledCours
 
                   {editingCourseId && (
                     <>
-                      <div className="bg-white border border-[#e5e7eb] rounded-2xl shadow-sm p-6 space-y-4 shadow-3xs animate-fade-in" id="live-session-scheduler-card">
-                        <div className="border-b border-gray-150 pb-3">
-                          <h3 className="text-sm font-bold text-[#111827] uppercase tracking-wider flex items-center gap-1.5">
-                            <Video className="w-4 h-4 text-rose-500 animate-pulse shrink-0" />
-                            <span>Schedule Live Class Seminar</span>
-                          </h3>
-                          <p className="text-[11px] text-[#6b7280] mt-0.5">
-                            Publish a new Google Meet classroom event for registered scholars in this elective.
-                          </p>
-                        </div>
-
-                        {scheduleError && (
-                          <div className="p-3 bg-red-50 border border-red-100 text-red-800 text-xs font-semibold rounded-lg flex items-center gap-2">
-                            <span className="shrink-0">⚠️</span>
-                            <span>{scheduleError}</span>
-                          </div>
-                        )}
-                        {scheduleSuccess && (
-                          <div className="p-3 bg-emerald-55 border border-emerald-100 text-emerald-800 text-xs font-semibold rounded-lg flex items-center gap-2">
-                            <span className="shrink-0">✓</span>
-                            <span>{scheduleSuccess}</span>
-                          </div>
-                        )}
-
-                        <form onSubmit={handleScheduleSessionSubmit} className="space-y-4 text-xs">
-                          <div>
-                            <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
-                              Lecture / Seminar Session Title *
-                            </label>
-                            <input
-                              type="text"
-                              required
-                              value={sessionTitle}
-                              onChange={(e) => setSessionTitle(e.target.value)}
-                              placeholder="e.g. Q&A and Exam Review with Sarah Sterling"
-                              className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
-                                Start Date & Time (Local) *
-                              </label>
-                              <input
-                                type="datetime-local"
-                                required
-                                value={sessionStart}
-                                onChange={(e) => setSessionStart(e.target.value)}
-                                className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
-                                End Date & Time (Local) *
-                              </label>
-                              <input
-                                type="datetime-local"
-                                required
-                                value={sessionEnd}
-                                onChange={(e) => setSessionEnd(e.target.value)}
-                                className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-[11px] font-bold text-gray-700 tracking-wider uppercase mb-1.5">
-                              Google Meet URL *
-                            </label>
-                            <input
-                              type="url"
-                              required
-                              value={sessionMeetUrl}
-                              onChange={(e) => setSessionMeetUrl(e.target.value)}
-                              placeholder="e.g. https://meet.google.com/abc-defg-hij"
-                              className="w-full px-3.5 py-2 text-xs border border-[#e5e7eb] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
-                            />
-                          </div>
-
-                          <div className="flex justify-end pt-2">
-                            <button
-                              type="submit"
-                              disabled={scheduling}
-                              className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg shadow-xs transition-all flex items-center gap-1 cursor-pointer"
-                            >
-                              {scheduling ? (
-                                <>
-                                  <Activity className="w-3.5 h-3.5 animate-spin" />
-                                  Scheduling...
-                                </>
-                              ) : (
-                                <>
-                                  <Plus className="w-3.5 h-3.5" />
-                                  Schedule Live Lecture
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </form>
-                      </div>
+                      <ScheduleLiveSession
+                        user={user}
+                        courseId={editingCourseId}
+                        onScheduleSuccess={() => {
+                          loadCourses();
+                        }}
+                      />
 
                       <div className="mt-8 md:col-span-2">
                         <SyllabusEditor

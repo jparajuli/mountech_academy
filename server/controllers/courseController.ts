@@ -989,7 +989,7 @@ export function createCourse(req: Request, res: Response) {
 // Phase 2: Live Session Controllers
 export function createLiveSession(req: Request, res: Response) {
   const { courseId } = req.params;
-  const { title, start_time, end_time, meet_url } = req.body;
+  const { title, start_time, end_time, scheduled_start_time, is_live_scheduled } = req.body;
 
   try {
     const course = db.prepare("SELECT title FROM courses WHERE id = ?").get(courseId) as { title: string } | undefined;
@@ -997,10 +997,13 @@ export function createLiveSession(req: Request, res: Response) {
       return res.status(404).json({ error: "Course not found" });
     }
 
+    const scheduledTime = scheduled_start_time || start_time;
+    const isLive = is_live_scheduled !== false ? 1 : 0;
+
     const result = db.prepare(`
-      INSERT INTO live_sessions (course_id, title, start_time, end_time, meet_url)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(courseId, title.trim(), start_time, end_time, meet_url.trim());
+      INSERT INTO live_sessions (course_id, title, start_time, end_time, scheduled_start_time, is_live_scheduled)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(courseId, title.trim(), start_time, end_time, scheduledTime, isLive);
 
     return res.status(201).json({
       success: true,
@@ -1010,7 +1013,9 @@ export function createLiveSession(req: Request, res: Response) {
         course_id: courseId,
         title: title.trim(),
         start_time,
-        end_time
+        end_time,
+        scheduled_start_time: scheduledTime,
+        is_live_scheduled: !!isLive
       }
     });
   } catch (err: any) {
@@ -1024,14 +1029,17 @@ export function listLiveSessions(req: Request, res: Response) {
 
   try {
     const sessions = db.prepare(`
-      SELECT id, course_id, title, start_time, end_time FROM live_sessions
+      SELECT id, course_id, title, start_time, end_time, scheduled_start_time, is_live_scheduled FROM live_sessions
       WHERE course_id = ?
       ORDER BY datetime(start_time) ASC
     `).all(courseId) as any[];
 
     return res.json({
       success: true,
-      sessions
+      sessions: sessions.map(s => ({
+        ...s,
+        is_live_scheduled: !!s.is_live_scheduled
+      }))
     });
   } catch (err: any) {
     console.error("[GET LIVE SESSIONS ERR]", err);
@@ -1077,13 +1085,15 @@ export function joinLiveSession(req: Request, res: Response) {
       return res.status(403).json({ error: "Forbidden: This scheduled live classroom session has already ended." });
     }
 
+    const generatedJitsiUrl = `https://meet.jit.si/MountechAcademy-LiveClass-${session.id || session.course_id}`;
+
     if (req.headers.accept?.includes("text/html") || req.query.redirect === "true") {
-      return res.redirect(session.meet_url);
+      return res.redirect(generatedJitsiUrl);
     }
 
     return res.json({
       success: true,
-      meetUrl: session.meet_url
+      meetUrl: generatedJitsiUrl
     });
   } catch (err: any) {
     console.error("[JOIN LIVE SESSION GATEKEEPER ERR]", err);

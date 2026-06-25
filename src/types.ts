@@ -60,7 +60,8 @@ export interface LiveSession {
   title: string;
   start_time: string;
   end_time: string;
-  meet_url?: string;
+  scheduled_start_time?: string;
+  is_live_scheduled?: boolean;
 }
 
 export interface InstructorProfile {

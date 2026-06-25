@@ -105,12 +105,10 @@ const genericSlides = [
   }
 ];
 
-// Phase 3: Smart Button with dynamic live countdown
-export function LiveSessionButton({ session }: { session: LiveSession }) {
+// Phase 3: Smart Button with dynamic live countdown and native Jitsi classroom routing
+export function LiveSessionButton({ session, onJoinClass }: { session: LiveSession; onJoinClass: () => void }) {
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [joining, setJoining] = useState(false);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     const checkTime = () => {
@@ -120,14 +118,14 @@ export function LiveSessionButton({ session }: { session: LiveSession }) {
       const unlockTime = start - 5 * 60 * 1000; // Unlocked 5 minutes early
 
       if (now > end) {
-        setTimeLeft('Meeting ended');
+        setTimeLeft('Class Ended');
         setIsUnlocked(false);
         return;
       }
 
       if (now >= unlockTime) {
         setIsUnlocked(true);
-        setTimeLeft('Join Class Now');
+        setTimeLeft('Enter Live Classroom');
       } else {
         setIsUnlocked(false);
         const diffMs = unlockTime - now;
@@ -144,7 +142,7 @@ export function LiveSessionButton({ session }: { session: LiveSession }) {
         if (mins > 0 || hours > 0 || days > 0) parts.push(`${mins}m`);
         parts.push(`${secs}s`);
 
-        setTimeLeft(`Unlocks in ${parts.join(' ')}`);
+        setTimeLeft(`Opens in ${parts.join(' ')}`);
       }
     };
 
@@ -153,32 +151,12 @@ export function LiveSessionButton({ session }: { session: LiveSession }) {
     return () => clearInterval(interval);
   }, [session]);
 
-  const handleJoin = async () => {
-    if (!isUnlocked || joining) return;
-    setJoining(false); // Clear lock
-    setJoining(true);
-    setError('');
-
-    try {
-      const res = await joinLiveSessionRequest(session.id);
-      if (res.success && res.meetUrl) {
-        window.open(res.meetUrl, '_blank');
-      } else {
-        setError('Unable to fetch Google Meet link.');
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Access denied or meeting closed.');
-    } finally {
-      setJoining(false);
-    }
-  };
-
   return (
     <div className="flex flex-col items-stretch sm:items-end">
       <button
         type="button"
-        onClick={handleJoin}
-        disabled={!isUnlocked || joining}
+        onClick={() => isUnlocked && onJoinClass()}
+        disabled={!isUnlocked}
         className={`px-4 py-2 font-mono text-[11px] font-bold rounded-lg border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 select-none shadow-3xs ${
           isUnlocked
             ? 'bg-rose-500 hover:bg-rose-600 text-white border-rose-500 animate-pulse'
@@ -186,13 +164,8 @@ export function LiveSessionButton({ session }: { session: LiveSession }) {
         }`}
       >
         <Video className="w-3.5 h-3.5 shrink-0" />
-        {joining ? 'Connecting...' : timeLeft}
+        {timeLeft}
       </button>
-      {error && (
-        <span className="text-[10px] text-red-500 font-mono font-medium max-w-[200px] text-right mt-1.5 leading-snug">
-          {error}
-        </span>
-      )}
     </div>
   );
 }
@@ -3150,14 +3123,10 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                           </div>
                           
                           <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              onClick={() => setActiveLiveRoomSession(session)}
-                              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[11px] font-bold cursor-pointer flex items-center gap-1.5 transition-all shadow-sm font-sans"
-                            >
-                              <Radio className="w-3.5 h-3.5 text-white animate-pulse" />
-                              <span>Join Live Classroom</span>
-                            </button>
-                            <LiveSessionButton session={session} />
+                            <LiveSessionButton 
+                              session={session} 
+                              onJoinClass={() => setActiveLiveRoomSession(session)} 
+                            />
                           </div>
                         </div>
                       );

@@ -68,7 +68,8 @@ export const LiveSessionSchema = z.object({
   title: z.string().trim().min(1, { message: "Session title is required." }),
   start_time: z.string().trim().min(1, { message: "Start time is required." }),
   end_time: z.string().trim().min(1, { message: "End time is required." }),
-  meet_url: z.string().trim().url({ message: "A valid Google Meet or meeting URL is required." }),
+  scheduled_start_time: z.string().trim().optional().nullable(),
+  is_live_scheduled: z.boolean().optional().default(true),
 });
 
 
