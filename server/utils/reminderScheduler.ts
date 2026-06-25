@@ -5,7 +5,7 @@ export function processReminderEmails() {
   try {
     // 1. Fetch pending unsent live sessions
     const sessions = db.prepare(`
-      SELECT id, course_id, title, start_time, meet_url 
+      SELECT id, course_id, title, start_time 
       FROM live_sessions 
       WHERE reminder_sent = 0
     `).all() as any[];
@@ -47,6 +47,8 @@ export function processReminderEmails() {
 
         console.log(`[SCHEDULER] Dispatched reminders of course "${courseTitle}" to ${enrollments.length} enrolled student(s).`);
 
+        const generatedJitsiUrl = `https://meet.jit.si/MountechAcademy-LiveClass-${session.id || session.course_id}`;
+
         // D. Trigger the email dispatch safely
         for (const scholar of enrollments) {
           sendLiveClassReminderEmail(
@@ -54,7 +56,7 @@ export function processReminderEmails() {
             scholar.name.trim(),
             session.title.trim(),
             session.start_time,
-            session.meet_url.trim(),
+            generatedJitsiUrl,
             courseTitle
           ).catch((mailErr) => {
             console.error(`[SCHEDULER MAIL EXCEPTION] Failed to dispatch to user ${scholar.email}:`, mailErr);

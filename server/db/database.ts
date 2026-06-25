@@ -95,7 +95,8 @@ db.exec(`
     title TEXT NOT NULL,
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
-    meet_url TEXT NOT NULL,
+    scheduled_start_time TEXT,
+    is_live_scheduled INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
   );
 
@@ -161,6 +162,15 @@ try {
 } catch (_) {}
 try {
   db.exec("ALTER TABLE live_sessions ADD COLUMN reminder_sent INTEGER NOT NULL DEFAULT 0;");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE live_sessions ADD COLUMN scheduled_start_time TEXT;");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE live_sessions ADD COLUMN is_live_scheduled INTEGER NOT NULL DEFAULT 0;");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE live_sessions DROP COLUMN meet_url;");
 } catch (_) {}
 try {
   db.exec("ALTER TABLE courses ADD COLUMN instructor_profile_id INTEGER REFERENCES instructor_profiles(id) ON DELETE SET NULL;");

@@ -192,7 +192,7 @@ export async function toggleCourseLockStatus(id: string, isLocked?: boolean): Pr
 
 export async function scheduleLiveSession(
   courseId: string, 
-  sessionData: { title: string; start_time: string; end_time: string; meet_url: string }
+  sessionData: { title: string; start_time: string; end_time: string; scheduled_start_time?: string; is_live_scheduled?: boolean }
 ): Promise<{ success: boolean; message: string; session: LiveSession }> {
   return apiFetch(`/api/admin/courses/${courseId}/sessions`, {
     method: 'POST',

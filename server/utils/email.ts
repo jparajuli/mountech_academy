@@ -207,7 +207,7 @@ export async function sendLiveClassReminderEmail(
                   Hello <strong>${userName}</strong>,
                 </p>
                 <p style="font-size: 14px; line-height: 1.6; color: #4b5563; margin-bottom: 25px;">
-                  This is an automated reminder that the live review session for <strong>${courseTitle}</strong> is scheduled to begin in 15 minutes. Secure your network sandbox and join the lecture via Google Meet:
+                  This is an automated reminder that the live review session for <strong>${courseTitle}</strong> is scheduled to begin in 15 minutes. Secure your network sandbox and join the lecture via Jitsi Meet:
                 </p>
                 
                 <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
@@ -219,7 +219,7 @@ export async function sendLiveClassReminderEmail(
 
                 <div style="text-align: center; margin: 35px 0;">
                   <a href="${meetUrl}" style="background-color: #f43f5e; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; display: inline-block;">
-                    Join Google Meet Classroom
+                    Join Jitsi Meet Classroom
                   </a>
                 </div>
 
