@@ -8,7 +8,7 @@ import {
 } from "../schemas/instructor.js";
 import { validateRequest } from "../middlewares/validate.js";
 import { requireAuth, requireRole } from "../middlewares/auth.js";
-import { requireCourseOwnership } from "../middlewares/rbac.js";
+import { requireCourseOwnership, forbidStudentUpload } from "../middlewares/rbac.js";
 import {
   listInstructors,
   getInstructorByEmail,
@@ -88,6 +88,7 @@ router.get(
 router.post(
   "/instructor/courses/:courseId/materials",
   requireAuth,
+  forbidStudentUpload,
   requireRole(["instructor", "admin"]),
   requireCourseOwnership,
   createCourseMaterial

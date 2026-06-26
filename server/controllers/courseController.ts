@@ -81,7 +81,7 @@ export function getSyllabus(req: Request, res: Response) {
   );
 
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", 'attachment; filename="mountech_lab_companion.pdf"');
+  res.setHeader("Content-Disposition", 'inline; filename="mountech_lab_companion.pdf"');
   return res.send(pdfBuffer);
 }
 
