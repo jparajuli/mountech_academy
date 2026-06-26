@@ -3,6 +3,7 @@ import { EnrollSchema, CompleteSchema, RatingSchema, AdminCourseSchema, LiveSess
 import { UpdateSyllabusSchema } from "../schemas/instructor.js";
 import { validateRequest } from "../middlewares/validate.js";
 import { requireAuth, requireRole, requireSyllabusEditAuth, checkCourseSunset } from "../middlewares/auth.js";
+import multer from "multer";
 import {
   getSyllabus,
   getEnrollments,
@@ -28,9 +29,19 @@ import {
   getLessonDetail,
   updateLessonConfig,
   getJaasToken,
+  getLessonDocumentPreSignedUrl,
+  uploadLessonMedia,
+  getLessonVideoToken,
 } from "../controllers/courseController.js";
 import { createManualCheckout } from "../controllers/paymentController.js";
 import { handleGitLabWebhook } from "../../src/controllers/gitlabController.js";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100 MB max limit
+  }
+});
 
 const router = Router();
 
@@ -64,6 +75,20 @@ router.get("/courses/:courseId/lessons", requireAuth, checkCourseSunset, getCour
 router.get("/lessons/:lessonId/problems", requireAuth, checkCourseSunset, getLessonProblems);
 router.get("/lessons/:lessonId", requireAuth, checkCourseSunset, getLessonDetail);
 router.patch("/admin/lessons/:lessonId/config", requireAuth, requireRole(["admin", "instructor"]), updateLessonConfig);
+
+// Phase 5: R2 & Mux VOD Media Delivery routes
+router.get("/lessons/:lessonId/document", requireAuth, checkCourseSunset, getLessonDocumentPreSignedUrl);
+router.post(
+  "/lessons/:lessonId/media",
+  requireAuth,
+  requireRole(["admin", "instructor"]),
+  upload.fields([
+    { name: "document", maxCount: 1 },
+    { name: "video", maxCount: 1 }
+  ]),
+  uploadLessonMedia
+);
+router.get("/lessons/:lessonId/video-token", requireAuth, checkCourseSunset, getLessonVideoToken);
 
 // GitLab Webhook Integration Phase 4 route
 router.post("/gitlab/webhook", handleGitLabWebhook);
