@@ -111,6 +111,8 @@ export interface Lesson {
   isLocked?: boolean;
   youtube_channel_id?: string | null;
   is_chosen_for_recording?: number | boolean;
+  document_key?: string | null;
+  video_playback_id?: string | null;
 }
 
 

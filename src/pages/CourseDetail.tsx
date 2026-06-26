@@ -20,6 +20,9 @@ import { ClassroomTheater } from '../components/ClassroomTheater';
 import { VideoEmbed } from '../components/VideoEmbed';
 import { LiveClassroomWrapper } from '../components/LiveClassroomWrapper';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
+import MuxPlayer from '@mux/mux-player-react';
+import SecureDocumentViewer from '../components/SecureDocumentViewer';
+import { getLessonDocumentUrl, getLessonVideoToken, uploadLessonMedia } from '../api';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
 
@@ -334,6 +337,73 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     }
   };
 
+  // Phase 5: Media delivery and upload handlers
+  const handleFetchLessonDocument = async (lessonId: number, lessonTitle: string) => {
+    try {
+      const res = await getLessonDocumentUrl(lessonId);
+      setSecureDocUrl(res.url);
+      setSecureDocTitle(lessonTitle);
+      setSecureDocViewerOpen(true);
+    } catch (err: any) {
+      console.error("Failed to fetch lesson document:", err);
+      alert("Error: " + (err.message || "Could not retrieve protected document pre-signed url. Please try again."));
+    }
+  };
+
+  const handleFetchLessonVideoToken = async (lessonId: number) => {
+    setLoadingVideoToken(true);
+    setVideoTokenError(null);
+    setSignedVideoToken(null);
+    setVideoPlaybackId(null);
+    setFallbackVideoUrl(null);
+    try {
+      const res = await getLessonVideoToken(lessonId);
+      if (res.isSimulated) {
+        setFallbackVideoUrl(res.videoUrl || null);
+      } else {
+        setSignedVideoToken(res.playbackToken);
+        setVideoPlaybackId(res.playbackId || null);
+      }
+    } catch (err: any) {
+      console.error("Failed to load lesson video credentials:", err);
+      setVideoTokenError(err.message || "Failed to retrieve secure lecture credentials.");
+    } finally {
+      setLoadingVideoToken(false);
+    }
+  };
+
+  const handleUploadMedia = async (lessonId: number, documentFile: File | null, videoFile: File | null) => {
+    if (!documentFile && !videoFile) {
+      setUploadError("Please select at least one media file (PDF or video) to upload.");
+      return;
+    }
+    setUploadingMedia(true);
+    setUploadError(null);
+    setUploadSuccess(null);
+    try {
+      const formData = new FormData();
+      if (documentFile) {
+        formData.append("document", documentFile);
+      }
+      if (videoFile) {
+        formData.append("video", videoFile);
+      }
+
+      const res = await uploadLessonMedia(lessonId, formData);
+      if (res.success) {
+        setUploadSuccess(res.message);
+        await loadDbLessons();
+      } else {
+        throw new Error(res.message || "Upload failed");
+      }
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      setUploadError(err.message || "Failed to upload media files to cloud pipelines.");
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
   const loadDbStudentExams = async () => {
     if (!hasEnrolledAccess) return;
     setLoadingDbStudentExams(true);
@@ -400,6 +470,23 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   const [classroomMode, setClassroomMode] = useState(false);
   const [videoLayoutMode, setVideoLayoutMode] = useState<'prominent' | 'floating'>('prominent');
   const [activeLessonIndex, setActiveLessonIndex] = useState<number | null>(null);
+
+  // Phase 5: R2 and Mux Media states
+  const [lectureSubMode, setLectureSubMode] = useState<'live' | 'ondemand'>('live');
+  const [secureDocViewerOpen, setSecureDocViewerOpen] = useState(false);
+  const [secureDocTitle, setSecureDocTitle] = useState("");
+  const [secureDocUrl, setSecureDocUrl] = useState("");
+  
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+
+  const [loadingVideoToken, setLoadingVideoToken] = useState(false);
+  const [videoTokenError, setVideoTokenError] = useState<string | null>(null);
+  const [signedVideoToken, setSignedVideoToken] = useState<string | null>(null);
+  const [videoPlaybackId, setVideoPlaybackId] = useState<string | null>(null);
+  const [fallbackVideoUrl, setFallbackVideoUrl] = useState<string | null>(null);
 
   // Lesson progress tracking state (persisted per course & scholar)
   const [completedLessons, setCompletedLessons] = useState<number[]>(() => {
@@ -544,6 +631,15 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
       setConfigIsChosenForRecording(false);
     }
   }, [activeLessonIndex, dbLessons, course.syllabus]);
+
+  useEffect(() => {
+    if (classroomMode && activeLessonIndex !== null && lectureSubMode === 'ondemand') {
+      const activeLessonDb = dbLessons[activeLessonIndex] || dbLessons.find((l: any) => l.chapter === course.syllabus[activeLessonIndex]?.chapter);
+      if (activeLessonDb?.id) {
+        handleFetchLessonVideoToken(activeLessonDb.id);
+      }
+    }
+  }, [classroomMode, activeLessonIndex, lectureSubMode, dbLessons]);
 
   const handleUpdateLessonChannelId = async (lessonId: number, channelId: string, isChosenForRecording: boolean) => {
     setUpdatingConfig(true);
@@ -2004,31 +2100,301 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
             {classroomTab === 'lecture' ? (() => {
               const activeLessonDb = activeLessonIndex !== null ? (dbLessons[activeLessonIndex] || dbLessons.find((l: any) => l.chapter === course.syllabus[activeLessonIndex]?.chapter)) : null;
               return (
-                <LiveClassroomWrapper
-                  user={user}
-                  lessonId={activeLessonDb?.id || course.id}
-                  lessonTitle={activeLessonDb?.title || course.syllabus[activeLessonIndex || 0]?.title || course.title}
-                  courseId={course.id}
-                  slides={slides}
-                  activeSlide={activeSlide}
-                  onNextSlide={() => setActiveSlide((prev) => Math.min(slides.length - 1, prev + 1))}
-                  onPrevSlide={() => setActiveSlide((prev) => Math.max(0, prev - 1))}
-                  socket={socket}
-                  videoLayoutMode={videoLayoutMode}
-                  setVideoLayoutMode={setVideoLayoutMode}
-                  isRecording={configIsChosenForRecording}
-                  setIsRecording={setConfigIsChosenForRecording}
-                  onSyncSandbox={() => {
-                    if (socket) {
-                      socket.emit("sandbox-sync", {
-                        lessonId: course.id,
-                        code: slides[activeSlide]?.code || ""
-                      });
-                      alert("Sandbox state synchronized with all active students!");
-                    }
-                  }}
-                >
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="live-lecture-grid">
+                <div className="space-y-6">
+                  {/* Visual SubMode Selector Banner */}
+                  <div className="bg-[#0f172a] border border-slate-800 rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                        <Tv2 className="w-4 h-4 text-indigo-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-200">Lecture Engagement Channel</h4>
+                        <p className="text-[10px] text-gray-500 font-mono">Choose live interactive sessions or custom-uploaded study materials.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 self-start md:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => setLectureSubMode('live')}
+                        className={`px-3 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                          lectureSubMode === 'live'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        📡 Live Interactive Room
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLectureSubMode('ondemand')}
+                        className={`px-3 py-1.5 rounded text-[10px] font-bold font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                          lectureSubMode === 'ondemand'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        🎥 On-Demand Archive
+                      </button>
+                    </div>
+                  </div>
+
+                  {lectureSubMode === 'ondemand' ? (
+                    /* ENTERPRISE ON-DEMAND LECTURE ARCHIVE & R2 SUPPLEMENTAL NOTES */
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="ondemand-archive-grid">
+                      {/* Left: Video stream and objectives */}
+                      <div className="lg:col-span-7 space-y-4">
+                        <div className="p-5 bg-slate-950 border border-slate-850 rounded-xl space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <span className="font-mono text-[9px] text-[#38bdf8] font-bold uppercase tracking-wider block">Recorded Lecture Stream 🎥</span>
+                              <h3 className="text-sm font-bold text-slate-100">{activeLessonDb?.title || course.syllabus[activeLessonIndex || 0]?.title}</h3>
+                            </div>
+                            <span className="text-[10px] bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-mono px-2 py-0.5 rounded font-semibold uppercase tracking-wider">SECURE HLS</span>
+                          </div>
+
+                          {/* Video Player */}
+                          <div className="relative">
+                            {loadingVideoToken ? (
+                              <div className="w-full aspect-[16/9] flex flex-col items-center justify-center bg-slate-900 rounded-xl border border-slate-800">
+                                <RefreshCw className="w-7 h-7 text-indigo-500 animate-spin mb-3" />
+                                <p className="text-xs font-mono text-gray-400 animate-pulse">Establishing DRM keys and session verification...</p>
+                              </div>
+                            ) : videoTokenError ? (
+                              <div className="w-full aspect-[16/9] flex flex-col items-center justify-center bg-slate-900 rounded-xl border border-rose-950/40 p-6 text-center">
+                                <AlertTriangle className="w-8 h-8 text-rose-500 mb-2" />
+                                <h5 className="text-xs font-bold text-red-400">Handshake Denied</h5>
+                                <p className="text-[10px] text-gray-500 mt-1 max-w-sm">{videoTokenError}</p>
+                              </div>
+                            ) : signedVideoToken || fallbackVideoUrl ? (
+                              <div className="w-full aspect-[16/9] rounded-xl overflow-hidden border border-slate-800 bg-black shadow-lg relative group">
+                                <MuxPlayer
+                                  playbackId={videoPlaybackId || undefined}
+                                  tokens={signedVideoToken ? { playback: signedVideoToken } : undefined}
+                                  src={fallbackVideoUrl || undefined}
+                                  streamType="on-demand"
+                                  primaryColor="#6366f1"
+                                  secondaryColor="#0b101d"
+                                  className="w-full h-full"
+                                />
+                                <div className="absolute top-2 right-2 bg-slate-950/80 border border-slate-800 px-2 py-0.5 rounded text-[8px] font-mono text-indigo-400 font-bold uppercase tracking-wider pointer-events-none select-none">
+                                  🔐 SECURED STREAM
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-full aspect-[16/9] flex flex-col items-center justify-center bg-slate-900 rounded-xl border border-dashed border-slate-800 p-6 text-center">
+                                <Video className="w-8 h-8 text-slate-700 mb-2 animate-pulse" />
+                                <h5 className="text-xs font-bold text-slate-400">On-Demand Lecture Pending</h5>
+                                <p className="text-[10px] text-gray-500 mt-1 max-w-xs leading-relaxed">
+                                  There is no recorded lecture archive configured for this chapter yet. Join live sessions or notify your instructor.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="p-3 bg-slate-900/50 rounded-lg border border-slate-850">
+                            <span className="font-mono text-[9px] text-[#38bdf8] font-bold uppercase tracking-wider block mb-1">CHAPTER DESCRIPTION</span>
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                              {activeLessonDb?.description || course.syllabus[activeLessonIndex || 0]?.description || "No supplemental syllabus notes provided for this chapter context."}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Instructor upload widget inside student's archive if admin/instructor */}
+                        {(user?.role === 'instructor' || user?.role === 'admin') && activeLessonDb && (
+                          <div className="p-5 bg-slate-950 border border-slate-850 rounded-xl space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono text-[9px] text-indigo-400 font-bold uppercase tracking-wider block">Enterprise Cloud Storage Hub ⚙️</span>
+                              <span className="text-[8px] text-indigo-500 font-mono font-bold">R2 & Mux Pipelines</span>
+                            </div>
+                            
+                            <p className="text-[11px] text-gray-400 leading-normal">
+                              Upload specific course notes (PDF) and recorded presentation video archives for this chapter.
+                            </p>
+
+                            {uploadError && (
+                              <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[10px] text-rose-400 font-mono">
+                                ⚠️ {uploadError}
+                              </div>
+                            )}
+
+                            {uploadSuccess && (
+                              <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-[10px] text-emerald-400 font-mono">
+                                ✅ {uploadSuccess}
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="border border-dashed border-slate-800 bg-slate-900/20 p-4 rounded-xl text-center flex flex-col justify-between min-h-[120px]">
+                                <div className="space-y-1">
+                                  <FileText className="w-5 h-5 text-indigo-400 mx-auto" />
+                                  <h6 className="text-[10px] font-bold text-slate-200">Supplemental Notes (PDF)</h6>
+                                </div>
+                                <div className="mt-2">
+                                  {activeLessonDb?.document_key ? (
+                                    <span className="text-[9px] text-emerald-400 font-mono block mb-1.5 truncate text-center">✓ {activeLessonDb.document_key.split('/').pop()}</span>
+                                  ) : (
+                                    <span className="text-[9px] text-amber-500 font-mono block mb-1.5">No PDF notes uploaded</span>
+                                  )}
+                                  <label className="block w-full py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded text-[9px] font-bold font-mono cursor-pointer border border-slate-800 text-center select-none">
+                                    <span>Choose PDF</span>
+                                    <input 
+                                      type="file" 
+                                      accept="application/pdf" 
+                                      className="hidden" 
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleUploadMedia(activeLessonDb.id, file, null);
+                                      }} 
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+
+                              <div className="border border-dashed border-slate-800 bg-slate-900/20 p-4 rounded-xl text-center flex flex-col justify-between min-h-[120px]">
+                                <div className="space-y-1">
+                                  <Video className="w-5 h-5 text-indigo-400 mx-auto" />
+                                  <h6 className="text-[10px] font-bold text-slate-200">Lecture Video (.mp4)</h6>
+                                </div>
+                                <div className="mt-2">
+                                  {activeLessonDb?.video_playback_id ? (
+                                    <span className="text-[9px] text-emerald-400 font-mono block mb-1.5 truncate text-center">✓ Mux: {activeLessonDb.video_playback_id}</span>
+                                  ) : (
+                                    <span className="text-[9px] text-amber-500 font-mono block mb-1.5">No Video uploaded</span>
+                                  )}
+                                  <label className="block w-full py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded text-[9px] font-bold font-mono cursor-pointer border border-slate-800 text-center select-none">
+                                    <span>Choose Video</span>
+                                    <input 
+                                      type="file" 
+                                      accept="video/mp4,video/quicktime" 
+                                      className="hidden" 
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleUploadMedia(activeLessonDb.id, null, file);
+                                      }} 
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+
+                            {uploadingMedia && (
+                              <div className="p-2 bg-slate-950 border border-slate-850 rounded flex items-center justify-center gap-2">
+                                <RefreshCw className="w-3.5 h-3.5 text-indigo-400 animate-spin" />
+                                <span className="text-[9px] font-mono text-indigo-400 animate-pulse">Uploading and syncing media files...</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: PDF Study Notes Vault & Interactive Tasks */}
+                      <div className="lg:col-span-5 space-y-4">
+                        <div className="p-5 bg-slate-950 border border-slate-850 rounded-xl space-y-4">
+                          <div className="space-y-0.5">
+                            <span className="font-mono text-[9px] text-indigo-400 font-bold uppercase tracking-wider block">Academic Materials Vault 🔐</span>
+                            <h3 className="text-sm font-bold text-slate-100">Chapter Supplemental Notes</h3>
+                          </div>
+
+                          {activeLessonDb?.document_key ? (
+                            <div className="p-4 bg-slate-900 rounded-xl border border-slate-850 space-y-3">
+                              <div className="flex items-start gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                                  <FileText className="w-5 h-5 text-indigo-400" />
+                                </div>
+                                <div className="space-y-0.5 flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-slate-200 truncate">{activeLessonDb.document_key.split('/').pop()}</p>
+                                  <p className="text-[10px] text-gray-500">Cloudflare R2 Encrypted Document</p>
+                                </div>
+                              </div>
+
+                              <div className="p-2 bg-amber-500/5 border border-amber-500/10 rounded text-[9px] text-amber-500 leading-normal font-mono">
+                                ⚠️ PROTECTED MATERIAL: Renders in secure browser read-only reader box. Native downloads and printing operations are strictly blocked.
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleFetchLessonDocument(activeLessonDb.id, activeLessonDb.title || "Lesson Notes")}
+                                className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                              >
+                                <span>Open Secure Document Reader</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="border border-dashed border-slate-850 p-6 text-center rounded-xl bg-slate-900/10 space-y-2">
+                              <FileText className="w-8 h-8 text-slate-800 mx-auto animate-pulse" />
+                              <h5 className="text-xs font-bold text-slate-400">Supplemental Notes Pending</h5>
+                              <p className="text-[10px] text-gray-500 leading-relaxed">
+                                No supplementary study notes uploaded for this chapter block. Use the live classroom presentation whiteboard slides below for standard context.
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="p-4 bg-slate-900/40 border border-slate-850 rounded-xl space-y-2">
+                            <span className="font-mono text-[9px] text-[#38bdf8] font-bold uppercase tracking-wider block">LEARNING PROGRESS DETECTED</span>
+                            <div className="flex items-center justify-between text-xs text-slate-300 font-mono">
+                              <span>Chapter Status:</span>
+                              <span className="text-emerald-400 font-bold uppercase">UNLOCKED / REVIEWED</span>
+                            </div>
+                            <div className="text-[10px] text-gray-500 leading-relaxed mt-1">
+                              Your academic progress tracker automatically marked this lesson completed when loaded in theater view. Proceed to active playground coding in the next tab!
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Standard Syllabus Whiteboard Deck Fallback list */}
+                        <div className="p-5 bg-slate-950 border border-slate-850 rounded-xl space-y-3">
+                          <span className="font-mono text-[9px] text-[#38bdf8] font-bold uppercase tracking-wider block">Whiteboard Lecture Presentation Deck 📋</span>
+                          <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                            {slides.map((sld: any, sIdx: number) => (
+                              <button
+                                key={sIdx}
+                                type="button"
+                                onClick={() => {
+                                  setLectureSubMode('live');
+                                  setActiveSlide(sIdx);
+                                }}
+                                className={`w-full p-2.5 rounded-lg border text-left transition-all flex items-center justify-between gap-3 text-xs ${
+                                  activeSlide === sIdx
+                                    ? 'bg-slate-900 border-indigo-500 text-indigo-400'
+                                    : 'bg-slate-950/40 border-slate-850 text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                <span className="truncate">{sIdx + 1}. {sld.t}</span>
+                                <span className="text-[8px] font-mono shrink-0 px-1 bg-slate-900 rounded text-gray-550 border border-slate-800 uppercase">Slide {sIdx + 1}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <LiveClassroomWrapper
+                      user={user}
+                      lessonId={activeLessonDb?.id || course.id}
+                      lessonTitle={activeLessonDb?.title || course.syllabus[activeLessonIndex || 0]?.title || course.title}
+                      courseId={course.id}
+                      slides={slides}
+                      activeSlide={activeSlide}
+                      onNextSlide={() => setActiveSlide((prev) => Math.min(slides.length - 1, prev + 1))}
+                      onPrevSlide={() => setActiveSlide((prev) => Math.max(0, prev - 1))}
+                      socket={socket}
+                      videoLayoutMode={videoLayoutMode}
+                      setVideoLayoutMode={setVideoLayoutMode}
+                      isRecording={configIsChosenForRecording}
+                      setIsRecording={setConfigIsChosenForRecording}
+                      onSyncSandbox={() => {
+                        if (socket) {
+                          socket.emit("sandbox-sync", {
+                            lessonId: course.id,
+                            code: slides[activeSlide]?.code || ""
+                          });
+                          alert("Sandbox state synchronized with all active students!");
+                        }
+                      }}
+                    >
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" id="live-lecture-grid">
                   
                   {/* Visual Projector / Slide Whiteboard Deck (8 columns) */}
                   <div className="lg:col-span-8 space-y-4">
@@ -2955,8 +3321,10 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
 
               </div>
             </LiveClassroomWrapper>
-          );
-          })() : (
+                  )}
+                </div>
+              );
+              })() : (
               /* TAB TWO: INTERACTIVE PYTHON SANDBOX (WEBASSEMBLY) */
               <div id="code-sandbox-grid" className="w-full">
                 {(() => {
@@ -4722,6 +5090,17 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
           </div>
         </div>
       )}
+      {/* Secure In-App Read-Only Document Viewer Modal */}
+      <SecureDocumentViewer
+        isOpen={secureDocViewerOpen}
+        onClose={() => {
+          setSecureDocViewerOpen(false);
+          setSecureDocUrl("");
+          setSecureDocTitle("");
+        }}
+        documentTitle={secureDocTitle}
+        documentUrl={secureDocUrl}
+      />
 
     </div>
   );

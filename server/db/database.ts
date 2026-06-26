@@ -280,6 +280,8 @@ try {
       order_index INTEGER NOT NULL,
       youtube_channel_id TEXT,
       is_chosen_for_recording INTEGER DEFAULT 0,
+      document_key TEXT,
+      video_playback_id TEXT,
       FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
   `);
@@ -296,6 +298,16 @@ try {
 try {
   db.exec("ALTER TABLE lessons ADD COLUMN is_chosen_for_recording INTEGER DEFAULT 0;");
   console.log("[DB SETUP] Added is_chosen_for_recording column to lessons table.");
+} catch (_) {}
+
+try {
+  db.exec("ALTER TABLE lessons ADD COLUMN document_key TEXT;");
+  console.log("[DB SETUP] Added document_key column to lessons table.");
+} catch (_) {}
+
+try {
+  db.exec("ALTER TABLE lessons ADD COLUMN video_playback_id TEXT;");
+  console.log("[DB SETUP] Added video_playback_id column to lessons table.");
 } catch (_) {}
 
 try {

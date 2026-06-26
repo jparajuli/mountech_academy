@@ -587,5 +587,34 @@ export async function getJaasTokenRequest(lessonId: string | number): Promise<{ 
   return apiFetch(`/api/live-sessions/${lessonId}/jaas-token`);
 }
 
+// Fetch Pre-signed Document URL from R2
+export async function getLessonDocumentUrl(lessonId: string | number): Promise<{ url: string; isSimulated: boolean; message?: string }> {
+  return apiFetch(`/api/lessons/${lessonId}/document`);
+}
+
+// Fetch Signed Video playback token for Mux Player
+export async function getLessonVideoToken(lessonId: string | number): Promise<{ playbackToken: string; playbackId?: string; videoUrl?: string; isSimulated: boolean; message?: string }> {
+  return apiFetch(`/api/lessons/${lessonId}/video-token`);
+}
+
+// Upload custom PDF and MP4 video notes/lectures to R2 & Mux
+export async function uploadLessonMedia(lessonId: string | number, formData: FormData): Promise<{ success: boolean; document_key?: string; video_playback_id?: string; message: string }> {
+  const token = getToken();
+  const response = await fetch(`/api/lessons/${lessonId}/media`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error || `HTTP error! Status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 
 
