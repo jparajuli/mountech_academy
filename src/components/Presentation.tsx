@@ -78,7 +78,7 @@ export const Presentation: React.FC<PresentationProps> = ({
               <span className="text-gray-500 text-[8px]">Interactive Slide Module</span>
             </div>
             <PythonSandbox
-              lessonId={courseId}
+              lessonId={parseInt(courseId) || null}
               initialCode={currentSlide.code}
             />
           </div>

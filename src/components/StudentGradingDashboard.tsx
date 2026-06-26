@@ -40,6 +40,7 @@ interface HydratedExam {
   bestAttempt: ExamAttempt | null;
   exam_type?: 'lesson' | 'final';
   lesson_reference?: string | null;
+  isLocked?: number | boolean;
 }
 
 interface CourseProgress {
