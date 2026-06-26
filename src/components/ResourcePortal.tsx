@@ -3,7 +3,7 @@ import {
   BookOpen, FileText, Presentation, GitPullRequest, Link, ArrowRight, 
   Upload, Plus, Trash2, Search, ExternalLink, RefreshCw, Layers, 
   Database, Code, CheckCircle2, AlertCircle, Sparkles, FolderOpen,
-  HelpCircle, ChevronRight, FileCode, Check, Copy, Lock
+  HelpCircle, ChevronRight, FileCode, Check, Copy, Lock, Eye
 } from "lucide-react";
 import { Course } from "../types";
 
@@ -32,15 +32,18 @@ interface GitLabLink {
   commitHash?: string;
 }
 
+import SecureDocumentViewer from "./SecureDocumentViewer";
+
 interface ResourcePortalProps {
   courses: Course[];
-  user: { email: string; name: string };
+  user: { email: string; name: string; role?: "admin" | "instructor" | "student" };
   enrolledCourseIds?: string[];
 }
 
 export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }: ResourcePortalProps) {
   // --- STATE FOR LECTURE RESOURCES ---
   const [resources, setResources] = useState<Resource[]>([]);
+  const [activeViewerDoc, setActiveViewerDoc] = useState<{ title: string; url?: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedCourseId, setSelectedCourseId] = useState<string>("All");
@@ -451,13 +454,15 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
               <span className="text-emerald-600 font-bold">{resources.length} active documents</span>
             </div>
 
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-semibold cursor-pointer transition-all shadow-xs border border-gray-700"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Submit Supplemental Lecture Document</span>
-            </button>
+            { (user?.role === "instructor" || user?.role === "admin") && (
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-semibold cursor-pointer transition-all shadow-xs border border-gray-700"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Submit Supplemental Lecture Document</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -816,13 +821,15 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
             <p className="text-xs text-gray-500 mt-0.5">Download syllabus handouts, lecture slide notes, and companion documents synced from professor accounts.</p>
           </div>
 
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 h-9"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Upload My Document</span>
-          </button>
+          { (user?.role === "instructor" || user?.role === "admin") && (
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 h-9"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Upload My Document</span>
+            </button>
+          )}
         </div>
 
         {/* Filtering Grid Controls */}
@@ -940,25 +947,36 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
                         </button>
                       )}
 
-                      {res.url ? (
-                        <a
-                          href={res.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-xs"
+                      {user?.role === "student" ? (
+                        <button
+                          onClick={() => setActiveViewerDoc({ title: res.title, url: res.url })}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs border border-indigo-500"
+                          id={`view-doc-btn-${res.id}`}
                         >
-                          <span>Open Attachment</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View Document</span>
+                        </button>
                       ) : (
-                        <a
-                          href="/api/download/syllabus"
-                          download={`${res.title.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`}
-                          className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 border border-gray-700 cursor-pointer"
-                        >
-                          <span>Download PDF</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </a>
+                        res.url ? (
+                          <a
+                            href={res.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors flex items-center gap-1 shadow-xs"
+                          >
+                            <span>Open Attachment</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        ) : (
+                          <a
+                            href="/api/download/syllabus"
+                            download={`${res.title.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`}
+                            className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 border border-gray-700 cursor-pointer"
+                          >
+                            <span>Download PDF</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </a>
+                        )
                       )}
                     </div>
                   </div>
@@ -984,7 +1002,7 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
       </div>
 
       {/* --- ADD SUPPLEMENTARY RESOURCE MODAL --- */}
-      {showUploadModal && (
+      {showUploadModal && (user?.role === "instructor" || user?.role === "admin") && (
         <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/55 backdrop-blur-xs select-none">
           <div className="bg-white border border-gray-200 shadow-2xl rounded-3xl w-full max-w-lg p-6 space-y-4 text-xs">
             <div className="flex items-center justify-between border-b border-gray-150 pb-3">
@@ -1135,6 +1153,15 @@ export default function ResourcePortal({ courses, user, enrolledCourseIds = [] }
 
           </div>
         </div>
+      )}
+
+      {activeViewerDoc && (
+        <SecureDocumentViewer
+          isOpen={activeViewerDoc !== null}
+          onClose={() => setActiveViewerDoc(null)}
+          documentTitle={activeViewerDoc.title}
+          documentUrl={activeViewerDoc.url}
+        />
       )}
 
     </div>

@@ -62,3 +62,20 @@ export function requireCourseOwnership(
     });
   }
 }
+
+export function forbidStudentUpload(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized access." });
+  }
+  if (user.role === "student") {
+    return res.status(403).json({
+      error: "Forbidden: Student accounts are restricted from uploading or managing platform documents."
+    });
+  }
+  return next();
+}
