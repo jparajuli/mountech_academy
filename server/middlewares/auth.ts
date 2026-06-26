@@ -4,14 +4,47 @@ import db from "../db/database.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "mountech_academy_secret_token_key_777";
 
+export type UserRole = "admin" | "instructor" | "student";
+
 export interface UserPayload {
   email: string;
   name: string;
-  role?: "admin" | "instructor" | "student";
+  role?: UserRole;
+}
+
+export interface DbUser {
+  id: number;
+  email: string;
+  name: string;
+  passwordHash: string;
+  passwordAlgorithm: string;
+  role: UserRole;
+  isVerified: number;
+  createdAt: string;
+}
+
+export interface InstructorProfileRow {
+  id: number;
+  user_email: string;
+  full_name: string;
+  academic_title: string;
+}
+
+// Extend Express Request interface globally in this module
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: number | null;
+        email: string;
+        name: string;
+        role: UserRole;
+      };
+    }
+  }
 }
 
 export function createToken(payload: UserPayload): string {
-  // Use jsonwebtoken for robust standard sign-offs
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "30d" });
 }
 
@@ -37,11 +70,15 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
   try {
     const emailLower = payload.email.trim().toLowerCase();
-    let dbUser = db.prepare("SELECT * FROM users WHERE email = ?").get(emailLower) as any;
+    let dbUser = db.prepare("SELECT * FROM users WHERE email = ?").get(emailLower) as DbUser | undefined;
     
-    // Resolve dynamic or persisted role
-    let role = "student";
-    if (emailLower === "jhanak.parajuli@gmail.com" || emailLower === "admin@mountech.academy" || emailLower === "developer@mountech.academy") {
+    // Resolve role hierarchy dynamically
+    let role: UserRole = "student";
+    if (
+      emailLower === "jhanak.parajuli@gmail.com" || 
+      emailLower === "admin@mountech.academy" || 
+      emailLower === "developer@mountech.academy"
+    ) {
       role = "admin";
     } else if (emailLower === "instructor@mountech.academy") {
       role = "instructor";
@@ -49,19 +86,18 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
       role = dbUser.role;
     }
 
-    // Auto-create user if missing in DB to satisfy foreign keys (e.g. for enrollments or ratings)
+    // Auto-bootstrap oauth/Google callback users safely to satisfy database constraints
     if (!dbUser) {
       db.prepare(`
         INSERT OR IGNORE INTO users (email, name, passwordHash, passwordAlgorithm, role, isVerified)
         VALUES (?, ?, 'oauth_fallback_placeholder', 'bcrypt', ?, 1)
       `).run(emailLower, payload.name || "Academic Scholar", role);
-      dbUser = db.prepare("SELECT * FROM users WHERE email = ?").get(emailLower) as any;
+      dbUser = db.prepare("SELECT * FROM users WHERE email = ?").get(emailLower) as DbUser | undefined;
     } else if (dbUser.role !== role) {
-      // Sync DB role if it differs from forced roles
       db.prepare("UPDATE users SET role = ? WHERE email = ?").run(role, emailLower);
     }
 
-    (req as any).user = {
+    req.user = {
       id: dbUser ? dbUser.id : null,
       email: payload.email,
       name: dbUser ? dbUser.name : payload.name,
@@ -74,9 +110,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export function requireRole(allowedRoles: string[]) {
+export function requireRole(allowedRoles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const user = (req as any).user;
+    const user = req.user;
     if (!user) {
       return res.status(401).json({ error: "Authentication required." });
     }
@@ -90,17 +126,15 @@ export function requireRole(allowedRoles: string[]) {
 }
 
 export function requireSyllabusEditAuth(req: Request, res: Response, next: NextFunction) {
-  const user = (req as any).user;
+  const user = req.user;
   if (!user) {
     return res.status(401).json({ error: "Authentication required." });
   }
 
-  // Admin role has global access
   if (user.role === "admin") {
     return next();
   }
 
-  // Instructor role has access if assigned in course_instructors
   if (user.role === "instructor") {
     const { courseId } = req.params;
     if (!courseId) {
@@ -109,7 +143,7 @@ export function requireSyllabusEditAuth(req: Request, res: Response, next: NextF
 
     try {
       const profile = db.prepare("SELECT id FROM instructor_profiles WHERE LOWER(user_email) = ?")
-        .get(user.email.trim().toLowerCase()) as any;
+        .get(user.email.trim().toLowerCase()) as InstructorProfileRow | undefined;
         
       if (!profile) {
         return res.status(403).json({ error: "Access Denied: Instructor profile not found." });
@@ -133,12 +167,11 @@ export function requireSyllabusEditAuth(req: Request, res: Response, next: NextF
 }
 
 export function checkCourseSunset(req: Request, res: Response, next: NextFunction) {
-  const user = (req as any).user;
+  const user = req.user;
   if (!user) {
     return next();
   }
 
-  // Admins and instructors do not have access locks
   if (user.role === "admin" || user.role === "instructor") {
     return next();
   }
@@ -195,4 +228,3 @@ export function checkCourseSunset(req: Request, res: Response, next: NextFunctio
 
   next();
 }
-

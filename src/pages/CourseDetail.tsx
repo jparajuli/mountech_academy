@@ -16,7 +16,7 @@ import { getToken, getCourseRatings, submitCourseRating, ReviewRating, fetchLive
 import InstructorCard from '../components/InstructorCard';
 import { StudentExamTaker } from '../components/StudentExamTaker';
 import { PythonSandbox } from '../components/PythonSandbox';
-import { InteractiveLiveClassroom } from '../components/InteractiveLiveClassroom';
+import { ClassroomTheater } from '../components/ClassroomTheater';
 import { VideoEmbed } from '../components/VideoEmbed';
 import { LiveClassroomWrapper } from '../components/LiveClassroomWrapper';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
@@ -37,7 +37,7 @@ interface CourseDetailProps {
 }
 
 // Map of custom course slides to give context-aware simulation to the online lecture theater
-const courseSlidesMap: Record<string, Array<{ t: string; d: string; code: string }>> = {
+const courseSlidesMap: Record<string, Array<{ t: string; d: string; code: string; lang?: string }>> = {
   'chatgpt-prompt-engineering': [
     { 
       t: "Principles of Clear & Specific Prompts", 
@@ -92,7 +92,7 @@ const courseSlidesMap: Record<string, Array<{ t: string; d: string; code: string
 };
 
 // Fallback slides for other courses
-const genericSlides = [
+const genericSlides: Array<{ t: string; d: string; code: string; lang?: string }> = [
   {
     t: "Foundational Lecture Overview",
     d: "In this online lecture, we cover the core architectural pathways, file configurations, and container-level dependencies necessary to construct production grade pipelines.",
@@ -786,7 +786,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   };
 
   // Dynamic slide customization states for instructors and testing scholars
-  const [customCourseSlides, setCustomCourseSlides] = useState<Record<string, Array<{ t: string; d: string; code: string }>>>(() => {
+  const [customCourseSlides, setCustomCourseSlides] = useState<Record<string, Array<{ t: string; d: string; code: string; lang?: string }>>>(() => {
     try {
       const saved = localStorage.getItem(`mountech_custom_slides_${user?.email || 'guest'}`);
       return saved ? JSON.parse(saved) : {};
@@ -802,7 +802,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
   const [slideStudioSuccess, setSlideStudioSuccess] = useState<string | null>(null);
 
   // Decoupled Preview States
-  const [previewSlides, setPreviewSlides] = useState<Array<{ t: string; d: string; code: string }>>([]);
+  const [previewSlides, setPreviewSlides] = useState<Array<{ t: string; d: string; code: string; lang?: string }>>([]);
   const [activePreviewSlide, setActivePreviewSlide] = useState<number>(0);
 
   // AI Auto-Scribe States
@@ -1640,7 +1640,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     return (
       <div id="course-detail-root" className="min-h-screen bg-[#030712] text-slate-100 font-sans p-6 md:p-12">
         <div className="max-w-7xl mx-auto">
-          <InteractiveLiveClassroom
+          <ClassroomTheater
             session={activeLiveRoomSession}
             user={user}
             onBack={() => setActiveLiveRoomSession(null)}
@@ -2538,7 +2538,7 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
                                 <span className="text-gray-500 text-[8px]">Interactive Slide Module</span>
                               </div>
                               <PythonSandbox
-                                lessonId={course.id}
+                                lessonId={parseInt(course.id) || null}
                                 initialCode={slides[activeSlide]?.code}
                               />
                             </div>

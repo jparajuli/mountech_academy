@@ -377,7 +377,7 @@ function CourseManagementView({ course, onBack }: CourseManagementProps) {
   };
 
   // Drag and Drop Simulator / Hook helper
-  const handleDragOver = (e: React.DragOverEvent<HTMLDivElement>) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
   };
 

@@ -372,7 +372,7 @@ export const SyllabusEditor: React.FC<SyllabusEditorProps> = ({
               <span>Configure Interactive Chapters shown on Student Dashboard Checklists</span>
             </div>
             <button
-              type="type"
+              type="button"
               onClick={handleAddLesson}
               className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer select-none"
             >

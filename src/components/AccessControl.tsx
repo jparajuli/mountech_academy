@@ -1,5 +1,6 @@
 import React from 'react';
 import { User } from '../types';
+import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
 export type Role = 'admin' | 'instructor' | 'student';
 
@@ -10,11 +11,13 @@ interface AccessControlProps {
   children: React.ReactNode;
 }
 
-// 1. Custom Hook for Role-Based checks
+/**
+ * Robust Custom Hook for frontend role assertions.
+ */
 export function useRBAC(user: User | null) {
   const role = user?.role || 'student';
   
-  const hasRole = (allowed: Role | Role[]) => {
+  const hasRole = (allowed: Role | Role[]): boolean => {
     if (role === 'admin') return true;
     if (Array.isArray(allowed)) {
       return allowed.includes(role);
@@ -31,8 +34,15 @@ export function useRBAC(user: User | null) {
   };
 }
 
-// 2. Access Control Wrapper Component
-export function AccessControl({ user, allowedRoles, fallback = null, children }: AccessControlProps) {
+/**
+ * Access Control wrapper component for surgical UI visibility.
+ */
+export const AccessControl: React.FC<AccessControlProps> = ({ 
+  user, 
+  allowedRoles, 
+  fallback = null, 
+  children 
+}) => {
   const { hasRole } = useRBAC(user);
 
   if (!user || !hasRole(allowedRoles)) {
@@ -40,9 +50,11 @@ export function AccessControl({ user, allowedRoles, fallback = null, children }:
   }
 
   return <>{children}</>;
-}
+};
 
-// 3. Higher-Order Component (HOC) for protecting full views
+/**
+ * High-fidelity HOC to securely encapsulate administrative dashboard pages.
+ */
 export function withAccessControl<P extends { user: User | null }>(
   WrappedComponent: React.ComponentType<P>,
   allowedRoles: Role[]
@@ -52,16 +64,44 @@ export function withAccessControl<P extends { user: User | null }>(
 
     if (!props.user || !hasRole(allowedRoles)) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center bg-white border border-rose-100 rounded-2xl shadow-sm">
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl mb-4 border border-rose-100">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m-3.343-5.657L3.929 17.2a2 2 0 001.414 3.414h13.314a2 2 0 001.414-3.414l-4.728-4.728A2 2 0 0012 12a2 2 0 00-3.343.343z" />
-            </svg>
+        <div 
+          id="access-restricted-screen"
+          className="flex flex-col items-center justify-center min-h-[500px] p-8 text-center bg-[#050a14] border border-slate-900 rounded-3xl shadow-2xl space-y-6 max-w-2xl mx-auto"
+        >
+          <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl animate-pulse">
+            <ShieldAlert className="w-10 h-10" />
           </div>
-          <h3 className="text-lg font-bold text-gray-900 tracking-tight">Access Restricted</h3>
-          <p className="text-xs text-gray-500 max-w-sm mt-2 leading-relaxed">
-            Your current institutional role (<span className="font-mono font-bold text-rose-600 bg-rose-50 px-1 py-0.5 rounded text-[10px]">{props.user?.role || 'student'}</span>) is insufficient to access these administrative command boards.
-          </p>
+          
+          <div className="space-y-2">
+            <span className="font-mono text-[10px] text-rose-500 font-black uppercase tracking-widest block">
+              SECURE BOUNDARY REACHED
+            </span>
+            <h3 className="text-xl font-black text-slate-100 tracking-tight">
+              Access Restricted
+            </h3>
+            <p className="text-xs text-gray-400 leading-relaxed max-w-md mx-auto">
+              Your institutional credentials as a <span className="font-mono font-bold text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded text-[10px] uppercase">{props.user?.role || 'student'}</span> do not grant access to this administrative control workspace.
+            </p>
+          </div>
+
+          <div className="bg-slate-950 border border-slate-900 p-3.5 rounded-xl text-left w-full max-w-sm space-y-1.5 font-mono text-[10px] text-gray-500">
+            <div className="flex justify-between">
+              <span>Required Roles:</span>
+              <span className="text-indigo-400 font-bold">{allowedRoles.join(" | ").toUpperCase()}</span>
+            </div>
+            <div className="flex justify-between border-t border-slate-900/60 pt-1.5">
+              <span>Auditable IP Status:</span>
+              <span className="text-emerald-500 font-semibold">SECURE PROXY LINKED</span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => window.history.back()}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-gray-300 hover:text-white border border-slate-800 hover:border-slate-700 transition-colors rounded-xl font-mono text-xs uppercase font-bold flex items-center gap-1.5 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Go Back</span>
+          </button>
         </div>
       );
     }
