@@ -1977,12 +1977,8 @@ export async function uploadLessonMedia(req: Request, res: Response) {
           UPDATE lessons SET document_key = ? WHERE id = ?
         `).run(document_key, Number(lessonId));
       } catch (r2Error: any) {
-        console.warn("[R2 DOCUMENT UPLOAD FALLBACK] Using simulated upload:", r2Error.message);
-        // Use simulated key
-        document_key = `simulated/lessons/${lessonId}/documents/${Date.now()}-${documentFile.originalname}`;
-        db.prepare(`
-          UPDATE lessons SET document_key = ? WHERE id = ?
-        `).run(document_key, Number(lessonId));
+        console.error("🚨 CRITICAL CLOUDFLARE DOCUMENT UPLOAD ERROR 🚨", r2Error.message);
+        return res.status(500).json({ error: "Cloudflare Upload Failed: " + r2Error.message });
       }
     }
 
@@ -2047,12 +2043,8 @@ export async function uploadLessonMedia(req: Request, res: Response) {
         `).run(video_playback_id, Number(lessonId));
 
       } catch (videoError: any) {
-        console.warn("[VIDEO PIPELINE FALLBACK] Using simulated VOD transcoding:", videoError.message);
-        // Fallback simulated playback id
-        video_playback_id = `mock-playback-id-${Date.now()}`;
-        db.prepare(`
-          UPDATE lessons SET video_playback_id = ? WHERE id = ?
-        `).run(video_playback_id, Number(lessonId));
+        console.error("🚨 CRITICAL MUX/R2 VIDEO UPLOAD ERROR 🚨", videoError.message);
+        return res.status(500).json({ error: "Video Pipeline Failed: " + videoError.message });
       }
     }
 
