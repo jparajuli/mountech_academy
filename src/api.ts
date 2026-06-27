@@ -640,5 +640,35 @@ export async function uploadLessonMedia(lessonId: string | number, formData: For
   return response.json();
 }
 
+export async function requestPresignedUrls(lessonId: string | number, payload: {
+  document?: { fileName: string; fileType: string };
+  video?: { fileName: string; fileType: string };
+}): Promise<{
+  success: boolean;
+  document?: { uploadUrl: string; key: string };
+  video?: { uploadUrl: string; key: string };
+}> {
+  return apiFetch(`/api/lessons/${lessonId}/presigned-urls`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function finalizeLessonMedia(lessonId: string | number, payload: {
+  documentKey?: string;
+  videoKey?: string;
+}): Promise<{
+  success: boolean;
+  document_key?: string;
+  video_playback_id?: string;
+  message: string;
+}> {
+  return apiFetch(`/api/lessons/${lessonId}/finalize-media`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+
 
 

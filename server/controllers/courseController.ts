@@ -2136,4 +2136,146 @@ export async function getLessonVideoToken(req: Request, res: Response) {
   }
 }
 
+// POST /api/lessons/:lessonId/presigned-urls
+export async function requestPresignedUrls(req: Request, res: Response) {
+  const { lessonId } = req.params;
+  const { document, video } = req.body;
+
+  try {
+    const lesson = db.prepare(`
+      SELECT id FROM lessons WHERE id = ?
+    `).get(Number(lessonId)) as any;
+
+    if (!lesson) {
+      return res.status(404).json({ error: "Lesson not found." });
+    }
+
+    const s3 = getR2Client();
+    const bucket = getR2BucketName();
+    const result: any = {};
+
+    if (document) {
+      const cleanName = document.fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const key = `lessons/${lessonId}/documents/${Date.now()}-${cleanName}`;
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ContentType: document.fileType,
+      });
+      const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+      result.document = { uploadUrl, key };
+    }
+
+    if (video) {
+      const cleanName = video.fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const key = `lessons/${lessonId}/videos/${Date.now()}-${cleanName}`;
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ContentType: video.fileType,
+      });
+      const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+      result.video = { uploadUrl, key };
+    }
+
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    console.error("[REQUEST PRESIGNED URLS ERR]", err);
+    return res.status(500).json({ error: "Failed to request pre-signed upload URLs: " + err.message });
+  }
+}
+
+// POST /api/lessons/:lessonId/finalize-media
+export async function finalizeLessonMedia(req: Request, res: Response) {
+  const { lessonId } = req.params;
+  const { documentKey, videoKey } = req.body;
+
+  try {
+    const lesson = db.prepare(`
+      SELECT id, course_id, document_key, video_playback_id FROM lessons WHERE id = ?
+    `).get(Number(lessonId)) as any;
+
+    if (!lesson) {
+      return res.status(404).json({ error: "Lesson not found." });
+    }
+
+    let document_key = lesson.document_key;
+    let video_playback_id = lesson.video_playback_id;
+
+    if (documentKey) {
+      document_key = documentKey;
+      db.prepare(`
+        UPDATE lessons SET document_key = ? WHERE id = ?
+      `).run(document_key, Number(lessonId));
+    }
+
+    if (videoKey) {
+      try {
+        const s3 = getR2Client();
+        const bucket = getR2BucketName();
+
+        // 1. Generate a Pre-signed GET URL for Mux to download the transcoded video file
+        const getCommand = new GetObjectCommand({
+          Bucket: bucket,
+          Key: videoKey,
+        });
+        const videoPreSignedUrl = await getSignedUrl(s3, getCommand, { expiresIn: 7200 }); // 2 hours
+
+        // 2. Trigger Mux Video-on-Demand Transcoding
+        const muxTokenId = process.env.MUX_TOKEN_ID;
+        const muxTokenSecret = process.env.MUX_TOKEN_SECRET;
+
+        if (!muxTokenId || !muxTokenSecret) {
+          throw new Error("Missing MUX_TOKEN_ID or MUX_TOKEN_SECRET credentials.");
+        }
+
+        const authHeader = Buffer.from(`${muxTokenId}:${muxTokenSecret}`).toString("base64");
+        
+        const muxResponse = await fetch("https://api.mux.com/video/v1/assets", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Basic ${authHeader}`,
+          },
+          body: JSON.stringify({
+            input: [{ url: videoPreSignedUrl }],
+            playback_policy: ["signed"],
+          }),
+        });
+
+        if (!muxResponse.ok) {
+          const errorText = await muxResponse.text();
+          throw new Error(`Mux API rejected request: ${errorText}`);
+        }
+
+        const muxData = await muxResponse.json() as any;
+        video_playback_id = muxData?.data?.playback_ids?.[0]?.id;
+
+        if (!video_playback_id) {
+          throw new Error("No playback ID returned from Mux Asset API.");
+        }
+
+        db.prepare(`
+          UPDATE lessons SET video_playback_id = ? WHERE id = ?
+        `).run(video_playback_id, Number(lessonId));
+
+      } catch (videoError: any) {
+        console.error("🚨 CRITICAL MUX/R2 FINALIZATION VIDEO UPLOAD ERROR 🚨", videoError.message);
+        return res.status(500).json({ error: "Video Pipeline Finalization Failed: " + videoError.message });
+      }
+    }
+
+    return res.json({
+      success: true,
+      document_key,
+      video_playback_id,
+      message: "Media files finalized and processing pipeline initiated successfully."
+    });
+  } catch (err: any) {
+    console.error("[FINALIZE LESSON MEDIA ERR]", err);
+    return res.status(500).json({ error: "Failed to finalize lesson media: " + err.message });
+  }
+}
+
+
 

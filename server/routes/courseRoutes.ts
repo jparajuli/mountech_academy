@@ -33,6 +33,8 @@ import {
   getLessonDocumentPreSignedUrl,
   uploadLessonMedia,
   getLessonVideoToken,
+  requestPresignedUrls,
+  finalizeLessonMedia,
 } from "../controllers/courseController.js";
 import { createManualCheckout } from "../controllers/paymentController.js";
 import { handleGitLabWebhook } from "../../src/controllers/gitlabController.js";
@@ -90,6 +92,8 @@ router.post(
   ]),
   uploadLessonMedia
 );
+router.post("/lessons/:lessonId/presigned-urls", requireAuth, requireRole(["admin", "instructor"]), requestPresignedUrls);
+router.post("/lessons/:lessonId/finalize-media", requireAuth, requireRole(["admin", "instructor"]), finalizeLessonMedia);
 router.get("/lessons/:lessonId/video-token", requireAuth, checkCourseSunset, getLessonVideoToken);
 
 // GitLab Webhook Integration Phase 4 route

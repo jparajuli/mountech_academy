@@ -22,7 +22,7 @@ import { LiveClassroomWrapper } from '../components/LiveClassroomWrapper';
 import { EXAM_DATABASE, ExamQuestion } from '../exams';
 import MuxPlayer from '@mux/mux-player-react';
 import SecureDocumentViewer from '../components/SecureDocumentViewer';
-import { getLessonDocumentUrl, getLessonVideoToken, uploadLessonMedia } from '../api';
+import { getLessonDocumentUrl, getLessonVideoToken, uploadLessonMedia, requestPresignedUrls, finalizeLessonMedia } from '../api';
 // @ts-ignore
 import brandLogo from '../assets/images/mountech_logo_1781293059155.jpg';
 
@@ -381,23 +381,74 @@ export default function CourseDetail({ course, user, onBack, isEnrolled, onEnrol
     setUploadError(null);
     setUploadSuccess(null);
     try {
-      const formData = new FormData();
+      // 1. Request presigned URLs from server
+      const presignPayload: any = {};
       if (documentFile) {
-        formData.append("document", documentFile);
+        presignPayload.document = {
+          fileName: documentFile.name,
+          fileType: documentFile.type || "application/pdf"
+        };
       }
       if (videoFile) {
-        formData.append("video", videoFile);
+        presignPayload.video = {
+          fileName: videoFile.name,
+          fileType: videoFile.type || "video/mp4"
+        };
       }
 
-      const res = await uploadLessonMedia(lessonId, formData);
-      if (res.success) {
-        setUploadSuccess(res.message);
+      const presignRes = await requestPresignedUrls(lessonId, presignPayload);
+      if (!presignRes.success) {
+        throw new Error("Failed to get pre-signed upload URLs from server.");
+      }
+
+      let documentKey: string | undefined;
+      let videoKey: string | undefined;
+
+      // 2. Perform direct R2 uploads from client
+      if (documentFile && presignRes.document) {
+        const { uploadUrl, key } = presignRes.document;
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "PUT",
+          body: documentFile,
+          headers: {
+            "Content-Type": documentFile.type || "application/pdf",
+          }
+        });
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload document directly to Cloudflare R2: Status ${uploadResponse.status}`);
+        }
+        documentKey = key;
+      }
+
+      if (videoFile && presignRes.video) {
+        const { uploadUrl, key } = presignRes.video;
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "PUT",
+          body: videoFile,
+          headers: {
+            "Content-Type": videoFile.type || "video/mp4",
+          }
+        });
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload video directly to Cloudflare R2: Status ${uploadResponse.status}`);
+        }
+        videoKey = key;
+      }
+
+      // 3. Finalize media update & trigger Mux transcoding on backend
+      const finalizeRes = await finalizeLessonMedia(lessonId, {
+        documentKey,
+        videoKey
+      });
+
+      if (finalizeRes.success) {
+        setUploadSuccess("Media uploaded directly and processing pipeline initiated successfully!");
         await loadDbLessons();
       } else {
-        throw new Error(res.message || "Upload failed");
+        throw new Error(finalizeRes.message || "Failed to finalize media processing.");
       }
     } catch (err: any) {
-      console.error("Upload error:", err);
+      console.error("Direct R2 upload error:", err);
       setUploadError(err.message || "Failed to upload media files to cloud pipelines.");
     } finally {
       setUploadingMedia(false);
