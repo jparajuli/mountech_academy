@@ -3,7 +3,6 @@ import { createServer as createViteServer } from "vite";
 import express from "express";
 import app from "./server/app.js";
 import { runMigration } from "./server/db/migrate.js";
-import { runCleanupAndIndexOptimization } from "./server/db/cleanup.js";
 import { startLiveSessionReminderScheduler } from "./server/utils/reminderScheduler.js";
 import http from "http";
 import { initWebSocketServer } from "./server/utils/websocket.js";
@@ -15,7 +14,6 @@ async function start() {
   // 1. Run database initialization and json-to-sqlite conversions on boot
   try {
     runMigration();
-    runCleanupAndIndexOptimization();
     // Start automated 15-minute live class scheduled email reminders background worker
     startLiveSessionReminderScheduler();
   } catch (err: any) {
