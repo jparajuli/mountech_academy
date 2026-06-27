@@ -135,6 +135,15 @@ router.put(
   updateCourseExam
 );
 
+router.put(
+  "/exams/:examId",
+  requireAuth,
+  requireRole(["instructor", "admin"]),
+  requireCourseOwnership,
+  validateRequest(CreateExamSchema),
+  updateCourseExam
+);
+
 // Delete Exam
 router.delete(
   "/instructor/exams/:examId",
@@ -144,33 +153,12 @@ router.delete(
   deleteCourseExam
 );
 
-// Add Exam Question
-router.post(
-  "/instructor/exams/:examId/questions",
-  requireAuth,
-  requireRole(["instructor", "admin"]),
-  requireCourseOwnership,
-  validateRequest(CreateQuestionSchema),
-  createExamQuestion
-);
-
-// Edit Exam Question
-router.put(
-  "/instructor/exams/:examId/questions/:questionId",
-  requireAuth,
-  requireRole(["instructor", "admin"]),
-  requireCourseOwnership,
-  validateRequest(CreateQuestionSchema),
-  updateExamQuestion
-);
-
-// Delete Exam Question
 router.delete(
-  "/instructor/exams/:examId/questions/:questionId",
+  "/exams/:examId",
   requireAuth,
   requireRole(["instructor", "admin"]),
   requireCourseOwnership,
-  deleteExamQuestion
+  deleteCourseExam
 );
 
 // --- ENTERPRISE SLIDE STUDIO PORTAL ENDPOINTS ---

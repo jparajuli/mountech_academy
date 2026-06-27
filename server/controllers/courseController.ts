@@ -1208,6 +1208,104 @@ export function getCourseExamsForStudent(req: Request, res: Response) {
   }
 }
 
+// GET /api/courses/:courseId/chapters/:chapterId/access
+export function getChapterAccessStatus(req: Request, res: Response) {
+  const { courseId, chapterId } = req.params;
+  const user = (req as any).user;
+  const email = user.email.trim().toLowerCase();
+
+  try {
+    // Check enrollment
+    const enrollment = db.prepare(`
+      SELECT 1 FROM enrollments WHERE email = ? AND courseId = ? AND (payment_status IS NULL OR payment_status != 'pending')
+    `).get(email, courseId);
+
+    if (!enrollment && user.role !== "admin" && user.role !== "instructor") {
+      return res.status(403).json({ error: "Access Denied: You must be enrolled in this course to view chapters." });
+    }
+
+    // Find the current lesson/chapter
+    const currentLesson = db.prepare(`
+      SELECT * FROM lessons WHERE course_id = ? AND (id = ? OR LOWER(chapter) = LOWER(?))
+    `).get(courseId, chapterId, chapterId) as any;
+
+    if (!currentLesson) {
+      return res.status(404).json({ error: "Lesson/Chapter not found." });
+    }
+
+    // Find exam for this chapter/lesson
+    const exam = db.prepare(`
+      SELECT * FROM exams WHERE course_id = ? AND (lesson_id = ? OR LOWER(chapter_id) = LOWER(?)) LIMIT 1
+    `).get(courseId, currentLesson.id, currentLesson.chapter) as any;
+
+    // Check locking if order_index > 1
+    let isLocked = false;
+    let failingExamDetails = null;
+
+    if (currentLesson.order_index > 1) {
+      // Find the previous lesson in sequence
+      const prevLesson = db.prepare(`
+        SELECT * FROM lessons WHERE course_id = ? AND order_index = ?
+      `).get(courseId, currentLesson.order_index - 1) as any;
+
+      if (prevLesson) {
+        // Find exams for that previous lesson
+        const prevLessonExams = db.prepare(`
+          SELECT * FROM exams WHERE course_id = ? AND exam_type = 'lesson' AND (lesson_id = ? OR LOWER(chapter_id) = LOWER(?)) AND is_published = 1
+        `).all(courseId, prevLesson.id, prevLesson.chapter) as any[];
+
+        for (const ex of prevLessonExams) {
+          const attempt = db.prepare(`
+            SELECT passed, score FROM exam_attempts
+            WHERE exam_id = ? AND LOWER(user_id) = ? AND passed = 1
+            ORDER BY score DESC LIMIT 1
+          `).get(ex.id, email) as any;
+
+          if (!attempt) {
+            isLocked = true;
+            failingExamDetails = {
+              exam_id: ex.id,
+              title: ex.title,
+              passing_score_percentage: ex.passing_score_percentage
+            };
+            break;
+          }
+        }
+      }
+    }
+
+    if (isLocked) {
+      return res.status(403).json({
+        success: false,
+        locked: true,
+        error: "Access Locked: You must pass the previous chapter's assessment before accessing this chapter.",
+        failingExam: failingExamDetails
+      });
+    }
+
+    return res.json({
+      success: true,
+      locked: false,
+      payload: {
+        lesson: currentLesson,
+        exam: exam ? {
+          id: exam.id,
+          title: exam.title,
+          description: exam.description,
+          duration_minutes: exam.duration_minutes,
+          passing_score_percentage: exam.passing_score_percentage,
+          exam_type: exam.exam_type,
+          quiz_data: exam.quiz_data
+        } : null
+      }
+    });
+
+  } catch (err: any) {
+    console.error("[GET CHAPTER ACCESS ERR]", err);
+    return res.status(500).json({ error: "Failed to determine chapter access: " + err.message });
+  }
+}
+
 // GET /api/courses/:courseId/lessons - List lessons for a student with isLocked calculated
 export function getCourseLessonsForStudent(req: Request, res: Response) {
   const { courseId } = req.params;
@@ -1291,7 +1389,7 @@ export function startStudentExam(req: Request, res: Response) {
 
     // 2. Fetch exam and verify it exists & is published
     const exam = db.prepare(`
-      SELECT id, title, description, questions_to_display, passing_score_percentage, is_published, duration_minutes, chapter_id
+      SELECT id, title, description, questions_to_display, passing_score_percentage, is_published, duration_minutes, chapter_id, quiz_data
       FROM exams
       WHERE id = ? AND course_id = ?
     `).get(examId, courseId) as any;
@@ -1376,28 +1474,39 @@ export function startStudentExam(req: Request, res: Response) {
 
     // 4. Query random subset of questions
     const limitCount = exam.questions_to_display || 5;
-    const questions = db.prepare(`
-      SELECT id, question_text, question_type, options, points 
-      FROM exam_questions 
-      WHERE exam_id = ? 
-      ORDER BY RANDOM() 
-      LIMIT ?
-    `).all(Number(examId), limitCount) as any[];
+    let questions: any[] = [];
+    if (exam.quiz_data) {
+      try {
+        const allQuestions = JSON.parse(exam.quiz_data);
+        // Shuffle and take subset
+        questions = allQuestions.sort(() => 0.5 - Math.random()).slice(0, limitCount);
+      } catch (e) {
+        questions = [];
+      }
+    } else {
+      questions = db.prepare(`
+        SELECT id, question_text, question_type, options, points 
+        FROM exam_questions 
+        WHERE exam_id = ? 
+        ORDER BY RANDOM() 
+        LIMIT ?
+      `).all(Number(examId), limitCount) as any[];
+    }
 
     // 5. Structure/Parse questions block (JSON options and stripping answer for security)
-    const secureQuestions = questions.map(q => {
+    const secureQuestions = questions.map((q, qIdx) => {
       let parsedOptions = [];
       try {
         parsedOptions = typeof q.options === "string" ? JSON.parse(q.options) : q.options || [];
       } catch (e) {
-        parsedOptions = [];
+        parsedOptions = q.options || [];
       }
       return {
-        id: q.id,
-        question_text: q.question_text,
-        question_type: q.question_type,
+        id: q.id !== undefined ? q.id : qIdx,
+        question_text: q.question_text || q.questionText || "",
+        question_type: q.question_type || q.questionType || "multiple_choice",
         options: parsedOptions,
-        points: q.points
+        points: q.points !== undefined ? q.points : 1
       };
     });
 
@@ -1463,49 +1572,96 @@ export function submitStudentExamResponse(req: Request, res: Response) {
     let totalPoints = 0;
     const gradedQuestions: any[] = [];
 
-    // Let's loop over submitted answers. To prevent forged question requests, ensure questions belong to this exam!
-    for (const ans of answersList) {
-      const qId = ans.questionId !== undefined ? ans.questionId : ans.question_id;
-      const submittedValue = (ans.answer !== undefined ? ans.answer : ans.submitted_answer || "").toString().trim();
+    // Check if score is submitted pre-calculated from client
+    let percentage = req.body.score;
+    let passed = req.body.passed ? 1 : 0;
 
-      const question = db.prepare(`
-        SELECT id, question_text, question_type, correct_answer, points, options
-        FROM exam_questions
-        WHERE id = ? AND exam_id = ?
-      `).get(Number(qId), attempt.exam_id) as any;
+    if (percentage !== undefined) {
+      percentage = Math.round(percentage);
+      passed = percentage >= (exam.passing_score_percentage || 70) ? 1 : 0;
+    } else {
+      if (exam.quiz_data) {
+        let allQuestions = [];
+        try {
+          allQuestions = JSON.parse(exam.quiz_data);
+        } catch (e) {
+          allQuestions = [];
+        }
 
-      if (!question) continue; // Skip invalid or hijacked questions
+        // Grade using quiz_data list
+        allQuestions.forEach((q: any, idx: number) => {
+          if (q.id === undefined) q.id = idx;
+        });
 
-      const isCorrect = submittedValue.toLowerCase() === question.correct_answer.toString().trim().toLowerCase();
-      totalPoints += question.points;
-      if (isCorrect) {
-        earnedPoints += question.points;
+        for (const ans of answersList) {
+          const qId = ans.questionId !== undefined ? ans.questionId : ans.question_id;
+          const submittedValue = (ans.answer !== undefined ? ans.answer : ans.submitted_answer || "").toString().trim();
+
+          const question = allQuestions.find((q: any) => q.id === Number(qId) || q.id === qId);
+          if (!question) continue;
+
+          const correctAnswer = (question.correct_answer || question.correctAnswer || "").toString().trim();
+          const isCorrect = submittedValue.toLowerCase() === correctAnswer.toLowerCase();
+          const qPoints = question.points !== undefined ? question.points : 1;
+
+          totalPoints += qPoints;
+          if (isCorrect) {
+            earnedPoints += qPoints;
+          }
+
+          gradedQuestions.push({
+            id: question.id,
+            question_text: question.question_text || question.questionText || "",
+            question_type: question.question_type || question.questionType || "multiple_choice",
+            submitted_answer: submittedValue,
+            correct_answer: correctAnswer,
+            is_correct: isCorrect,
+            points: qPoints
+          });
+        }
+      } else {
+        // Grade using legacy DB tables
+        for (const ans of answersList) {
+          const qId = ans.questionId !== undefined ? ans.questionId : ans.question_id;
+          const submittedValue = (ans.answer !== undefined ? ans.answer : ans.submitted_answer || "").toString().trim();
+
+          const question = db.prepare(`
+            SELECT id, question_text, question_type, correct_answer, points, options
+            FROM exam_questions
+            WHERE id = ? AND exam_id = ?
+          `).get(Number(qId), attempt.exam_id) as any;
+
+          if (!question) continue;
+
+          const isCorrect = submittedValue.toLowerCase() === question.correct_answer.toString().trim().toLowerCase();
+          totalPoints += question.points;
+          if (isCorrect) {
+            earnedPoints += question.points;
+          }
+
+          db.prepare(`
+            INSERT INTO student_answers (attempt_id, question_id, submitted_answer, is_correct)
+            VALUES (?, ?, ?, ?)
+          `).run(Number(attemptId), question.id, submittedValue, isCorrect ? 1 : 0);
+
+          gradedQuestions.push({
+            id: question.id,
+            question_text: question.question_text,
+            question_type: question.question_type,
+            submitted_answer: submittedValue,
+            correct_answer: question.correct_answer,
+            is_correct: isCorrect,
+            points: question.points
+          });
+        }
       }
 
-      // Record student answer node in student_answers
-      db.prepare(`
-        INSERT INTO student_answers (attempt_id, question_id, submitted_answer, is_correct)
-        VALUES (?, ?, ?, ?)
-      `).run(Number(attemptId), question.id, submittedValue, isCorrect ? 1 : 0);
-
-      gradedQuestions.push({
-        id: question.id,
-        question_text: question.question_text,
-        question_type: question.question_type,
-        submitted_answer: submittedValue,
-        correct_answer: question.correct_answer, // Since they submitted, we can return results
-        is_correct: isCorrect,
-        points: question.points
-      });
+      if (totalPoints === 0) {
+        totalPoints = 1;
+      }
+      percentage = Math.round((earnedPoints / totalPoints) * 100);
+      passed = percentage >= (exam.passing_score_percentage || 70) ? 1 : 0;
     }
-
-    // Defensive fallback if total points is 0 (e.g. somehow empty submission or no valid questions)
-    if (totalPoints === 0) {
-      totalPoints = 1;
-    }
-
-    const percentage = Math.round((earnedPoints / totalPoints) * 100);
-    const passed = percentage >= (exam.passing_score_percentage || 70) ? 1 : 0;
 
     // 4. Update core attempt entry
     db.prepare(`

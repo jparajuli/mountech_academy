@@ -32,6 +32,7 @@ export const CreateExamSchema = z.object({
   duration_minutes: z.number().int().min(1).optional().default(30),
   exam_type: z.enum(["lesson", "final"]).optional().default("final"),
   lesson_id: z.number().int().optional().nullable(),
+  quiz_data: z.any().optional().nullable(),
 });
 
 export const CreateQuestionSchema = z.object({

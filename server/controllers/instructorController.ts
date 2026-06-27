@@ -402,7 +402,7 @@ export function createCourseExam(req: Request, res: Response) {
 // PUT /api/instructor/exams/:examId - Update course exam configurations
 export function updateCourseExam(req: Request, res: Response) {
   const { examId } = req.params;
-  const { title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference, lesson_id } = req.body;
+  const { title, description, is_published, questions_to_display, passing_score_percentage, duration_minutes, exam_type, lesson_reference, lesson_id, quiz_data } = req.body;
 
   try {
     const publishedVal = (is_published === true || is_published === 1) ? 1 : 0;
@@ -412,12 +412,13 @@ export function updateCourseExam(req: Request, res: Response) {
     const examTypeVal = (exam_type === "lesson" || exam_type === "final") ? exam_type : "final";
     const lessonRefVal = lesson_reference !== undefined ? (lesson_reference || null) : null;
     const lessonIdVal = lesson_id !== undefined && lesson_id !== null && lesson_id !== "" ? Number(lesson_id) : null;
+    const quizDataStr = typeof quiz_data === "string" ? quiz_data : (quiz_data ? JSON.stringify(quiz_data) : null);
 
     db.prepare(`
       UPDATE exams
-      SET title = ?, description = ?, is_published = ?, questions_to_display = ?, passing_score_percentage = ?, duration_minutes = ?, exam_type = ?, lesson_reference = ?, lesson_id = ?
+      SET title = ?, description = ?, is_published = ?, questions_to_display = ?, passing_score_percentage = ?, duration_minutes = ?, exam_type = ?, lesson_reference = ?, lesson_id = ?, quiz_data = ?
       WHERE id = ?
-    `).run(title.trim(), (description || "").trim(), publishedVal, questionsToDisplayVal, passingScoreVal, durationMinutesVal, examTypeVal, lessonRefVal, lessonIdVal, examId);
+    `).run(title.trim(), (description || "").trim(), publishedVal, questionsToDisplayVal, passingScoreVal, durationMinutesVal, examTypeVal, lessonRefVal, lessonIdVal, quizDataStr, examId);
 
     return res.json({
       success: true,
@@ -440,17 +441,27 @@ export function listCourseExams(req: Request, res: Response) {
 
     // Hydrate exams with questions
     const hydratedExams = exams.map((exam) => {
-      const questions = db.prepare(`
-        SELECT * FROM exam_questions WHERE exam_id = ? ORDER BY id ASC
-      `).all(exam.id) as any[];
+      let questions = [];
+      if (exam.quiz_data) {
+        try {
+          questions = typeof exam.quiz_data === "string" ? JSON.parse(exam.quiz_data) : exam.quiz_data || [];
+        } catch (e) {
+          questions = [];
+        }
+      } else {
+        const legacyQuestions = db.prepare(`
+          SELECT * FROM exam_questions WHERE exam_id = ? ORDER BY id ASC
+        `).all(exam.id) as any[];
+        questions = legacyQuestions.map(q => ({
+          ...q,
+          options: JSON.parse(q.options || "[]")
+        }));
+      }
 
       return {
         ...exam,
         is_published: exam.is_published === 1,
-        questions: questions.map(q => ({
-          ...q,
-          options: JSON.parse(q.options || "[]")
-        }))
+        questions
       };
     });
 

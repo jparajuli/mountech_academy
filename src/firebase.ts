@@ -1,9 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import firebaseConfigJson from './firebase-applet-config.json';
 
-// Initialize with imported JSON configuration
+// Initialize with imported configuration
 let firebaseConfig = {
   apiKey: "",
   authDomain: "",
@@ -14,11 +13,6 @@ let firebaseConfig = {
   measurementId: "",
   firestoreDatabaseId: "(default)"
 };
-
-// Merge if valid values are provided inside the config JSON
-if (firebaseConfigJson && firebaseConfigJson.apiKey) {
-  firebaseConfig = { ...firebaseConfig, ...firebaseConfigJson };
-}
 
 // Load config from environment variables for high security (prevents hardcoded secrets in source files)
 const metaEnv = (import.meta as any).env || {};

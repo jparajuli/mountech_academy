@@ -521,6 +521,7 @@ export async function updateCourseExamDetails(examId: number, examData: {
   exam_type?: "lesson" | "final";
   lesson_reference?: string | null;
   lesson_id?: number | null;
+  quiz_data?: any[] | null;
 }): Promise<{ success: boolean; message: string }> {
   return apiFetch(`/api/instructor/exams/${examId}`, {
     method: 'PUT',
@@ -531,6 +532,24 @@ export async function updateCourseExamDetails(examId: number, examData: {
 // Fetch Lessons for a course
 export async function fetchCourseLessons(courseId: string): Promise<{ success: boolean; lessons: Lesson[] }> {
   return apiFetch(`/api/courses/${courseId}/lessons`);
+}
+
+// Fetch student access and assessment payload for a specific chapter
+export async function fetchChapterAccess(courseId: string, chapterId: string | number): Promise<{
+  success: boolean;
+  locked: boolean;
+  error?: string;
+  failingExam?: {
+    exam_id: number;
+    title: string;
+    passing_score_percentage: number;
+  };
+  payload?: {
+    lesson: Lesson;
+    exam: (Exam & { quiz_data?: string }) | null;
+  };
+}> {
+  return apiFetch(`/api/courses/${courseId}/chapters/${chapterId}/access`);
 }
 
 // Student fetch course exams (published only)
@@ -547,20 +566,25 @@ export async function startStudentExam(courseId: string, examId: number, complet
 }
 
 // Student submit answers for server-side evaluation & grading
-export async function submitStudentExamAnswers(attemptId: number, answers: { questionId: number, answer: string }[]): Promise<{
+export async function submitStudentExamAnswers(
+  attemptId: number, 
+  answers: { questionId: number, answer: string }[], 
+  score?: number, 
+  passed?: boolean
+): Promise<{
   success: boolean;
   message: string;
   attempt: any;
-  earnedPoints: number;
-  totalPoints: number;
-  percentage: number;
-  passed: boolean;
-  passing_score_percentage: number;
-  questions: any[];
+  earnedPoints?: number;
+  totalPoints?: number;
+  percentage?: number;
+  passed?: boolean;
+  passing_score_percentage?: number;
+  questions?: any[];
 }> {
   return apiFetch(`/api/attempts/${attemptId}/submit`, {
     method: 'POST',
-    body: JSON.stringify({ answers }),
+    body: JSON.stringify({ answers, score, passed }),
   });
 }
 

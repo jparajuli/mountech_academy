@@ -98,6 +98,7 @@ export interface Exam {
   exam_type?: 'lesson' | 'final';
   lesson_reference?: string | null;
   lesson_id?: number | null;
+  quiz_data?: string | any[] | null;
   isLocked?: boolean;
 }
 

@@ -224,9 +224,14 @@ try {
       description TEXT,
       is_published INTEGER NOT NULL DEFAULT 0,
       duration_minutes INTEGER NOT NULL DEFAULT 30,
+      quiz_data TEXT,
       FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
     );
   `);
+} catch (_) {}
+
+try {
+  db.exec("ALTER TABLE exams ADD COLUMN quiz_data TEXT;");
 } catch (_) {}
 
 try {

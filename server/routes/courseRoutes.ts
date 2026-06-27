@@ -21,6 +21,7 @@ import {
   listLiveSessions,
   joinLiveSession,
   getCourseExamsForStudent,
+  getChapterAccessStatus,
   startStudentExam,
   submitStudentExamResponse,
   updateSharedSyllabus,
@@ -69,6 +70,7 @@ router.get("/live-sessions/:lessonId/jaas-token", requireAuth, getJaasToken);
 
 // Student Exams Phase 3 routes
 router.get("/courses/:courseId/student-exams", requireAuth, checkCourseSunset, getCourseExamsForStudent);
+router.get("/courses/:courseId/chapters/:chapterId/access", requireAuth, checkCourseSunset, getChapterAccessStatus);
 router.post("/courses/:courseId/exams/:examId/start", requireAuth, checkCourseSunset, startStudentExam);
 router.post("/attempts/:attemptId/submit", requireAuth, checkCourseSunset, submitStudentExamResponse);
 router.get("/courses/:courseId/lessons", requireAuth, checkCourseSunset, getCourseLessonsForStudent);
