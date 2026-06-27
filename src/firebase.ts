@@ -20,6 +20,24 @@ if (firebaseConfigJson && firebaseConfigJson.apiKey) {
   firebaseConfig = { ...firebaseConfig, ...firebaseConfigJson };
 }
 
+// Load config from environment variables for high security (prevents hardcoded secrets in source files)
+const metaEnv = (import.meta as any).env || {};
+const envConfig = {
+  apiKey: metaEnv.VITE_FIREBASE_API_KEY || "",
+  authDomain: metaEnv.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: metaEnv.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: metaEnv.VITE_FIREBASE_APP_ID || "",
+  measurementId: metaEnv.VITE_FIREBASE_MEASUREMENT_ID || "",
+  firestoreDatabaseId: metaEnv.VITE_FIREBASE_FIRESTORE_DATABASE_ID || "(default)"
+};
+
+// Merge environment variables if they are set
+if (envConfig.apiKey) {
+  firebaseConfig = { ...firebaseConfig, ...envConfig };
+}
+
 // Fallback checking for persistent browser storage (for dynamic configuration by the user)
 const stored = localStorage.getItem('mountech_firebase_config');
 if (stored) {
