@@ -253,58 +253,13 @@ export default function SignIn({ onSignInSuccess }: SignInProps) {
     }
   };
 
-  const [showConfigEditor, setShowConfigEditor] = useState(!isFirebaseConfigured());
-  const [pastedConfigText, setPastedConfigText] = useState(() => {
-    const current = getFirebaseConfig();
-    return current.apiKey ? JSON.stringify(current, null, 2) : '';
-  });
-  const [editorError, setEditorError] = useState('');
-  const [editorSuccess, setEditorSuccess] = useState('');
-
-  const parseFirebaseConfigPaste = (text: string) => {
-    try {
-      const clean = text.trim();
-      if (clean.startsWith('{') && clean.endsWith('}')) {
-        return JSON.parse(clean);
-      }
-    } catch (e) {}
-
-    const config: any = {};
-    const keys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'measurementId'];
-    for (const key of keys) {
-      const regex = new RegExp(`${key}\\s*:\\s*["'\`]([^"'\`]+)["'\`]`);
-      const match = text.match(regex);
-      if (match && match[1]) {
-        config[key] = match[1];
-      }
-    }
-
-    if (config.apiKey && config.authDomain) {
-      return config;
-    }
-    throw new Error("Could not parse a valid Firebase Web Config. Paste direct JSON format or raw script configs.");
-  };
-
-  const handleSaveConfig = () => {
-    setEditorError('');
-    setEditorSuccess('');
-    try {
-      const parsed = parseFirebaseConfigPaste(pastedConfigText);
-      saveFirebaseConfig(parsed);
-      setEditorSuccess('Firebase configured successfully! Initializing dynamic instances...');
-    } catch (err: any) {
-      setEditorError(err.message || 'Error occurred during parsing of pasted config.');
-    }
-  };
-
   const handleOAuthLogin = async (provider: 'Google' | 'LinkedIn') => {
     setLoading(true);
     setError('');
     setSuccessMsg('');
 
     if (!isFirebaseConfigured()) {
-      setError('Firebase integration is pending setup. Paste your credentials into the config editor below to activate Google/LinkedIn Auth.');
-      setShowConfigEditor(true);
+      setError('Firebase integration is pending setup. Please configure the environment variables VITE_FIREBASE_API_KEY, etc. in your hosting console to activate Google/LinkedIn Auth.');
       setLoading(false);
       return;
     }
@@ -844,73 +799,7 @@ export default function SignIn({ onSignInSuccess }: SignInProps) {
                   </p>
                 </div>
 
-                {/* Firebase Connection Config Panel */}
-                <div id="firebase-config-wrapper" className="mt-4 border-t border-gray-150 pt-4 mb-4">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-1.5">
-                      <div className={`w-2 h-2 rounded-full ${isFirebaseConfigured() ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-bounce'}`} />
-                      <span className="font-mono text-gray-500">
-                        Firebase: {isFirebaseConfigured() ? 'Live Integration Active' : 'Pending Configuration'}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowConfigEditor(!showConfigEditor)}
-                      className="text-[#0070f3] hover:underline font-bold font-mono text-[10px] cursor-pointer"
-                    >
-                      {showConfigEditor ? '[Hide Editor]' : '[Configure Firebase]'}
-                    </button>
-                  </div>
 
-                  {showConfigEditor && (
-                    <div id="firebase-dynamic-editor" className="mt-3 p-4 bg-[#f9fafb] border border-gray-200 rounded-xl space-y-3">
-                      <div>
-                        <span className="text-[10px] font-mono tracking-wider text-gray-500 font-bold uppercase block mb-1">Paste Firebase Web App Credentials</span>
-                        <p className="text-[10px] text-gray-400 leading-normal mb-2">
-                          Paste the configuration JSON or initial script config copied from your Firebase Auth project (Settings &gt; General &gt; Your apps &gt; Web App).
-                        </p>
-                        <textarea
-                          placeholder={`{\n  "apiKey": "AIzaSy...",\n  "authDomain": "mountech-academy.firebaseapp.com",\n  "projectId": "mountech-academy",\n  "appId": "..."\n}`}
-                          value={pastedConfigText}
-                          onChange={(e) => setPastedConfigText(e.target.value)}
-                          rows={6}
-                          className="w-full bg-white border border-gray-200 text-[11px] font-mono text-[#111827] placeholder-gray-400 rounded-lg p-2.5 focus:outline-hidden focus:ring-1 focus:ring-[#0070f3] focus:border-[#0070f3]"
-                        />
-                      </div>
-
-                      {editorError && (
-                        <div className="p-2 border border-red-100 bg-red-50 text-red-700 rounded-lg text-[10px] font-semibold">
-                          ⚠ {editorError}
-                        </div>
-                      )}
-
-                      {editorSuccess && (
-                        <div className="p-2 border border-green-100 bg-green-50 text-green-700 rounded-lg text-[10px] font-semibold">
-                          ✓ {editorSuccess}
-                        </div>
-                      )}
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={handleSaveConfig}
-                          className="flex-1 bg-[#111827] hover:bg-emerald-700 text-white py-1.5 px-3 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer shadow-3xs"
-                        >
-                          Save & Connect
-                        </button>
-                        {isFirebaseConfigured() && (
-                          <button
-                            type="button"
-                            onClick={clearFirebaseConfig}
-                            className="bg-red-50 hover:bg-red-150 text-red-600 border border-red-150 py-1.5 px-3 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer"
-                          >
-                            Reset Key
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
               </>
             )}
           </div>
