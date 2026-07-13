@@ -855,27 +855,39 @@ export default function SignIn({ onSignInSuccess }: SignInProps) {
           </div>
 
           <div>
-            {/* Quick Demo Credentials Box */}
-            <div id="demo-credentials-box" className="p-4 bg-white border border-gray-200 rounded-xl space-y-2 shadow-3xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono tracking-wider text-[#0070f3] font-bold">DEMO ACCOUNT</span>
-                <button
-                  id="autofill-demo-btn"
-                  type="button"
-                  onClick={handleAutofill}
-                  className="text-[10px] text-[#0070f3] hover:underline font-bold cursor-pointer"
-                >
-                  Auto-fill Form
-                </button>
-              </div>
-              <div className="space-y-1 text-xs font-mono">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Email:</span>
-                  <span className="text-[#4b5563]">{DEMO_EMAIL}</span>
+            {/* Quick Features List */}
+            <div className="p-5 bg-white border border-gray-150 rounded-2xl space-y-4 shadow-3xs">
+              <span className="text-[10px] font-mono tracking-wider text-[#0070f3] font-bold uppercase block mb-1">Academy Platform Features</span>
+              
+              <div className="space-y-3.5">
+                <div className="flex items-start gap-3 text-left">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50/70 flex items-center justify-center shrink-0 text-[#0070f3]">
+                    <CheckCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-[#111827]">Secure Syllabus Viewer</h5>
+                    <p className="text-[11px] text-gray-500 leading-normal">Encrypted, watermarked browser-level protected reader mode.</p>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Password:</span>
-                  <span className="text-[#4b5563]">{DEMO_PASSWORD}</span>
+
+                <div className="flex items-start gap-3 text-left">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50/70 flex items-center justify-center shrink-0 text-[#0070f3]">
+                    <CheckCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-[#111827]">Next-Gen Media Pipeline</h5>
+                    <p className="text-[11px] text-gray-500 leading-normal">Direct cloud bucket uploads and high-fidelity video processing.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 text-left">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50/70 flex items-center justify-center shrink-0 text-[#0070f3]">
+                    <CheckCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-[#111827]">Academic Certifications</h5>
+                    <p className="text-[11px] text-gray-500 leading-normal">Simulated interactive exams and instant credit scores.</p>
+                  </div>
                 </div>
               </div>
             </div>
